@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import shutil
 import sys
@@ -126,6 +127,21 @@ class HatDurumu:
 def _task_dizinleri(envs: Path) -> list[Path]:
     return [p.parent for p in sorted(envs.glob("*/task.yaml"))
             if not p.parent.name.startswith("_")]
+
+
+def _split_suzgeci(hedef: list[Path], split_yolu: str, bolum: str) -> list[Path]:
+    """Bant/degerlendirme yalnizca split'in bir bolumunde kossun.
+
+    Held-out'un tek isi epoch'lar arasi karsilastirmayi tasimak; egitimde
+    gorulen gorevlerle karistirilirsa o karsilastirma anlamini yitirir.
+    """
+    if not split_yolu or not bolum:
+        return hedef
+    split = json.loads(Path(split_yolu).read_text(encoding="utf-8"))
+    izinli = {Path(k["dir"]).name for k in split[bolum]}
+    secilen = [d for d in hedef if d.name in izinli]
+    print(f"  split suzgeci: {bolum} -> {len(secilen)}/{len(hedef)} gorev")
+    return secilen
 
 
 def _karantinaya(task_dir: Path, karantina: str) -> None:
@@ -354,6 +370,12 @@ def main() -> int:
                         help="bant asamasinda task basina rollout")
     parser.add_argument("--protocol", choices=["auto", "native", "text"], default="auto")
     parser.add_argument("--bant-out", default="data/bant.jsonl")
+    parser.add_argument("--split", default="",
+                        help="split.json yolu -- bant/degerlendirmeyi bir bolumle sinirlar")
+    parser.add_argument("--bolum", default="", choices=["", "train", "holdout"],
+                        help="--split verildiyse hangi bolum olculsun")
+    parser.add_argument("--sicaklik", type=float, default=-1.0,
+                        help="degerlendirmede 0 kullan; -1 = modelin varsayilani")
     parser.add_argument("--model", default="")
     parser.add_argument("--base-url", default="")
     parser.add_argument("--api-key", default="")

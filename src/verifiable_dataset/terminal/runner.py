@@ -56,6 +56,11 @@ _TAG_RE = re.compile(r"<komut>\s*(.*?)\s*</komut>", re.DOTALL | re.IGNORECASE)
 # kesiliyor, komut uretemiyor ve episode bos bir turla ilerliyor. Qwen3.5
 # basit bir toplama icin bile 200 token'i asiyor.
 MAX_TOKENS = int(os.environ.get("VDS_MAX_TOKENS", "2048"))
+
+# Degerlendirmede 0 kullaniliyor: epoch'lar arasi farkin ornekleme
+# gurultusu degil model degisimi oldugunu soyleyebilmek icin cozum
+# deterministik olmali. Egitim rollout'larinda varsayilan 0.7 kaliyor.
+TEMPERATURE = float(os.environ.get("VDS_TEMPERATURE", "0.7"))
 _FENCE_RE = re.compile(r"```(?:bash|sh|shell)?\s*\n(.*?)```", re.DOTALL)
 
 
@@ -215,7 +220,7 @@ def run_model_text(task: Task, client, model: str, verbose: bool = True) -> Epis
         for turns in range(1, task.max_turns + 1):
             try:
                 response = client.chat.completions.create(
-                    model=model, messages=messages, temperature=0.7,
+                    model=model, messages=messages, temperature=TEMPERATURE,
                     max_tokens=MAX_TOKENS,
                 )
             except Exception as e:  # noqa: BLE001 - surface API failures as episode errors
