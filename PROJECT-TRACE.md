@@ -350,3 +350,90 @@ held-out ancak ayni kume kaldigi surece epoch'lar arasi anlam tasir.
 
 **Uretim Colab'e tasinmiyor** -- Docker'li lokal makinede kaliyor. Colab
 yalnizca egitim, bant olcumu ve degerlendirme icin.
+
+---
+
+## Bolum 4 — Colab'de ilk olcumler ve GRPO kurulumu (2026-09-09)
+
+### Ortam kurma sirasinda cikan gercek engeller
+
+| Engel | Teshis | Cozum |
+|---|---|---|
+| vLLM hic ayaga kalkmadi | `pip install vllm` torch'u cu130'a cikardi, Colab'in torchaudio'su cu128 kaldi | torchaudio kaldirildi (vLLM metin modelleri icin ona ihtiyac duymuyor) |
+| Arac cagrisi ayristirilamadi | `--tool-call-parser hermes` Qwen3.5'in `<function=...><parameter=...>` bicimini tanimiyor | `--protocol text` (`<komut>` etiketleri) -- ayristiriciya hic ihtiyac yok |
+| `reasoning_effort="none"` | DeepSeek'te dusunmeyi kapatiyordu; **Qwen3.5'te ciktiyi bozuyor** ("12+17" -> 55, 3 token) | Bu modelde kullanilmiyor; dogru anahtar `chat_template_kwargs={"enable_thinking": False}` |
+
+### Dusunme acik/kapali karari
+Kullanici karari: **dusunme ACIK**. Gerekce: kod gorevlerinde muhakeme
+gercekten yardimci oluyor ve en buyuk sorunumuz OLU-zor havuzuydu.
+Maliyeti olculdu: istek basina ~530 cikis token, epoch suresi yaklasik
+iki katina cikiyor.
+
+Dusunce `reasoning_content`'e degil dogrudan `content`'e akiyor.
+
+### Baglam siniri -- olcumu bozan hata
+Ilk bant kosusunda `--max-model-len 8192` ile **640 episode'un 139'u (%22)**
+baglam tasmasindan hata aldi ve cozulmemis sayildi; olcum OLU-zor'a dogru
+yanliydi. 32k'ya cikarilinca:
+
+| | 8k (yanli) | **32k** |
+|---|---|---|
+| BANT | 41 | **47 / 80 (%59)** |
+| OLU-kolay | 7 | 6 |
+| OLU-zor | 32 | **27** |
+| Hatali gorev | 64 | **1** |
+| Ortalama pass_rate | 0.333 | 0.392 |
+| Ortalama tur | 5.99 | 6.50 |
+| Sure | 16.7 dk | 21.5 dk |
+
+### KOD KORPUSU BANT OLCUMU (Qwen3.5-4B, dusunme acik, G=8)
+
+| Hedef | BANT | OLU-kolay | OLU-zor | BANT% |
+|---|---|---|---|---|
+| `hata-bul` | 24 | 2 | 4 | **%80** |
+| `veri-yapisi` | 17 | 2 | 12 | %55 |
+| `yarisma` | 6 | 2 | 11 | %32 |
+| **Toplam** | **47** | **6** | **27** | **%59** |
+
+Kabuk korpusunda (DeepSeek ile olculmustu) bu oran %29'du. **Kod ailesi
+egitim sinyali acisindan belirgin sekilde daha iyi** -- ve en iyi alt grup
+(`hata-bul`, %80) ayni zamanda SWE-bench'e en yakin olani.
+
+Throughput: 640 episode / 21.5 dk, GPU %85. Epoch tahmini artik tahmin degil.
+
+### TRL kurtarma operasyonu
+TRL 1.12 + vLLM 0.29 **import bile edilemiyor** (`NCCLTrainerSendWeightsArgs`).
+vLLM 0.27.1'e dusuruldu; iki kontrol de gecti: TRL import ediyor ve
+`Qwen3_5ForConditionalGeneration` destekleniyor.
+
+**Buyuk kazanc**: TRL 1.12'de `environment_factory` var. Cok turlu arac
+dongusunu, **arac ciktisi token'larinin loss'tan maskelenmesini**
+(`tool_mask`, Faz 3'te sart kostugumuz sey) ve vLLM colocate agirlik
+senkronunu TRL yurutuyor. Planlanan koprü kodu uc metoda indi:
+`reset` / `run_command` / `get_reward`.
+
+Ortam dogrulandi: hicbir sey yapmadan odul 0.0, referans cozumden sonra 1.0.
+
+### Bellek: 4B full FT + colocate vLLM 80 GB'a zar zor sigiyor
+
+| Deneme | Sonuc |
+|---|---|
+| `vllm_gpu_memory_utilization=0.30` | vLLM'e KV cache icin yer kalmadi |
+| `=0.85` | baslangicta o kadar bos bellek yok (61.84 < 67.36 GiB) |
+| mikro-batch 8 | `lm_head` OOM: 8 episode x 2048 token x 152k kelime = 7.58 GiB logit tensoru |
+| **uyku modu + mikro-batch 2 + 0.45** | **calisti** (GPU %100, 52 GB) |
+
+Belirleyici olan `vllm_enable_sleep_mode`: vLLM uretim disinda bellegi
+biraktigi icin egiticinin (~40 GB) ve vLLM'in zirveleri ust uste binmiyor.
+
+### Colab runtime kaybi -- alinan ders
+Egitim ilk adimlarindayken **runtime yeniden atandi**: repo, 9.3 GB model
+cache, kurulumlar ve bant kayitlari silindi. `data/*` gitignore'da oldugu
+icin bant olcumu hic push edilmemisti.
+
+Alinan onlemler:
+- `data/bant-*.jsonl` gitignore'dan muaf tutuldu (olcum pahali, deneyin kaydi)
+- Bir sonraki kurulumda **once Drive baglanacak**, cikti ve checkpoint oraya yazilacak
+
+Colab oturumu kalici degil; bunu varsayan her sey (kurulum, cache, cikti)
+yeniden uretilebilir ya da Drive'da olmali.

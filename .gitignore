@@ -16,6 +16,8 @@ venv/
 # (Dizin dislanirsa git icindeki dosyayi geri alamiyor, o yuzden data/*)
 data/*
 !data/split.json
+# Bant olcumu pahali (A100'de ~20 dk) ve deneyin kaydi; kaybolmasin.
+!data/bant-*.jsonl
 
 # Kapilarda reddedilen adaylar: teshis icin tutuluyor, veri setinin parcasi degil.
 envs_gen/_red/
