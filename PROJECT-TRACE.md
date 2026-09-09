@@ -503,3 +503,82 @@ Karar ertelendi; once trendi gormek gerekiyor.
 `save_steps=20`, yani ilk checkpoint 20. adimda (~80 dk). O ana kadar
 kopma olursa is bastan baslar. Adim basina kaydetmek pratik degil:
 4B checkpoint ~8 GB ve Drive'a yazmak 8-13 dk suruyor.
+
+---
+
+## Bolum 6 — Epoch 1 sonucu: veri seti ogretiyor, ama neyi ogrettigi korpusa bagli (2026-09-10)
+
+### Held-out olcumu (78 gorev, sicaklik 0, tek rollout, ayni protokol)
+
+| Held-out | epoch 0 | epoch 1 | Delta |
+|---|---|---|---|
+| **Kod** (24) | 9 (%37.5) | 4 (**%16.7**) | **-20.8** |
+| **Kabuk** (54) | 5 (%9.3) | 11 (**%20.4**) | **+11.1** |
+| **Toplam** (78) | 14 (%17.9) | 15 (%19.2) | +1.3 |
+
+Ayrinti:
+
+| Kume | Cozulen | Ort. tur | Ort. kismi |
+|---|---|---|---|
+| epoch0 kabuk | 5/54 | 6.37 | 0.099 |
+| epoch1 kabuk | 11/54 | 6.11 | **0.237** |
+| epoch0 kod | 9/24 | 6.71 | 0.375 |
+| epoch1 kod | 4/24 | **5.67** | **0.167** |
+
+Gorev bazinda: kod'da 8 kayip / 3 kazanc, kabuk'ta 8 kazanc / 2 kayip.
+
+### Okuma
+- **Kabuk'taki iyilesme gercek**: ikili odul iki katindan fazla artti ve
+  kismi puan da 0.099 -> 0.237. Kismi puan daha az kesikli oldugu icin bu
+  daha guclu kanit -- model onceden hicbir check'i gecemedigi gorevlerde
+  artik bir kismini geciyor.
+- **Kod'daki dusus de gercek**: ikili ve kismi ayni yonde, tur sayisi
+  6.71 -> 5.67 (%16 dusus). Kabukta tur neredeyse degismedi.
+- Iki aciklama var, ayirmak zor: (a) model daha kestirme davranmayi
+  ogrendi -- kabukta ise yariyor, kod'da "pes etmek" demek; (b) egitim
+  korpusunun **ucte ikisi kabuk**ti, politika o tarafa kaydi.
+
+### Plandaki esik
+"+%15 mutlak" hedefi konmustu. Toplamda **+%1.3** (14 -> 15 gorev).
+Esik yakalanmadi; tek epoch icin zaten beklenmiyordu. Asil bilgi
+toplamda degil **ayrismada**.
+
+### Alinan ders: olcmeden egitime katmak
+"173 gorevin hepsiyle egitelim, kabuk bandini olcmedik ama GRPO kendini
+duzeltir" karari **yanlis cikti**. GRPO gercekten kendini duzeltti
+(kabuk gorevleri egitimi bozmadi) ama cogunluk olduklari icin politikayi
+kendi tarzlarina cektiler ve onemsedigimiz kod tarafina zarar verdiler.
+
+Baseline ayrica kabuk korpusunun bu model icin ne kadar zor oldugunu
+gosterdi: **%9.3**. 54 gorevin 49'u cozulemiyor, yani cogunda 8 rollout'un
+8'i de basarisiz -> grup ici varyans sifir -> gradyan yok. Yuksek
+`frac_reward_zero_std`'nin kaynagi buydu.
+
+### KESILME: ortuk uzunluk cezasi (olculdu)
+`max_completion_length = 2048` ile episode'larin **%40'i kesiliyordu**.
+42 adimlik veriden:
+
+```
+korelasyon(odul, kesilme_orani)    = -0.507
+korelasyon(odul, ortalama_uzunluk) = -0.523
+korelasyon(kesilme, uzunluk)       = +0.753
+```
+
+Uzun -> kesiliyor -> odul 0 -> negatif avantaj. Sinir bir butce degil,
+**ortuk bir uzunluk cezasi** haline gelmis. RLVR'de bilinen bir patoloji
+(DAPO kesilen rollout'lari ayri ele aliyor).
+
+Duzeltme: `--max-completion` varsayilani 2048 -> **6144**,
+`--vllm-baglam` 8192 -> **16384**, ve baglam completion'a gore darsa
+uyari basiliyor. Bir episode'un TAMAMI (butun turlar + arac ciktilari)
+completion butcesine sayiliyor.
+
+Not: "egitim boyunca uzunluk 1379 -> 1100 dustu" gozlemi **yanlisti** --
+uc noktalar secilmisti. Gercek: ilk 10 adim 1221, son 10 adim 1201.
+Egitim sirasinda sistematik kisalma yok; kisalma degerlendirmede goruldu.
+
+### Epoch 2 icin oneri
+Sadece **kod** korpusu ile egitmek -- bu sabahki karara gore tam ters,
+ama artik olcum var. Kabuk gorevlerinin %91'i cozulemiyor, yani compute'un
+ucte ikisi gradyan uretmeyen gruplara gidiyor ve uretebildigi kadari da
+politikayi istemedigimiz yone cekiyor.

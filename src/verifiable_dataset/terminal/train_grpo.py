@@ -166,13 +166,20 @@ def main() -> int:
     ap.add_argument("--lr", type=float, default=1e-6)
     ap.add_argument("--beta", type=float, default=0.0, help="KL katsayisi")
     ap.add_argument("--max-komut", type=int, default=12)
-    ap.add_argument("--max-completion", type=int, default=2048)
+    ap.add_argument("--max-completion", type=int, default=6144,
+                    help="Bir episode'un TAMAMI (butun turlar + arac ciktilari) "
+                         "bu butceye sigmali. 2048 ile episode'larin %40'i "
+                         "kesiliyordu ve kesilen episode odul 0 aliyordu: "
+                         "korelasyon(odul, kesilme) = -0.51. Yani sinir bir "
+                         "butce degil ortuk bir uzunluk cezasi haline geliyordu.")
     ap.add_argument("--sandbox", choices=["docker", "yerel"], default="yerel")
     ap.add_argument("--vllm-bellek", type=float, default=0.45)
     ap.add_argument("--vllm-uyku", action="store_true", default=True,
                     help="uretim disinda vLLM bellegi biraksin (colocate'te sart)")
-    ap.add_argument("--vllm-baglam", type=int, default=8192,
-                    help="vLLM baglam siniri -- KV cache bunun kadar yer kapliyor")
+    ap.add_argument("--vllm-baglam", type=int, default=16384,
+                    help="vLLM baglam siniri -- KV cache bunun kadar yer kapliyor. "
+                         "Prompt + completion buraya sigmali, yani "
+                         "--max-completion'dan belirgin buyuk olmali.")
     ap.add_argument("--wandb", default="", help="wandb proje adi (bos = kapali)")
     args = ap.parse_args()
 
@@ -188,6 +195,14 @@ def main() -> int:
             print(f"Docker daemon'a ulasilamiyor: {bilgi}")
             return 1
     print(f"sandbox: {args.sandbox} ({bilgi})")
+
+    # Kesilme sessiz bir hata: episode yarim kalir, odul 0 gelir ve gradyan
+    # "kisa uret" der. Baglam completion'a esit ya da yakinsa prompt'a yer
+    # kalmaz ve bu her episode'da olur.
+    if args.vllm_baglam < args.max_completion + 2048:
+        print(f"UYARI: --vllm-baglam ({args.vllm_baglam}) "
+              f"--max-completion ({args.max_completion}) icin dar; "
+              f"prompt'a yer birakmiyor. En az {args.max_completion + 2048} onerilir.")
 
     os.environ.setdefault("TRL_EXPERIMENTAL_SILENCE", "1")
     if args.wandb:
