@@ -158,6 +158,10 @@ def main() -> int:
     ap.add_argument("--rollouts", type=int, default=8, help="G -- grup basina rollout")
     ap.add_argument("--prompt-batch", type=int, default=4,
                     help="iterasyon basina prompt sayisi (x rollouts = episode)")
+    ap.add_argument("--micro-batch", type=int, default=2,
+                    help="ayni anda ileri gecen episode sayisi. Logit tensoru "
+                         "batch x uzunluk x kelime_dagarcigi kadar yer kapliyor; "
+                         "8 episode x 2048 token x 152k kelime A100'u tasiriyor.")
     ap.add_argument("--epoch", type=float, default=1.0)
     ap.add_argument("--lr", type=float, default=1e-6)
     ap.add_argument("--beta", type=float, default=0.0, help="KL katsayisi")
@@ -195,10 +199,12 @@ def main() -> int:
     cfg = GRPOConfig(
         output_dir=args.cikti,
         num_generations=args.rollouts,
-        # Bir iterasyonda B prompt x G rollout episode uretiliyor; TRL
-        # bunlari per_device_train_batch_size'a gore minibatch'liyor.
-        per_device_train_batch_size=args.rollouts,
-        gradient_accumulation_steps=args.prompt_batch,
+        # Bir iterasyonda B prompt x G rollout episode uretiliyor. Optimizer
+        # adimi basina episode sayisi sabit kalsin diye biriktirme mikro
+        # batch'e gore hesaplaniyor.
+        per_device_train_batch_size=args.micro_batch,
+        gradient_accumulation_steps=max(
+            1, (args.rollouts * args.prompt_batch) // args.micro_batch),
         num_train_epochs=args.epoch,
         learning_rate=args.lr,
         beta=args.beta,
