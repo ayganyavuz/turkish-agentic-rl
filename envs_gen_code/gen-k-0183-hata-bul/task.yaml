@@ -1,0 +1,90 @@
+id: gen-k-0183-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  bank/balance.py dosyasındaki closing_balance fonksiyonunu, verilen gün numarasının (1-tabanlı) sonundaki bakiyeyi doğru hesaplayacak şekilde düzelt. Fonksiyon, işlemleri bank/transactions.py içindeki parse_transactions yardımıyla ayrıştırıyor; ancak şu anki döngü, istenen güne kadar olan işlemleri yanlış sayıda işliyor. Verilen günün sonundaki bakiye, o güne kadar yapılan tüm işlemlerin toplamı olmalı; yani 1. gün sonunda yalnızca ilk işlem, 2. gün sonunda ilk iki işlem hesaba katılmalı. data.txt dosyasındaki örnek verilerle test ederek fonksiyonun doğru sonuçlar verdiğini doğrula.
+
+setup: |
+  mkdir -p bank
+  cat > bank/transactions.py <<'PY'
+  def parse_transactions(text):
+      entries = []
+      for line in text.strip().splitlines():
+          date, desc, amount = line.split('|')
+          entries.append((date, desc, float(amount)))
+      return entries
+  PY
+  cat > bank/balance.py <<'PY'
+  from bank.transactions import parse_transactions
+
+
+  def closing_balance(text, day):
+      """Return balance at end of the given day (1-based day index)."""
+      entries = parse_transactions(text)
+      balance = 0.0
+      for i in range(day - 1):
+          balance += entries[i][2]
+      return balance
+  PY
+  cat > data.txt <<'DATA'
+  2024-01-01|deposit|100.0
+  2024-01-02|withdraw|-30.0
+  2024-01-03|deposit|50.0
+  2024-01-04|withdraw|-20.0
+  2024-01-05|deposit|10.0
+  DATA
+
+goal_tr: >
+  bank/balance.py icindeki closing_balance fonksiyonunu, verilen gun
+  numarasinin (1-tabanli) sonundaki bakiyeyi dogru hesaplayacak sekilde
+  duzelt
+
+reference_solution: |
+  cat > bank/balance.py <<'PY'
+  from bank.transactions import parse_transactions
+
+
+  def closing_balance(text, day):
+      """Return balance at end of the given day (1-based day index)."""
+      entries = parse_transactions(text)
+      balance = 0.0
+      for i in range(day):
+          balance += entries[i][2]
+      return balance
+  PY
+
+outputs:
+  - {path: bank/balance.py, kind: program, run: 'python3 -c ''from bank.balance import closing_balance as f; t=open("data.txt").read(); assert f(t,1)==100.0, f(t,1); assert f(t,2)==70.0, f(t,2); assert f(t,3)==120.0, f(t,3); assert f(t,4)==100.0, f(t,4); assert f(t,5)==110.0, f(t,5); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bank.balance import closing_balance as f; t=open("data.txt").read(); assert f(t,1)==100.0, f(t,1); assert f(t,2)==70.0, f(t,2); assert f(t,3)==120.0, f(t,3); assert f(t,4)==100.0, f(t,4); assert f(t,5)==110.0, f(t,5); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0183
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: banka-hareketleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: off-by-one

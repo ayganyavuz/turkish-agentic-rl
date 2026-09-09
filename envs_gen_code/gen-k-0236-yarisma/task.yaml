@@ -1,0 +1,82 @@
+id: gen-k-0236-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) banking/transactions.py dosyasındaki load_transactions fonksiyonunu düzelt: her satırda işlem türü "deposit" ise tutar pozitif, "withdraw" ise tutar negatif olacak şekilde işle.
+
+  2) Bu düzeltmeyi yaparken dosyanın mevcut yapısını koru; yalnızca tutarların işaretini işlem türüne göre ayarla.
+
+setup: |
+  mkdir -p banking
+  cat > banking/transactions.py <<'TRANS'
+  def load_transactions(path):
+      with open(path) as f:
+          lines = f.read().strip().splitlines()
+      result = []
+      for line in lines:
+          parts = line.split(',')
+          result.append((parts[0], int(parts[1])))
+      return result
+  TRANS
+  cat > data.txt <<'DATA'
+  deposit,100
+  withdraw,30
+  deposit,50
+  withdraw,20
+  DATA
+
+goal_tr: >
+  banking/transactions.py icindeki load_transactions fonksiyonunu, islemleri
+  okurken her satirda "deposit" ise tutari pozitif, "withdraw" ise tutari
+  negatif yapacak sekilde duzelt
+
+reference_solution: |
+  cat > banking/transactions.py <<'TRANS'
+  def load_transactions(path):
+      with open(path) as f:
+          lines = f.read().strip().splitlines()
+      result = []
+      for line in lines:
+          parts = line.split(',')
+          amount = int(parts[1])
+          if parts[0] == 'withdraw':
+              amount = -amount
+          result.append((parts[0], amount))
+      return result
+  TRANS
+
+outputs:
+  - {path: banking/transactions.py, kind: program, run: 'python3 -c ''from banking.transactions import load_transactions; tx=load_transactions("data.txt"); assert tx==[("deposit",100),("withdraw",-30),("deposit",50),("withdraw",-20)], tx; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from banking.transactions import load_transactions; tx=load_transactions("data.txt"); assert tx==[("deposit",100),("withdraw",-30),("deposit",50),("withdraw",-20)], tx; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0236
+    bundle: yarisma
+    tools:
+    - python3
+    konu: banka-hareketleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: acgozlu

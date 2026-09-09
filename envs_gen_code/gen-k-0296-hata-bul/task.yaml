@@ -1,0 +1,116 @@
+id: gen-k-0296-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  sensor/analyzer.py içindeki max_in_last_n fonksiyonunu, son n okumadaki en büyük değeri doğru döndürecek şekilde düzelt.
+
+  Su şartlar sağlanmalı:
+  - sensor/analyzer.py dosyasında max_in_last_n fonksiyonu, verilen metindeki okumalardan son n tanesini almalı ve bu okumalardaki en büyük değeri döndürmelidir.
+  - n değeri 0 veya negatif olduğunda fonksiyon None döndürmelidir.
+  - Okumalar, data.txt dosyasındaki örnek verilerle test edildiğinde doğru sonuçlar üretilmelidir.
+
+setup: |
+  mkdir -p sensor
+  cat > sensor/reader.py <<'READER'
+  def read_samples(text):
+      samples = []
+      for line in text.strip().splitlines():
+          ts, val = line.split(',')
+          samples.append((int(ts), float(val)))
+      return samples
+  READER
+  cat > sensor/analyzer.py <<'ANALYZER'
+  from sensor.reader import read_samples
+
+
+  def peak_after(text, start_ts):
+      samples = read_samples(text)
+      window = [v for ts, v in samples if ts >= start_ts]
+      if not window:
+          return None
+      max_val = window[0]
+      for v in window[1:]:
+          if v > max_val:
+              max_val = v
+      return max_val
+
+
+  def max_in_last_n(text, n):
+      samples = read_samples(text)
+      if n <= 0:
+          return None
+      recent = samples[-n + 1:]
+      return max(v for ts, v in recent)
+  ANALYZER
+  cat > data.txt <<'DATA'
+  1,10.0
+  2,25.0
+  3,15.0
+  4,30.0
+  5,20.0
+  DATA
+
+goal_tr: >
+  sensor/analyzer.py icindeki max_in_last_n fonksiyonunu, son n okumadaki en
+  buyuk degeri dogru dondurecek bicimde duzelt.
+
+reference_solution: |
+  cat > sensor/analyzer.py <<'ANALYZER'
+  from sensor.reader import read_samples
+
+
+  def peak_after(text, start_ts):
+      samples = read_samples(text)
+      window = [v for ts, v in samples if ts >= start_ts]
+      if not window:
+          return None
+      max_val = window[0]
+      for v in window[1:]:
+          if v > max_val:
+              max_val = v
+      return max_val
+
+
+  def max_in_last_n(text, n):
+      samples = read_samples(text)
+      if n <= 0:
+          return None
+      recent = samples[-n:]
+      return max(v for ts, v in recent)
+  ANALYZER
+
+outputs:
+  - {path: sensor/analyzer.py, kind: program, run: 'python3 -c ''from sensor.analyzer import max_in_last_n as f, peak_after as p; t=open("data.txt").read(); assert p(t,3)==30.0; assert f(t,1)==20.0, f(t,1); assert f(t,2)==30.0; assert f(t,3)==30.0; assert f(t,5)==30.0; assert f(t,0) is None; assert f(t,-1) is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor.analyzer import max_in_last_n as f, peak_after as p; t=open("data.txt").read(); assert p(t,3)==30.0; assert f(t,1)==20.0, f(t,1); assert f(t,2)==30.0; assert f(t,3)==30.0; assert f(t,5)==30.0; assert f(t,0) is None; assert f(t,-1) is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0296
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: off-by-one

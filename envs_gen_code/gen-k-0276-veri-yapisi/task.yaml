@@ -1,0 +1,126 @@
+id: gen-k-0276-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) cache/lru.py dosyasındaki LRUCache sınıfının get ve put metotlarını gerçekleştir.
+
+  2) `get(key)` metodu, verilen anahtara karşılık gelen değeri döndürmeli ve bu anahtarı en son kullanılan konuma taşımalı.
+
+  3) `put(key, value)` metodu, verilen anahtar-değer çiftini önbelleğe eklemeli; eğer anahtar zaten varsa değerini güncellemeli ve bu anahtarı en son kullanılan konuma taşımalı.
+
+  4) Önbellek kapasitesi dolduğunda, en az kullanılan (en eski) öğe önbellekten çıkarılmalı ve sipariş kayıtları doğru şekilde yönetilmelidir.
+
+setup: |
+  mkdir -p cache
+  cat > cache/storage.py <<'STORAGE'
+  class Storage:
+      def __init__(self):
+          self.items = {}
+
+      def get(self, key):
+          return self.items.get(key)
+
+      def put(self, key, value):
+          self.items[key] = value
+
+      def remove(self, key):
+          if key in self.items:
+              del self.items[key]
+  STORAGE
+  cat > cache/lru.py <<'LRU'
+  from cache.storage import Storage
+
+
+  class LRUCache:
+      def __init__(self, capacity):
+          self.capacity = capacity
+          self.storage = Storage()
+          self.order = []
+
+      def get(self, key):
+          raise NotImplementedError
+
+      def put(self, key, value):
+          raise NotImplementedError
+  LRU
+  cat > data.csv <<'CSV'
+  order1,itemA
+  order2,itemB
+  order3,itemC
+  order4,itemD
+  CSV
+
+goal_tr: >
+  cache/lru.py icindeki LRUCache sinifini, kapasite dolunca en az kullanilan
+  ogeleri atan ve siparis kayitlarini dogru yoneten bir onbellek olacak
+  sekilde gerceklestir
+
+reference_solution: |
+  cat > cache/lru.py <<'LRU'
+  from cache.storage import Storage
+
+
+  class LRUCache:
+      def __init__(self, capacity):
+          self.capacity = capacity
+          self.storage = Storage()
+          self.order = []
+
+      def _touch(self, key):
+          if key in self.order:
+              self.order.remove(key)
+          self.order.append(key)
+
+      def get(self, key):
+          if key in self.storage.items:
+              self._touch(key)
+              return self.storage.get(key)
+          return None
+
+      def put(self, key, value):
+          if key in self.storage.items:
+              self._touch(key)
+              self.storage.put(key, value)
+          else:
+              if len(self.order) >= self.capacity:
+                  evict_key = self.order.pop(0)
+                  self.storage.remove(evict_key)
+              self.order.append(key)
+              self.storage.put(key, value)
+  LRU
+
+outputs:
+  - {path: cache/lru.py, kind: program, run: 'python3 -c ''from cache.lru import LRUCache; c=LRUCache(3); c.put("order1","itemA"); c.put("order2","itemB"); c.put("order3","itemC"); assert c.get("order1")=="itemA"; c.put("order4","itemD"); assert c.get("order1")=="itemA"; assert c.get("order2") is None; assert c.get("order3")=="itemC"; assert c.get("order4")=="itemD"; assert c.get("order1")=="itemA"; c.put("order2","itemB"); assert c.get("order3") is None; assert c.get("order2")=="itemB"; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from cache.lru import LRUCache; c=LRUCache(3); c.put("order1","itemA"); c.put("order2","itemB"); c.put("order3","itemC"); assert c.get("order1")=="itemA"; c.put("order4","itemD"); assert c.get("order1")=="itemA"; assert c.get("order2") is None; assert c.get("order3")=="itemC"; assert c.get("order4")=="itemD"; assert c.get("order1")=="itemA"; c.put("order2","itemB"); assert c.get("order3") is None; assert c.get("order2")=="itemB"; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0276
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: lru-onbellek

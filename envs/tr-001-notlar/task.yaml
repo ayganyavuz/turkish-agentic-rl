@@ -5,7 +5,7 @@ workdir: /workspace
 max_turns: 8
 
 prompt: |
-  Bir Linux terminalindesin, çalışma dizinin /workspace.
+  Bir Linux terminalindesin, çalışma dizinin ..
 
   "notlar" adında bir klasör oluştur. Bu klasörün içine "yapilacaklar.txt"
   adında bir dosya oluştur ve içine her satırda bir tane olacak şekilde şu

@@ -13,7 +13,7 @@ setup: |
   printf 'BILGI baslangic\n' > dosyalar/sistem.log
 
 prompt: |
-  Bir Linux terminalindesin, çalışma dizinin /workspace.
+  Bir Linux terminalindesin, çalışma dizinin ..
 
   "dosyalar" klasöründe farklı uzantılara sahip dosyalar var. Bu klasörün
   içinde "txt", "csv" ve "log" adında üç alt klasör oluştur ve her dosyayı

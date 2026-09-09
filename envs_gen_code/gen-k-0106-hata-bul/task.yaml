@@ -1,0 +1,106 @@
+id: gen-k-0106-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  bank/report.py dosyasındaki daily_report fonksiyonunu düzelt. Bu fonksiyon, bankadaki hesapların günlük net değişimlerini doğru şekilde raporlamalı; başlangıç bakiyelerini sıfırlamamalı. Yani hesap bakiyeleri, işlemler uygulanmadan önceki değerleriyle korunmalı ve rapor, bu bakiyeler üzerinden hesaplanan net değişimleri göstermelidir. bank/report.py dosyasını bu gereksinime göre güncelle.
+
+setup: |
+  mkdir -p bank
+  cat > bank/accounts.py <<'ACCOUNTS'
+  def load_accounts(filename):
+      accounts = {}
+      with open(filename) as f:
+          for line in f:
+              acc_id, name, balance = line.strip().split(',')
+              accounts[acc_id] = {'name': name, 'balance': float(balance)}
+      return accounts
+  ACCOUNTS
+  cat > bank/transactions.py <<'TRANSACTIONS'
+  def process_transactions(accounts, filename):
+      with open(filename) as f:
+          for line in f:
+              parts = line.strip().split(',')
+              acc_id = parts[0]
+              txn_type = parts[1]
+              amount = float(parts[2])
+              if txn_type == 'deposit':
+                  accounts[acc_id]['balance'] += amount
+              elif txn_type == 'withdraw':
+                  accounts[acc_id]['balance'] -= amount
+      return accounts
+  TRANSACTIONS
+  cat > bank/report.py <<'REPORT'
+  from bank.accounts import load_accounts
+  from bank.transactions import process_transactions
+
+
+  def daily_report(accounts_file, transactions_file):
+      accounts = load_accounts(accounts_file)
+      process_transactions(accounts, transactions_file)
+      # Reset all balances to zero before computing net changes
+      for acc in accounts.values():
+          acc['balance'] = 0.0
+      process_transactions(accounts, transactions_file)
+      return accounts
+  REPORT
+  cat > accounts.csv <<'CSV'
+  A001,Alice,100.0
+  A002,Bob,200.0
+  CSV
+  cat > txns.csv <<'CSV'
+  A001,deposit,50.0
+  A002,withdraw,30.0
+  A001,withdraw,20.0
+  CSV
+
+goal_tr: >
+  bank/report.py icindeki daily_report fonksiyonunu, baslangic bakiyelerini
+  sifirlamadan dogru net degisimleri raporlayacak bicimde duzelt
+
+reference_solution: |
+  cat > bank/report.py <<'REPORT'
+  from bank.accounts import load_accounts
+  from bank.transactions import process_transactions
+
+
+  def daily_report(accounts_file, transactions_file):
+      accounts = load_accounts(accounts_file)
+      process_transactions(accounts, transactions_file)
+      return accounts
+  REPORT
+
+outputs:
+  - {path: bank/report.py, kind: program, run: 'python3 -c ''from bank.report import daily_report as f; a=f("accounts.csv","txns.csv"); assert abs(a["A001"]["balance"]-130.0)<1e-9, a["A001"]["balance"]; assert abs(a["A002"]["balance"]-170.0)<1e-9, a["A002"]["balance"]; assert a["A001"]["name"]=="Alice" and a["A002"]["name"]=="Bob"; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bank.report import daily_report as f; a=f("accounts.csv","txns.csv"); assert abs(a["A001"]["balance"]-130.0)<1e-9, a["A001"]["balance"]; assert abs(a["A002"]["balance"]-170.0)<1e-9, a["A002"]["balance"]; assert a["A001"]["name"]=="Alice" and a["A002"]["name"]=="Bob"; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0106
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: banka-hareketleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-durum-sifirlama

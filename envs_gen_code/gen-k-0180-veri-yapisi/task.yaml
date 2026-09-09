@@ -1,0 +1,136 @@
+id: gen-k-0180-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  transcript/transcript.py dosyasındaki TranscriptTrie sınıfının add_student ve get_student metotlarını gerçekleştir: add_student öğrenci kimliğini trie'ye eklemeli, get_student kayıtlı kimlik için Student nesnesi, kayıtlı olmayan için None döndürmeli.
+
+setup: |
+  mkdir -p transcript
+  cat > transcript/student.py <<'STUDENT'
+  class Student:
+      def __init__(self, sid):
+          self.sid = sid
+          self.courses = {}
+
+      def add_course(self, code, grade):
+          self.courses[code] = grade
+  STUDENT
+  cat > transcript/transcript.py <<'TRANSCRIPT'
+  from transcript.student import Student
+
+
+  class TranscriptTrie:
+      def __init__(self):
+          self.root = {}
+
+      def _insert(self, trie, sid):
+          for ch in sid:
+              if ch not in trie:
+                  trie[ch] = {}
+              trie = trie[ch]
+          trie['$'] = {}
+
+      def add_student(self, sid):
+          raise NotImplementedError("add_student not implemented")
+
+      def get_student(self, sid):
+          raise NotImplementedError("get_student not implemented")
+  TRANSCRIPT
+  cat > transcript/query.py <<'QUERY'
+  from transcript.transcript import TranscriptTrie
+
+
+  def add_grade(tt, sid, code, grade):
+      student = tt.get_student(sid)
+      if student is None:
+          raise ValueError("student not found")
+      student.add_course(code, grade)
+
+
+  def get_gpa(tt, sid):
+      student = tt.get_student(sid)
+      if student is None:
+          raise ValueError("student not found")
+      if not student.courses:
+          return 0.0
+      total_points = 0
+      total_credits = 0
+      grade_points = {'A': 4.0, 'B': 3.0, 'C': 2.0, 'D': 1.0, 'F': 0.0}
+      for code, grade in student.courses.items():
+          total_points += grade_points[grade]
+          total_credits += 1
+      return total_points / total_credits
+  QUERY
+
+goal_tr: >
+  transcript/transcript.py icindeki TranscriptTrie sinifinin add_student ve
+  get_student metotlarini dogru gerceklestir: add_student ogrenci kimligini
+  trie'ye eklemeli, get_student kayitli kimlik icin Student nesnesi, kayitli
+  olmayan icin None dondurmeli
+
+reference_solution: |
+  cat > transcript/transcript.py <<'TRANSCRIPT'
+  from transcript.student import Student
+
+
+  class TranscriptTrie:
+      def __init__(self):
+          self.root = {}
+
+      def _insert(self, trie, sid):
+          for ch in sid:
+              if ch not in trie:
+                  trie[ch] = {}
+              trie = trie[ch]
+          trie['$'] = {}
+
+      def add_student(self, sid):
+          self._insert(self.root, sid)
+
+      def get_student(self, sid):
+          def _find(trie, sid):
+              for ch in sid:
+                  if ch not in trie:
+                      return None
+                  trie = trie[ch]
+              if '$' in trie:
+                  return Student(sid)
+              return None
+          return _find(self.root, sid)
+  TRANSCRIPT
+
+outputs:
+  - {path: transcript/transcript.py, kind: program, run: 'python3 -c ''from transcript.transcript import TranscriptTrie; tt=TranscriptTrie(); tt.add_student("2021001"); assert tt.get_student("2021001") is not None; assert tt.get_student("2021002") is None; s=tt.get_student("2021001"); s.add_course("CS101","A"); assert s.courses["CS101"]=="A"; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from transcript.transcript import TranscriptTrie; tt=TranscriptTrie(); tt.add_student("2021001"); assert tt.get_student("2021001") is not None; assert tt.get_student("2021002") is None; s=tt.get_student("2021001"); s.add_course("CS101","A"); assert s.courses["CS101"]=="A"; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0180
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: terse
+    direnc: yok
+    bukulme: zor
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: trie

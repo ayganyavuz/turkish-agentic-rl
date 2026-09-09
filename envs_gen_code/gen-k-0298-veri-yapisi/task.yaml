@@ -1,0 +1,144 @@
+id: gen-k-0298-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  store/ledger.py dosyasındaki Ledger sınıfını tamamla. store/node.py dosyasındaki Node sınıfını kullanarak bağlı liste üzerinde şu metotları gerçekleştir: add metodu order_id ve amount parametrelerini alıp listeyi artan amount sırasını koruyacak şekilde yeni düğümü eklemeli; remove_top metodu en küçük amount'a sahip düğümü listeden silip onun order_id değerini döndürmeli; total metodu listedeki tüm amount değerlerinin toplamını döndürmeli; ids metodu ise order_id değerlerini listedeki sırayla (en küçük amount'tan en büyüğe) içeren bir liste döndürmeli. store/controller.py dosyasını değiştirme.
+
+setup: |
+  mkdir -p store
+  cat > store/node.py <<'NODE'
+  class Node:
+      def __init__(self, order_id, amount):
+          self.order_id = order_id
+          self.amount = amount
+          self.next = None
+  NODE
+  cat > store/ledger.py <<'LEDGER'
+  from store.node import Node
+
+
+  class Ledger:
+      """Singly linked list of orders, sorted by amount ascending."""
+      def __init__(self):
+          self.head = None
+
+      def add(self, order_id, amount):
+          """Insert a new node keeping the list sorted by amount (ascending)."""
+          raise NotImplementedError
+
+      def remove_top(self):
+          """Remove and return the order_id with the smallest amount."""
+          raise NotImplementedError
+
+      def total(self):
+          """Return the sum of all amounts in the list."""
+          raise NotImplementedError
+
+      def ids(self):
+          """Return a list of order_ids in list order (smallest first)."""
+          raise NotImplementedError
+  LEDGER
+  cat > store/controller.py <<'CONTROLLER'
+  from store.ledger import Ledger
+
+
+  def process_orders(actions):
+      """actions: list of tuples. ('add', id, amt) or ('remove',).
+      Returns list of order_ids removed by 'remove' actions in order."""
+      ledger = Ledger()
+      removed = []
+      for action in actions:
+          if action[0] == 'add':
+              ledger.add(action[1], action[2])
+          elif action[0] == 'remove':
+              removed.append(ledger.remove_top())
+      return removed
+  CONTROLLER
+
+goal_tr: >
+  store/ledger.py icindeki Ledger sinifini, bagli liste uzerinde ekleme
+  (artan amount sirasini koruyarak), en kucuk amount'lu dugumu silme, toplam
+  ve id listesini donduren metotlari gercekleyecek sekilde tamamla;
+  store/controller.py'yi degistirme
+
+reference_solution: |
+  cat > store/ledger.py <<'LEDGER'
+  from store.node import Node
+
+
+  class Ledger:
+      """Singly linked list of orders, sorted by amount ascending."""
+      def __init__(self):
+          self.head = None
+
+      def add(self, order_id, amount):
+          new_node = Node(order_id, amount)
+          if self.head is None or self.head.amount > amount:
+              new_node.next = self.head
+              self.head = new_node
+              return
+          current = self.head
+          while current.next is not None and current.next.amount <= amount:
+              current = current.next
+          new_node.next = current.next
+          current.next = new_node
+
+      def remove_top(self):
+          if self.head is None:
+              raise IndexError("empty ledger")
+          removed_id = self.head.order_id
+          self.head = self.head.next
+          return removed_id
+
+      def total(self):
+          total = 0
+          current = self.head
+          while current is not None:
+              total += current.amount
+              current = current.next
+          return total
+
+      def ids(self):
+          result = []
+          current = self.head
+          while current is not None:
+              result.append(current.order_id)
+              current = current.next
+          return result
+  LEDGER
+
+outputs:
+  - {path: store/ledger.py, kind: program, run: 'python3 -c ''from store.controller import process_orders as f; actions=[("add","a",5),("add","b",2),("add","c",8),("add","d",2),("remove",),("add","e",3),("remove",),("remove",)]; r=f(actions); assert r==["b","d","e"], r; from store.ledger import Ledger; l=Ledger(); l.add("x",4); l.add("y",1); l.add("z",3); assert l.total()==8; assert l.ids()==["y","z","x"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from store.controller import process_orders as f; actions=[("add","a",5),("add","b",2),("add","c",8),("add","d",2),("remove",),("add","e",3),("remove",),("remove",)]; r=f(actions); assert r==["b","d","e"], r; from store.ledger import Ledger; l=Ledger(); l.add("x",4); l.add("y",1); l.add("z",3); assert l.total()==8; assert l.ids()==["y","z","x"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0298
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: bagli-liste

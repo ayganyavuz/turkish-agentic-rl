@@ -1,0 +1,94 @@
+id: gen-k-0297-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  transcript/calculator.py dosyasındaki gpa fonksiyonunu düzelt; geçersiz (50 altı) notları hariç tutarak geçerli derslerin ortalamasını doğru hesaplasın. transcript/calculator.py dosyasını düzenle.
+
+setup: |
+  mkdir -p transcript
+  cat > transcript/grades.py <<'GRADES'
+  def parse_grades(text):
+      grades = {}
+      for line in text.strip().splitlines():
+          course, grade = line.split(',')
+          grades[course] = float(grade)
+      return grades
+  GRADES
+  cat > transcript/calculator.py <<'CALC'
+  from transcript.grades import parse_grades
+
+
+  def gpa(text):
+      grades = parse_grades(text)
+      total = 0.0
+      count = 0
+      for course, grade in grades.items():
+          if grade >= 50:
+              total += grade
+              count += 1
+      return total / count
+  CALC
+  cat > transcript/transcript.txt <<'TXT'
+  Math,85
+  Physics,40
+  Chemistry,70
+  TXT
+
+goal_tr: >
+  transcript/calculator.py icindeki gpa fonksiyonunu, gecersiz (50 alti)
+  notlari haric tutarak gecerli derslerin ortalamasini dogru hesaplayacak
+  sekilde duzelt
+
+reference_solution: |
+  cat > transcript/calculator.py <<'CALC'
+  from transcript.grades import parse_grades
+
+
+  def gpa(text):
+      grades = parse_grades(text)
+      total = 0.0
+      count = 0
+      for course, grade in grades.items():
+          if grade >= 50:
+              total += grade
+              count += 1
+      if count == 0:
+          return 0.0
+      return total / count
+  CALC
+
+outputs:
+  - {path: transcript/calculator.py, kind: program, run: 'python3 -c ''from transcript.calculator import gpa; assert gpa(open("transcript/transcript.txt").read()) == 77.5; assert gpa("A,30\nB,40") == 0.0; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from transcript.calculator import gpa; assert gpa(open("transcript/transcript.txt").read()) == 77.5; assert gpa("A,30\nB,40") == 0.0; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0297
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum

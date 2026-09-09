@@ -1,0 +1,85 @@
+id: gen-k-0155-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  textproc/summarizer.py dosyasındaki summarize fonksiyonunu düzeltmen gerekiyor. Bu fonksiyon, metindeki kelime sayısı max_words değerine eşit olduğunda, sondaki "..." eklenmemeli ve tüm kelimeler olduğu gibi döndürülmelidir. Yani, kelime sayısı max_words değerine eşit veya daha az olduğunda, özet metni tüm kelimeleri içermeli ve herhangi bir üç nokta eklenmemelidir. Bu düzeltmeyi textproc/summarizer.py dosyasında yapman gerekiyor.
+
+setup: |
+  mkdir -p textproc
+  cat > textproc/word_utils.py <<'UTILS'
+  def split_words(text):
+      """Split text into lowercase words, ignoring punctuation."""
+      import re
+      return re.findall(r'[a-z0-9]+', text.lower())
+  UTILS
+  cat > textproc/summarizer.py <<'SUMM'
+  from textproc.word_utils import split_words
+
+
+  def summarize(text, max_words):
+      """Return a summary string with at most max_words words from the text."""
+      words = split_words(text)
+      if max_words <= 0:
+          return ""
+      if max_words >= len(words):
+          return " ".join(words)
+      # Take the first max_words words and add an ellipsis
+      return " ".join(words[:max_words - 1]) + " ..."
+  SUMM
+
+goal_tr: >
+  textproc/summarizer.py icindeki summarize fonksiyonunu, text'teki kelime
+  sayisi max_words'e esit oldugunda sondaki "..." eklenmeyecek ve tum
+  kelimeler dondurulecek sekilde duzelt
+
+reference_solution: |
+  cat > textproc/summarizer.py <<'SUMM'
+  from textproc.word_utils import split_words
+
+
+  def summarize(text, max_words):
+      """Return a summary string with at most max_words words from the text."""
+      words = split_words(text)
+      if max_words <= 0:
+          return ""
+      if max_words >= len(words):
+          return " ".join(words)
+      # Take the first max_words words and add an ellipsis
+      return " ".join(words[:max_words]) + " ..."
+  SUMM
+
+outputs:
+  - {path: textproc/summarizer.py, kind: program, run: 'python3 -c ''from textproc.summarizer import summarize as s; assert s("hello world", 2) == "hello world", s("hello world", 2); assert s("hello world foo", 2) == "hello world ...", s("hello world foo", 2); assert s("hello", 5) == "hello", s("hello", 5); assert s("hello world", 0) == ""; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from textproc.summarizer import summarize as s; assert s("hello world", 2) == "hello world", s("hello world", 2); assert s("hello world foo", 2) == "hello world ...", s("hello world foo", 2); assert s("hello", 5) == "hello", s("hello", 5); assert s("hello world", 0) == ""; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0155
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum

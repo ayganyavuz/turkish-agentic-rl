@@ -1,0 +1,121 @@
+id: gen-k-0290-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  session/tracker.py dosyasındaki SessionTracker sınıfını, session/stack.py içindeki Stack sınıfını kullanarak aktif oturumları yığın ile izleyecek şekilde tamamla. start_session, end_session, current_user, session_depth ve has_active_session metotlarını doğru şekilde uygula.
+
+setup: |
+  mkdir -p session
+  cat > session/stack.py <<'STACK'
+  class Stack:
+      def __init__(self):
+          self._items = []
+
+      def push(self, item):
+          self._items.append(item)
+
+      def pop(self):
+          if self.is_empty():
+              raise IndexError("pop from empty stack")
+          return self._items.pop()
+
+      def peek(self):
+          if self.is_empty():
+              raise IndexError("peek from empty stack")
+          return self._items[-1]
+
+      def is_empty(self):
+          return len(self._items) == 0
+
+      def size(self):
+          return len(self._items)
+  STACK
+  cat > session/tracker.py <<'TRACKER'
+  from session.stack import Stack
+
+
+  class SessionTracker:
+      def __init__(self):
+          self._history = Stack()
+
+      def start_session(self, user_id):
+          raise NotImplementedError
+
+      def end_session(self):
+          raise NotImplementedError
+
+      def current_user(self):
+          raise NotImplementedError
+
+      def session_depth(self):
+          raise NotImplementedError
+
+      def has_active_session(self):
+          raise NotImplementedError
+  TRACKER
+
+goal_tr: >
+  session/tracker.py icindeki SessionTracker sinifini, baslangicta verilen
+  iskeleti kullanarak, aktif oturumlari yigin ile dogru sekilde izleyecek
+  bicimde tamamla
+
+reference_solution: |
+  cat > session/tracker.py <<'TRACKER'
+  from session.stack import Stack
+
+
+  class SessionTracker:
+      def __init__(self):
+          self._history = Stack()
+
+      def start_session(self, user_id):
+          self._history.push(user_id)
+
+      def end_session(self):
+          return self._history.pop()
+
+      def current_user(self):
+          return self._history.peek()
+
+      def session_depth(self):
+          return self._history.size()
+
+      def has_active_session(self):
+          return not self._history.is_empty()
+  TRACKER
+
+outputs:
+  - {path: session/tracker.py, kind: program, run: python3 -c 'from session.tracker import SessionTracker; t=SessionTracker(); assert not t.has_active_session(); assert t.session_depth()==0; t.start_session("alice"); t.start_session("bob"); assert t.has_active_session(); assert t.current_user()=="bob"; assert t.session_depth()==2; assert t.end_session()=="bob"; assert t.current_user()=="alice"; t.end_session(); assert not t.has_active_session(); print("TAMAM")'}
+
+checks:
+  - {op: run_stdout_eq, cmd: python3 -c 'from session.tracker import SessionTracker; t=SessionTracker(); assert not t.has_active_session(); assert t.session_depth()==0; t.start_session("alice"); t.start_session("bob"); assert t.has_active_session(); assert t.current_user()=="bob"; assert t.session_depth()==2; assert t.end_session()=="bob"; assert t.current_user()=="alice"; t.end_session(); assert not t.has_active_session(); print("TAMAM")', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0290
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: terse
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yigin

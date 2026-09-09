@@ -1,0 +1,99 @@
+id: gen-k-0170-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  bank/transactions.py içindeki apply_transactions fonksiyonunu düzelt; dosyadaki tüm işlemleri hesap bakiyelerine uygulasın.
+
+setup: |
+  mkdir -p bank
+  cat > bank/accounts.py <<'ACCOUNTS'
+  def load_accounts(filename):
+      accounts = {}
+      with open(filename) as f:
+          for line in f:
+              acc_id, balance = line.strip().split(',')
+              accounts[acc_id] = float(balance)
+      return accounts
+  ACCOUNTS
+  cat > bank/transactions.py <<'TRANSACTIONS'
+  def apply_transactions(accounts, filename):
+      with open(filename) as f:
+          for line in f:
+              acc_id, amount = line.strip().split(',')
+              amount = float(amount)
+              if acc_id in accounts:
+                  accounts[acc_id] += amount
+              return accounts
+  TRANSACTIONS
+  cat > bank/audit.py <<'AUDIT'
+  from bank.accounts import load_accounts
+  from bank.transactions import apply_transactions
+
+
+  def process(accounts_file, transactions_file):
+      accounts = load_accounts(accounts_file)
+      return apply_transactions(accounts, transactions_file)
+  AUDIT
+  cat > accounts.csv <<'CSV'
+  A001,100.0
+  A002,200.0
+  A003,300.0
+  CSV
+  cat > transactions.csv <<'CSV'
+  A001,50.0
+  A002,-20.0
+  A003,10.0
+  A001,5.0
+  CSV
+
+goal_tr: >
+  bank/transactions.py icindeki apply_transactions fonksiyonunu, dosyadaki
+  tum islemleri hesap bakiyelerine uygulayacak bicimde duzelt
+
+reference_solution: |
+  cat > bank/transactions.py <<'TRANSACTIONS'
+  def apply_transactions(accounts, filename):
+      with open(filename) as f:
+          for line in f:
+              acc_id, amount = line.strip().split(',')
+              amount = float(amount)
+              if acc_id in accounts:
+                  accounts[acc_id] += amount
+      return accounts
+  TRANSACTIONS
+
+outputs:
+  - {path: bank/transactions.py, kind: program, run: 'python3 -c ''from bank.audit import process; a=process("accounts.csv","transactions.csv"); assert a["A001"]==155.0, a; assert a["A002"]==180.0, a; assert a["A003"]==310.0, a; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bank.audit import process; a=process("accounts.csv","transactions.csv"); assert a["A001"]==155.0, a; assert a["A002"]==180.0, a; assert a["A003"]==310.0, a; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0170
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: banka-hareketleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: erken-donus

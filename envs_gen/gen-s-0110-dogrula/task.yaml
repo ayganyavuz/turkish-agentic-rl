@@ -1,0 +1,74 @@
+id: gen-s-0110-dogrula
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) kutuphane dizinindeki tüm TSV dosyalarını tespit et.
+  2) Bu TSV dosyalarının her birinin gerçek satır sayısını hesapla ve beklenen satır sayısıyla karşılaştır.
+  3) dogrulama.csv adlı bir rapor dosyası oluştur; bu dosyada dosya adı, beklenen satır sayısı ve gerçek satır sayısı sütunları yer alsın.
+
+setup: |
+  mkdir -p kutuphane/edebiyat kutuphane/bilim
+  cat > kutuphane/edebiyat/romanlar.tsv <<'EOF'
+  Kitap Adi	Yazar	Sayfa
+  Sefiller	Hugo	1200
+  Savas ve Baris	Tolstoy	1400
+  EOF
+  cat > kutuphane/edebiyat/siirler.tsv <<'EOF'
+  Kitap Adi	Yazar	Sayfa
+  Divan	Fuzuli	300
+  EOF
+  cat > kutuphane/bilim/fizik.tsv <<'EOF'
+  Kitap Adi	Yazar	Sayfa
+  Gorecelilik	Einstein	400
+  EOF
+  cat > kutuphane/bilim/kimya.tsv <<'EOF'
+  Kitap Adi	Yazar	Sayfa
+  Atomlar	Bohr	250
+  EOF
+
+goal_tr: >
+  kutuphane dizinindeki her TSV dosyasinin satir sayisini dogrulayan bir CSV
+  raporu uret; rapor dosya adi, beklenen satir sayisi ve gercek satir sayisi
+  sutunlarini icersin
+
+reference_solution: |
+  find kutuphane -name '*.tsv' | sort | while read f; do
+      beklenen=$(grep -c '' "$f")
+      gercek=$(wc -l < "$f")
+      echo "$f,$beklenen,$gercek"
+  done > dogrulama.csv
+
+outputs:
+  - {path: dogrulama.csv, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: dogrulama.csv, value: ['kutuphane/bilim/fizik.tsv,2,2', 'kutuphane/bilim/kimya.tsv,2,2', 'kutuphane/edebiyat/romanlar.tsv,3,3', 'kutuphane/edebiyat/siirler.tsv,2,2']}
+
+metadata:
+  domain: dogrula
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0110
+    bundle: say
+    tools:
+    - grep
+    - wc
+    konu: kutuphane-kayitlari
+    hedef: dogrula
+    girdi: tsv
+    kaynak: dizin-agaci
+    cikti: csv
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: yok
+    adim: 2
+    image: verifiable-dataset/base:latest
+    metadata: {}

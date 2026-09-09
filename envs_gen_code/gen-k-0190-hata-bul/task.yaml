@@ -1,0 +1,93 @@
+id: gen-k-0190-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  events/scheduler.py dosyasındaki find_overlaps fonksiyonunu, her çağrıldığında önceden birikmiş çakışmaları tekrar döndürmeyecek şekilde düzelt. Fonksiyon, kendisine verilen satır listesindeki etkinlikler arasındaki çakışmaları bulmalı ve sonucu temiz bir biçimde başlatmalıdır. Yani fonksiyon her çağrıldığında, o çağrıya özgü çakışmaları döndürmeli, daha önceki çağrılardan kalan verileri içermemelidir.
+
+setup: |
+  mkdir -p events
+  cat > events/parser.py <<'PARSER'
+  def parse_event(line):
+      name, date, start, end = line.strip().split('|')
+      return {
+          "name": name,
+          "date": date,
+          "start": int(start),
+          "end": int(end),
+      }
+  PARSER
+  cat > events/scheduler.py <<'SCHEDULER'
+  from events.parser import parse_event
+
+
+  def find_overlaps(lines, conflicts=[]):
+      events = [parse_event(line) for line in lines]
+      for i, a in enumerate(events):
+          for b in events[i + 1:]:
+              if a["date"] == b["date"] and a["start"] < b["end"] and b["start"] < a["end"]:
+                  conflicts.append((a["name"], b["name"]))
+      return conflicts
+  SCHEDULER
+  cat > schedule.txt <<'TXT'
+  meeting1|2024-05-10|9|10
+  meeting2|2024-05-10|9|11
+  lunch|2024-05-10|12|13
+  workshop|2024-05-10|12|14
+  TXT
+
+goal_tr: >
+  events/scheduler.py icindeki find_overlaps fonksiyonunu, her cagrildiginda
+  onceden birikmis cakismalari tekrar dondurmeyecek ve sonucu temiz
+  baslatacak bicimde duzelt
+
+reference_solution: |
+  cat > events/scheduler.py <<'SCHEDULER'
+  from events.parser import parse_event
+
+
+  def find_overlaps(lines, conflicts=None):
+      if conflicts is None:
+          conflicts = []
+      events = [parse_event(line) for line in lines]
+      for i, a in enumerate(events):
+          for b in events[i + 1:]:
+              if a["date"] == b["date"] and a["start"] < b["end"] and b["start"] < a["end"]:
+                  conflicts.append((a["name"], b["name"]))
+      return conflicts
+  SCHEDULER
+
+outputs:
+  - {path: events/scheduler.py, kind: program, run: 'python3 -c ''from events.scheduler import find_overlaps as f; lines=open("schedule.txt").read().splitlines(); r1=f(lines); assert len(r1)==2, r1; r2=f(lines); assert len(r2)==2, r2; assert r1==r2; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from events.scheduler import find_overlaps as f; lines=open("schedule.txt").read().splitlines(); r1=f(lines); assert len(r1)==2, r1; r2=f(lines); assert len(r2)==2, r2; assert r1==r2; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0190
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: mutable-varsayilan

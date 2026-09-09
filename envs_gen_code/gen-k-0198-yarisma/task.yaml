@@ -1,0 +1,88 @@
+id: gen-k-0198-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) textproc/selector.py dosyasını oluştur ve içine `select_best` adında bir fonksiyon ekle. Bu fonksiyon, bir dizin yolunu parametre olarak almalı ve o dizindeki .txt dosyalarını okuyarak içlerindeki belgelerden en çok benzersiz kelimeye sahip olanın adını (dosya adının uzantısız hali) döndürmelidir.
+
+setup: |
+  mkdir -p textproc
+  cat > textproc/loader.py <<'LOADER'
+  import os
+
+  def read_docs(directory):
+      docs = {}
+      for fname in os.listdir(directory):
+          if fname.endswith('.txt'):
+              fpath = os.path.join(directory, fname)
+              with open(fpath, 'r') as f:
+                  docs[fname[:-4]] = f.read().strip()
+      return docs
+  LOADER
+  mkdir -p docs
+  cat > docs/a.txt <<'TXT'
+  alpha beta gamma epsilon
+  TXT
+  cat > docs/b.txt <<'TXT'
+  alpha delta
+  TXT
+  cat > docs/c.txt <<'TXT'
+  beta gamma delta
+  TXT
+
+goal_tr: >
+  textproc/selector.py dosyasini, verilen bir dizindeki belgelerden en cok
+  benzersiz kelimeye sahip olaninin adini donduren select_best fonksiyonuyla
+  olustur
+
+reference_solution: |
+  cat > textproc/selector.py <<'SELECTOR'
+  from textproc.loader import read_docs
+
+
+  def select_best(directory):
+      docs = read_docs(directory)
+      best_name = None
+      best_count = -1
+      for name, content in docs.items():
+          unique_words = set(content.split())
+          if len(unique_words) > best_count:
+              best_count = len(unique_words)
+              best_name = name
+      return best_name
+  SELECTOR
+
+outputs:
+  - {path: textproc/selector.py, kind: program, run: 'python3 -c ''import sys; sys.path.insert(0,"."); from textproc.selector import select_best; assert select_best("docs")=="a"; assert select_best("docs")!="b"; assert select_best("docs")!="c"; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import sys; sys.path.insert(0,"."); from textproc.selector import select_best; assert select_best("docs")=="a"; assert select_best("docs")!="b"; assert select_best("docs")!="c"; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0198
+    bundle: yarisma
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: acgozlu

@@ -1,0 +1,99 @@
+id: gen-k-0158-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  session/audit.py dosyasındaki active_users_by_recency fonksiyonunu düzeltin. Fonksiyon, aktif oturumları kullanıcı adına göre büyükten küçüğe doğru sıralayıp ilk n tanesini döndürmelidir. session/audit.py dosyasını bu davranışı sağlayacak şekilde güncelleyin.
+
+setup: |
+  mkdir -p session
+  cat > session/session_store.py <<'STORE'
+  class SessionStore:
+      def __init__(self):
+          self._sessions = {}
+
+      def create(self, user_id):
+          session_id = f"s{len(self._sessions) + 1}"
+          self._sessions[session_id] = {"user_id": user_id, "active": True}
+          return session_id
+
+      def get(self, session_id):
+          return self._sessions.get(session_id)
+
+      def deactivate(self, session_id):
+          if session_id in self._sessions:
+              self._sessions[session_id]["active"] = False
+              return True
+          return False
+
+      def all_sessions(self):
+          return list(self._sessions.values())
+  STORE
+  cat > session/audit.py <<'AUDIT'
+  from session.session_store import SessionStore
+
+
+  def active_users_by_recency(store, n):
+      active = [s for s in store.all_sessions() if s["active"]]
+      active.sort(key=lambda s: s["user_id"])
+      return [s["user_id"] for s in active[:n]]
+  AUDIT
+  cat > session/main.py <<'MAIN'
+  from session.session_store import SessionStore
+  from session.audit import active_users_by_recency
+
+
+  def report(store, n):
+      return active_users_by_recency(store, n)
+  MAIN
+
+goal_tr: >
+  session/audit.py icindeki active_users_by_recency fonksiyonunu, aktif
+  oturumlari kullanici adina gore buyukten kucuge dogru siralayip ilk n
+  tanesini dondurecek sekilde duzelt
+
+reference_solution: |
+  cat > session/audit.py <<'AUDIT'
+  from session.session_store import SessionStore
+
+
+  def active_users_by_recency(store, n):
+      active = [s for s in store.all_sessions() if s["active"]]
+      active.sort(key=lambda s: s["user_id"], reverse=True)
+      return [s["user_id"] for s in active[:n]]
+  AUDIT
+
+outputs:
+  - {path: session/audit.py, kind: program, run: 'python3 -c ''from session.session_store import SessionStore; from session.audit import active_users_by_recency; s=SessionStore(); s.create("alice"); s.create("bob"); s.create("carol"); s.create("dave"); s.deactivate("s2"); r=active_users_by_recency(s, 3); assert r==["dave","carol","alice"], r; r2=active_users_by_recency(s, 2); assert r2==["dave","carol"], r2; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from session.session_store import SessionStore; from session.audit import active_users_by_recency; s=SessionStore(); s.create("alice"); s.create("bob"); s.create("carol"); s.create("dave"); s.deactivate("s2"); r=active_users_by_recency(s, 3); assert r==["dave","carol","alice"], r; r2=active_users_by_recency(s, 2); assert r2==["dave","carol"], r2; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0158
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: siralama-kararsizligi

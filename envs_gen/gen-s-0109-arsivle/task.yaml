@@ -1,0 +1,67 @@
+id: gen-s-0109-arsivle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  envanver dizini altındaki tüm .json dosyalarını katalog.tar.gz arşivine al ve bu arşivdeki dosya yollarını, dosyanın sonunda yeni satır karakteri olmayacak şekilde arsiv-liste.txt dosyasına yaz.
+
+setup: |
+  mkdir -p envanver/raflar
+  cat > envanver/sandalye.json <<'EOF'
+  {"id": "S001", "adet": 12}
+  EOF
+  cat > envanver/raflar/kitaplik.json <<'EOF'
+  {"id": "K001", "adet": 4}
+  EOF
+  cat > envanver/raflar/masa.json <<'EOF'
+  {"id": "M001", "adet": 7}
+  EOF
+
+goal_tr: >
+  envanver dizini altındaki tüm .json dosyalarını katalog.tar.gz arşivine al
+  ve bu arşivdeki dosya yollarını, dosyanın sonunda yeni satır karakteri
+  olmayacak şekilde arsiv-liste.txt dosyasına yaz.
+
+reference_solution: |
+  find envanver -type f -name '*.json' | sort | xargs tar -czf katalog.tar.gz
+  tar -tzf katalog.tar.gz | head -c -1 > arsiv-liste.txt
+
+outputs:
+  - {path: katalog.tar.gz, kind: file}
+  - {path: arsiv-liste.txt, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: arsiv-liste.txt, value: [envanver/raflar/kitaplik.json, envanver/raflar/masa.json, envanver/sandalye.json]}
+  - {op: run_stdout_eq, cmd: tar -tzf katalog.tar.gz | sort, value: 'envanver/raflar/kitaplik.json
+
+    envanver/raflar/masa.json
+
+    envanver/sandalye.json'}
+
+metadata:
+  domain: arsivle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0109
+    bundle: secerek-arsivle
+    tools:
+    - tar
+    - find
+    konu: envanter
+    hedef: arsivle
+    girdi: json
+    kaynak: cok-dosya
+    cikti: dizin-yapisi
+    kesif: dosyayi-bul
+    uslup: duz-hedef
+    direnc: son-newline-yok
+    bukulme: yok
+    adim: 2
+    image: verifiable-dataset/base:latest
+    metadata: {}

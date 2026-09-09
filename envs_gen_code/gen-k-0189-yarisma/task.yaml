@@ -1,0 +1,113 @@
+id: gen-k-0189-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  warehouse/query.py dosyasını sıfırdan oluştur. Bu modül, verilen bir değer eşiğinden yüksek toplam değere sahip öğeleri, toplam değerlerine göre azalan sırada listeleyen bir fonksiyon içermelidir. Ayrıca, bu eşiği karşılayan öğe sayısını ikili arama yöntemiyle bulan bir işlev de modülde yer almalıdır. Modül, warehouse/models.py içindeki Item sınıfını ve warehouse/loader.py içindeki load_items fonksiyonunu kullanmalıdır. inventory.txt dosyasındaki verileri kullanarak bu modülü test etmeniz beklenmektedir.
+
+setup: |
+  mkdir -p warehouse
+  cat > warehouse/models.py <<'MODELS'
+  class Item:
+      def __init__(self, sku, name, qty, price):
+          self.sku = sku
+          self.name = name
+          self.qty = qty
+          self.price = price
+
+      def total_value(self):
+          return self.qty * self.price
+  MODELS
+  cat > warehouse/loader.py <<'LOADER'
+  from warehouse.models import Item
+
+
+  def load_items(path):
+      items = []
+      with open(path) as f:
+          for line in f:
+              line = line.strip()
+              if not line:
+                  continue
+              sku, name, qty, price = line.split('|')
+              items.append(Item(sku, name, int(qty), float(price)))
+      return items
+  LOADER
+  cat > inventory.txt <<'DATA'
+  A100|Screwdriver|120|3.5
+  B200|Hammer|45|12.0
+  C300|Drill|15|89.0
+  D400|Saw|30|25.0
+  E500|Level|60|8.0
+  F600|Tape|200|2.0
+  G700|Wrench|25|15.0
+  H800|Pliers|40|7.5
+  DATA
+
+goal_tr: >
+  warehouse/query.py dosyasini, verilen deger esiginden yuksek toplam
+  degerli itemlari degerlerine gore azalan sirada listeleyen ve deger
+  esigini karsilayan item sayisini ikili arama ile bulan bir modul olarak
+  sifirdan yaz
+
+reference_solution: |
+  cat > warehouse/query.py <<'QUERY'
+  from warehouse.loader import load_items
+
+
+  def sort_by_value(items):
+      return sorted(items, key=lambda i: i.total_value(), reverse=True)
+
+
+  def count_above_threshold(items, threshold):
+      vals = sorted(i.total_value() for i in items)
+      lo, hi = 0, len(vals)
+      while lo < hi:
+          mid = (lo + hi) // 2
+          if vals[mid] <= threshold:
+              lo = mid + 1
+          else:
+              hi = mid
+      return len(vals) - lo
+
+
+  def query(path, threshold):
+      items = sort_by_value(load_items(path))
+      count = count_above_threshold(items, threshold)
+      return [(i.sku, i.name) for i in items if i.total_value() > threshold], count
+  QUERY
+
+outputs:
+  - {path: warehouse/query.py, kind: program, run: 'python3 -c ''from warehouse.query import query; res, cnt = query("inventory.txt", 500); assert cnt == 3 and res == [("C300","Drill"),("D400","Saw"),("B200","Hammer")], (res, cnt); res2, cnt2 = query("inventory.txt", 0); assert cnt2 == 8 and len(res2) == 8; res3, cnt3 = query("inventory.txt", 10000); assert cnt3 == 0 and res3 == []; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from warehouse.query import query; res, cnt = query("inventory.txt", 500); assert cnt == 3 and res == [("C300","Drill"),("D400","Saw"),("B200","Hammer")], (res, cnt); res2, cnt2 = query("inventory.txt", 0); assert cnt2 == 8 and len(res2) == 8; res3, cnt3 = query("inventory.txt", 10000); assert cnt3 == 0 and res3 == []; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0189
+    bundle: yarisma
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: siralama-ikili-arama

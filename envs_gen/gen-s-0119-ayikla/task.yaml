@@ -1,0 +1,65 @@
+id: gen-s-0119-ayikla
+split: single_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 8
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) `siparisler1.txt` ve `siparisler2.txt` dosyalarındaki ortak satırların sayısını bul.
+  2) Bu sayıyı `sonuc.txt` dosyasına, yalnızca sayı olacak şekilde ve sonunda yeni satır karakteri olmadan yaz.
+
+setup: |
+  cat > siparisler1.txt <<'DATA'
+  2024-01-01 12:30 masa1 3
+  2024-01-01 13:00 masa2 2
+  2024-01-02 18:15 masa1 4
+  DATA
+
+  cat > siparisler2.txt <<'DATA'
+  2024-01-01 12:30 masa1 3
+  2024-01-01 13:00 masa2 2
+  2024-01-02 18:15 masa1 4
+  DATA
+
+goal_tr: >
+  siparisler1.txt ve siparisler2.txt dosyalarindaki ortak satir sayisini bul
+  ve sonuc.txt dosyasina sadece sayi olarak yaz (sonunda yeni satir olmadan)
+
+reference_solution: |
+  sort siparisler1.txt > s1.txt
+  sort siparisler2.txt > s2.txt
+  comm -12 s1.txt s2.txt | wc -l | tr -d '\n' > sonuc.txt
+  head -c 1 sonuc.txt > /dev/null
+  tail -c 1 sonuc.txt > /dev/null
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '3'}
+
+metadata:
+  domain: ayikla
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0119
+    bundle: satir-araligi
+    tools:
+    - head
+    - tail
+    konu: restoran-siparisleri
+    hedef: ayikla
+    girdi: duz-metin
+    kaynak: iki-dosya-capraz
+    cikti: tek-sayi
+    kesif: yok
+    uslup: numarali-emir
+    direnc: son-newline-yok
+    bukulme: yok
+    adim: 1
+    image: verifiable-dataset/base:latest
+    metadata: {}

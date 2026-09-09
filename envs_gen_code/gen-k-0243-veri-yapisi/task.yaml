@@ -1,0 +1,118 @@
+id: gen-k-0243-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  route_network/planner.py dosyasındaki can_travel fonksiyonunu tamamla. Bu fonksiyon, verilen durak listesi (stops) ve UnionFind nesnesi (uf) kullanarak, start ve end durakları arasında bir yol olup olmadığını doğru şekilde döndürmelidir. Fonksiyon, eğer iki durak arasında ulaşım mümkünse True, değilse False döndürmelidir.
+
+setup: |
+  mkdir -p route_network
+  cat > route_network/union_find.py <<'UNION'
+  class UnionFind:
+      def __init__(self, n):
+          self.parent = list(range(n))
+          self.rank = [0] * n
+
+      def find(self, x):
+          if self.parent[x] != x:
+              self.parent[x] = self.find(self.parent[x])
+          return self.parent[x]
+
+      def union(self, x, y):
+          rx, ry = self.find(x), self.find(y)
+          if rx == ry:
+              return
+          if self.rank[rx] < self.rank[ry]:
+              self.parent[rx] = ry
+          elif self.rank[rx] > self.rank[ry]:
+              self.parent[ry] = rx
+          else:
+              self.parent[ry] = rx
+              self.rank[rx] += 1
+  UNION
+  cat > route_network/bus_routes.py <<'BUS'
+  from route_network.union_find import UnionFind
+
+
+  def build_network(stops, routes):
+      """
+      stops: list of stop ids (integers)
+      routes: list of (stop_a, stop_b) tuples representing direct bus routes
+      Returns a UnionFind where stops connected by any sequence of routes
+      are in the same component.
+      """
+      uf = UnionFind(len(stops))
+      index = {stop: i for i, stop in enumerate(stops)}
+
+      for a, b in routes:
+          uf.union(index[a], index[b])
+
+      return uf
+  BUS
+  cat > route_network/planner.py <<'PLAN'
+  from route_network.bus_routes import build_network
+
+
+  def can_travel(uf, stops, start, end):
+      """
+      Returns True if there is a path between start and end using the routes.
+      """
+      raise NotImplementedError
+  PLAN
+  cat > route_network/__init__.py <<'INIT'
+  INIT
+
+goal_tr: >
+  route_network/planner.py icindeki can_travel fonksiyonunu, verilen durak
+  listesi ve UnionFind nesnesi kullanarak iki durak arasinda yol olup
+  olmadigini dogru bicimde dondurecek sekilde tamamla
+
+reference_solution: |
+  cat > route_network/planner.py <<'PLAN'
+  from route_network.bus_routes import build_network
+
+
+  def can_travel(uf, stops, start, end):
+      """
+      Returns True if there is a path between start and end using the routes.
+      """
+      if start not in stops or end not in stops:
+          return False
+      index = {stop: i for i, stop in enumerate(stops)}
+      return uf.find(index[start]) == uf.find(index[end])
+  PLAN
+
+outputs:
+  - {path: route_network/planner.py, kind: program, run: 'python3 -c ''from route_network.planner import can_travel as f; from route_network.bus_routes import build_network as b; stops=[10,20,30,40,50]; routes=[(10,20),(20,30),(40,50)]; uf=b(stops,routes); assert f(uf,stops,10,30)==True; assert f(uf,stops,10,50)==False; assert f(uf,stops,10,10)==True; assert f(uf,stops,10,999)==False; assert f(uf,stops,999,10)==False; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from route_network.planner import can_travel as f; from route_network.bus_routes import build_network as b; stops=[10,20,30,40,50]; routes=[(10,20),(20,30),(40,50)]; uf=b(stops,routes); assert f(uf,stops,10,30)==True; assert f(uf,stops,10,50)==False; assert f(uf,stops,10,10)==True; assert f(uf,stops,10,999)==False; assert f(uf,stops,999,10)==False; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0243
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: zor
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: birlesim-bulma

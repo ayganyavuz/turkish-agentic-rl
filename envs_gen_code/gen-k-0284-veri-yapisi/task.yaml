@@ -1,0 +1,167 @@
+id: gen-k-0284-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  bst_prices.py dosyasındaki PriceTree sınıfının count_less_than ve count_greater_than metodlarını gerçekleştir. Bu metodlar, ikili arama ağacını düzgün şekilde gezerek threshold değerinden küçük veya eşit fiyatların sayısını ve threshold değerinden büyük veya eşit fiyatların sayısını döndürmelidir. count_less_than metodu threshold değerinden küçük veya eşit fiyatların sayısını, count_greater_than metodu ise threshold değerinden büyük veya eşit fiyatların sayısını döndürmelidir. Mevcut yapıyı ve düğüm sınıfını koruyarak bu iki metodu uygun şekilde tamamla.
+
+setup: |
+  cat > bst_prices.py <<'PY'
+  class BSTNode:
+      def __init__(self, price):
+          self.price = price
+          self.left = None
+          self.right = None
+
+
+  class PriceTree:
+      def __init__(self):
+          self.root = None
+
+      def insert(self, price):
+          if self.root is None:
+              self.root = BSTNode(price)
+              return
+          node = self.root
+          while True:
+              if price < node.price:
+                  if node.left is None:
+                      node.left = BSTNode(price)
+                      return
+                  node = node.left
+              else:
+                  if node.right is None:
+                      node.right = BSTNode(price)
+                      return
+                  node = node.right
+
+      def find_min(self):
+          if self.root is None:
+              return None
+          node = self.root
+          while node.left is not None:
+              node = node.left
+          return node.price
+
+      def find_max(self):
+          if self.root is None:
+              return None
+          node = self.root
+          while node.right is not None:
+              node = node.right
+          return node.price
+
+      def count_less_than(self, threshold):
+          raise NotImplementedError
+
+      def count_greater_than(self, threshold):
+          raise NotImplementedError
+  PY
+
+goal_tr: >
+  bst_prices.py icindeki PriceTree sinifinin count_less_than ve
+  count_greater_than metodlarini, BST'yi duzgun sekilde gezip threshold
+  degerinden kucuk/esit ve buyuk/esit fiyatlarin sayisini dondurecek sekilde
+  gerceklestir
+
+reference_solution: |
+  cat > bst_prices.py <<'PY'
+  class BSTNode:
+      def __init__(self, price):
+          self.price = price
+          self.left = None
+          self.right = None
+
+
+  class PriceTree:
+      def __init__(self):
+          self.root = None
+
+      def insert(self, price):
+          if self.root is None:
+              self.root = BSTNode(price)
+              return
+          node = self.root
+          while True:
+              if price < node.price:
+                  if node.left is None:
+                      node.left = BSTNode(price)
+                      return
+                  node = node.left
+              else:
+                  if node.right is None:
+                      node.right = BSTNode(price)
+                      return
+                  node = node.right
+
+      def find_min(self):
+          if self.root is None:
+              return None
+          node = self.root
+          while node.left is not None:
+              node = node.left
+          return node.price
+
+      def find_max(self):
+          if self.root is None:
+              return None
+          node = self.root
+          while node.right is not None:
+              node = node.right
+          return node.price
+
+      def count_less_than(self, threshold):
+          return self._count_less(self.root, threshold)
+
+      def _count_less(self, node, threshold):
+          if node is None:
+              return 0
+          if node.price < threshold:
+              return 1 + self._count_less(node.left, threshold) + self._count_less(node.right, threshold)
+          return self._count_less(node.left, threshold)
+
+      def count_greater_than(self, threshold):
+          return self._count_greater(self.root, threshold)
+
+      def _count_greater(self, node, threshold):
+          if node is None:
+              return 0
+          if node.price > threshold:
+              return 1 + self._count_greater(node.left, threshold) + self._count_greater(node.right, threshold)
+          return self._count_greater(node.right, threshold)
+  PY
+
+outputs:
+  - {path: bst_prices.py, kind: program, run: 'python3 -c ''from bst_prices import PriceTree; t=PriceTree(); [t.insert(x) for x in [50,30,70,20,40,60,80]]; assert t.count_less_than(50)==3; assert t.count_less_than(30)==1; assert t.count_less_than(20)==0; assert t.count_less_than(90)==7; assert t.count_greater_than(50)==3; assert t.count_greater_than(70)==1; assert t.count_greater_than(80)==0; assert t.count_greater_than(10)==7; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bst_prices import PriceTree; t=PriceTree(); [t.insert(x) for x in [50,30,70,20,40,60,80]]; assert t.count_less_than(50)==3; assert t.count_less_than(30)==1; assert t.count_less_than(20)==0; assert t.count_less_than(90)==7; assert t.count_greater_than(50)==3; assert t.count_greater_than(70)==1; assert t.count_greater_than(80)==0; assert t.count_greater_than(10)==7; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0284
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: ikili-arama-agaci

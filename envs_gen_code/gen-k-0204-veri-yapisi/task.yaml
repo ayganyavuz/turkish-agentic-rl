@@ -1,0 +1,140 @@
+id: gen-k-0204-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  network.py dosyasındaki RouterNode sınıfının count_reachable ve list_all_routes metodlarını gerçekleştir. count_reachable metodu, ağaçtaki tüm düğümlerin sayısını döndürmeli; list_all_routes metodu ise ağaçtaki tüm düğümlerin router_id değerlerini artan sırada bir liste olarak döndürmelidir.
+
+setup: |
+  cat > network.py <<'PY'
+  class RouterNode:
+      def __init__(self, router_id):
+          self.router_id = router_id
+          self.left = None
+          self.right = None
+          self.connections = []
+
+      def add_connection(self, router_id):
+          if router_id < self.router_id:
+              if self.left is None:
+                  self.left = RouterNode(router_id)
+              else:
+                  self.left.add_connection(router_id)
+          elif router_id > self.router_id:
+              if self.right is None:
+                  self.right = RouterNode(router_id)
+              else:
+                  self.right.add_connection(router_id)
+          self.connections.append(router_id)
+
+      def find_route(self, target_id, path=None):
+          if path is None:
+              path = []
+          path.append(self.router_id)
+          if self.router_id == target_id:
+              return path
+          if target_id < self.router_id and self.left:
+              return self.left.find_route(target_id, path)
+          if target_id > self.router_id and self.right:
+              return self.right.find_route(target_id, path)
+          return None
+
+      def count_reachable(self):
+          raise NotImplementedError
+
+      def list_all_routes(self):
+          raise NotImplementedError
+  PY
+
+goal_tr: >
+  network.py icindeki RouterNode sinifinin count_reachable ve
+  list_all_routes metodlarini gerceklestir; count_reachable agactaki tum
+  dugum sayisini, list_all_routes ise agactaki tum dugumlerin router_id
+  degerlerini artan sirada liste olarak dondurmelidir.
+
+reference_solution: |
+  cat > network.py <<'PY'
+  class RouterNode:
+      def __init__(self, router_id):
+          self.router_id = router_id
+          self.left = None
+          self.right = None
+          self.connections = []
+
+      def add_connection(self, router_id):
+          if router_id < self.router_id:
+              if self.left is None:
+                  self.left = RouterNode(router_id)
+              else:
+                  self.left.add_connection(router_id)
+          elif router_id > self.router_id:
+              if self.right is None:
+                  self.right = RouterNode(router_id)
+              else:
+                  self.right.add_connection(router_id)
+          self.connections.append(router_id)
+
+      def find_route(self, target_id, path=None):
+          if path is None:
+              path = []
+          path.append(self.router_id)
+          if self.router_id == target_id:
+              return path
+          if target_id < self.router_id and self.left:
+              return self.left.find_route(target_id, path)
+          if target_id > self.router_id and self.right:
+              return self.right.find_route(target_id, path)
+          return None
+
+      def count_reachable(self):
+          count = 1
+          if self.left:
+              count += self.left.count_reachable()
+          if self.right:
+              count += self.right.count_reachable()
+          return count
+
+      def list_all_routes(self):
+          result = []
+          if self.left:
+              result.extend(self.left.list_all_routes())
+          result.append(self.router_id)
+          if self.right:
+              result.extend(self.right.list_all_routes())
+          return result
+  PY
+
+outputs:
+  - {path: network.py, kind: program, run: 'python3 -c ''from network import RouterNode; root=RouterNode(10); [root.add_connection(x) for x in [5,15,3,7,12,20]]; assert root.count_reachable()==7; assert root.list_all_routes()==[3,5,7,10,12,15,20]; leaf=root.left.left; assert leaf.count_reachable()==1; assert leaf.list_all_routes()==[3]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from network import RouterNode; root=RouterNode(10); [root.add_connection(x) for x in [5,15,3,7,12,20]]; assert root.count_reachable()==7; assert root.list_all_routes()==[3,5,7,10,12,15,20]; leaf=root.left.left; assert leaf.count_reachable()==1; assert leaf.list_all_routes()==[3]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0204
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: ikili-arama-agaci

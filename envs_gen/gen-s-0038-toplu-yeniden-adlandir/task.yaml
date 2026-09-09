@@ -7,7 +7,7 @@ max_turns: 14
 # Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
 # asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
 prompt: |
-  Bugün şirketin finansal kayıtlarını düzenlemem gerekiyor çünkü Ocak ve Şubat aylarına ait veriler farklı alt dizinlerde dağınık halde bulunuyor. Bu karışıklığı gidermek için accounts dizini altındaki tüm alt dizinlerde bulunan .csv dosyalarını, orijinal dizin adını ve dosya adını birleştirerek (dizin_dosya.csv şeklinde) /workspace/renamed_files dizinine yeniden adlandırarak kopyalamanı istiyorum. Böylece hangi dosyanın hangi aya ait olduğunu kolayca anlayabileceğim.
+  Bugün şirketin finansal kayıtlarını düzenlemem gerekiyor çünkü Ocak ve Şubat aylarına ait veriler farklı alt dizinlerde dağınık halde bulunuyor. Bu karışıklığı gidermek için accounts dizini altındaki tüm alt dizinlerde bulunan .csv dosyalarını, orijinal dizin adını ve dosya adını birleştirerek (dizin_dosya.csv şeklinde) renamed_files dizinine yeniden adlandırarak kopyalamanı istiyorum. Böylece hangi dosyanın hangi aya ait olduğunu kolayca anlayabileceğim.
 
 setup: |
   mkdir -p accounts/january accounts/february
@@ -33,7 +33,7 @@ setup: |
 goal_tr: >
   accounts dizini altındaki tüm alt dizinlerde bulunan .csv dosyalarını,
   orijinal dizin adını ve dosya adını birleştirerek (dizin_dosya.csv
-  şeklinde) /workspace/renamed_files dizinine yeniden adlandırarak kopyala.
+  şeklinde) renamed_files dizinine yeniden adlandırarak kopyala.
 
 reference_solution: |
   mkdir -p renamed_files

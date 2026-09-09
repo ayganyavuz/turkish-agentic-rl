@@ -1,0 +1,175 @@
+id: gen-k-0249-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  store/bst.py dosyasındaki ProductBST sınıfını, ürün kodlarını (int) ağaç anahtarı ve ürün adlarını (str) değer olarak saklayacak şekilde tamamla. Sınıfın insert, search, range_query ve inorder metotları çalışır durumda olmalı. Ayrıca store/inventory.py ve products.txt dosyalarının bu sınıfla uyumlu çalışacağını unutma.
+
+setup: |
+  mkdir -p store
+  cat > store/bst.py <<'BST'
+  class BSTNode:
+      def __init__(self, key, value):
+          self.key = key
+          self.value = value
+          self.left = None
+          self.right = None
+
+
+  class ProductBST:
+      def __init__(self):
+          self.root = None
+          self.size = 0
+
+      def insert(self, key, value):
+          raise NotImplementedError
+
+      def search(self, key):
+          raise NotImplementedError
+
+      def range_query(self, low, high):
+          raise NotImplementedError
+
+      def inorder(self):
+          raise NotImplementedError
+  BST
+  cat > store/inventory.py <<'INV'
+  from store.bst import ProductBST
+
+
+  def build_inventory(pairs):
+      bst = ProductBST()
+      for key, value in pairs:
+          bst.insert(key, value)
+      return bst
+
+
+  def find_in_range(bst, low, high):
+      return bst.range_query(low, high)
+
+
+  def get_product(bst, key):
+      return bst.search(key)
+  INV
+  cat > products.txt <<'TXT'
+  1001,Wireless Mouse
+  1002,Mechanical Keyboard
+  1003,USB-C Hub
+  1004,4K Monitor
+  1005,Laptop Stand
+  TXT
+
+goal_tr: >
+  store/bst.py icindeki ProductBST sinifini, urun kodlarini (int) agac
+  anahtari ve urun adlarini (str) deger olarak saklayacak sekilde tamamla;
+  insert, search, range_query ve inorder metotlari calisir olmali.
+
+reference_solution: |
+  cat > store/bst.py <<'BST'
+  class BSTNode:
+      def __init__(self, key, value):
+          self.key = key
+          self.value = value
+          self.left = None
+          self.right = None
+
+
+  class ProductBST:
+      def __init__(self):
+          self.root = None
+          self.size = 0
+
+      def insert(self, key, value):
+          if self.root is None:
+              self.root = BSTNode(key, value)
+          else:
+              cur = self.root
+              while True:
+                  if key < cur.key:
+                      if cur.left is None:
+                          cur.left = BSTNode(key, value)
+                          break
+                      cur = cur.left
+                  elif key > cur.key:
+                      if cur.right is None:
+                          cur.right = BSTNode(key, value)
+                          break
+                      cur = cur.right
+                  else:
+                      cur.value = value
+                      break
+          self.size += 1
+
+      def search(self, key):
+          cur = self.root
+          while cur is not None:
+              if key == cur.key:
+                  return cur.value
+              elif key < cur.key:
+                  cur = cur.left
+              else:
+                  cur = cur.right
+          return None
+
+      def range_query(self, low, high):
+          result = []
+          def traverse(node):
+              if node is None:
+                  return
+              if low <= node.key <= high:
+                  traverse(node.left)
+                  result.append((node.key, node.value))
+                  traverse(node.right)
+              elif node.key < low:
+                  traverse(node.right)
+              else:
+                  traverse(node.left)
+          traverse(self.root)
+          return result
+
+      def inorder(self):
+          result = []
+          def traverse(node):
+              if node is None:
+                  return
+              traverse(node.left)
+              result.append((node.key, node.value))
+              traverse(node.right)
+          traverse(self.root)
+          return result
+  BST
+
+outputs:
+  - {path: store/bst.py, kind: program, run: 'python3 -c ''from store.inventory import build_inventory, find_in_range, get_product; pairs=[(1003,"USB-C Hub"),(1001,"Wireless Mouse"),(1005,"Laptop Stand"),(1002,"Mechanical Keyboard"),(1004,"4K Monitor")]; bst=build_inventory(pairs); assert get_product(bst,1001)=="Wireless Mouse"; assert get_product(bst,1006) is None; r=find_in_range(bst,1002,1004); assert r==[(1002,"Mechanical Keyboard"),(1003,"USB-C Hub"),(1004,"4K Monitor")], r; assert bst.inorder()==[(1001,"Wireless Mouse"),(1002,"Mechanical Keyboard"),(1003,"USB-C Hub"),(1004,"4K Monitor"),(1005,"Laptop Stand")]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from store.inventory import build_inventory, find_in_range, get_product; pairs=[(1003,"USB-C Hub"),(1001,"Wireless Mouse"),(1005,"Laptop Stand"),(1002,"Mechanical Keyboard"),(1004,"4K Monitor")]; bst=build_inventory(pairs); assert get_product(bst,1001)=="Wireless Mouse"; assert get_product(bst,1006) is None; r=find_in_range(bst,1002,1004); assert r==[(1002,"Mechanical Keyboard"),(1003,"USB-C Hub"),(1004,"4K Monitor")], r; assert bst.inorder()==[(1001,"Wireless Mouse"),(1002,"Mechanical Keyboard"),(1003,"USB-C Hub"),(1004,"4K Monitor"),(1005,"Laptop Stand")]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0249
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: zor
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: ikili-arama-agaci

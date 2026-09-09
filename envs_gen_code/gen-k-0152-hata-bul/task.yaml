@@ -1,0 +1,121 @@
+id: gen-k-0152-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün uzun bir gündü, işler yoğundu ve sonunda oturup şu oturum işleme modülündeki sorunu çözmeye fırsat buldum. Akşam yemeğinden önce halledebilirsem güzel olacak.
+
+  session/processor.py dosyasındaki `process_events` fonksiyonunu düzeltmen gerekiyor. Şu anki haliyle, `recent` parametresi verilmediğinde fonksiyon, manager'daki varsayılan listeyi doğrudan alıp üzerinde değişiklik yapıyor; bu da o listenin kalıcı olarak bozulmasına yol açıyor. Fonksiyonun, `recent` parametresi verilmediğinde manager'dan varsayılan listeyi alması ama bu listeyi değiştirmemesi gerekiyor; yani işlem yaparken listenin bir kopyasını kullanmalı. Düzeltmeyi yaparken `session/processor.py` dosyasının içeriğini güncellemen yeterli.
+
+setup: |
+  mkdir -p session
+  cat > session/manager.py <<'MANAGER'
+  class SessionManager:
+      def __init__(self):
+          self._sessions = {}
+          self._default_recent = []
+
+      def create_session(self, user_id):
+          if user_id not in self._sessions:
+              self._sessions[user_id] = []
+          return self._sessions[user_id]
+
+      def get_session(self, user_id):
+          return self._sessions.get(user_id, [])
+
+      def add_event(self, user_id, event):
+          session = self.create_session(user_id)
+          session.append(event)
+          return session
+
+      def get_default_recent(self):
+          return self._default_recent
+
+      def clear_sessions(self):
+          self._sessions.clear()
+          self._default_recent.clear()
+  MANAGER
+  cat > session/processor.py <<'PROCESSOR'
+  from session.manager import SessionManager
+
+
+  def process_events(manager, user_id, events, recent=None):
+      if recent is None:
+          recent = manager.get_default_recent()
+      for event in events:
+          manager.add_event(user_id, event)
+          if len(recent) >= 5:
+              recent.pop(0)
+          recent.append(event)
+      return recent
+  PROCESSOR
+  cat > test_sessions.py <<'TEST'
+  from session.manager import SessionManager
+  from session.processor import process_events
+
+  def test_basic():
+      m = SessionManager()
+      recent = process_events(m, "alice", ["login", "view", "logout"])
+      assert recent == ["login", "view", "logout"]
+      assert m.get_session("alice") == ["login", "view", "logout"]
+      print("TAMAM")
+
+  if __name__ == "__main__":
+      test_basic()
+  TEST
+
+goal_tr: >
+  session/processor.py icindeki process_events fonksiyonunu, recent
+  parametresi verilmediginde manager'dan varsayilan bir liste alip onu
+  degistirmeyecek sekilde duzelt
+
+reference_solution: |
+  cat > session/processor.py <<'PROCESSOR'
+  from session.manager import SessionManager
+
+
+  def process_events(manager, user_id, events, recent=None):
+      if recent is None:
+          recent = []
+      for event in events:
+          manager.add_event(user_id, event)
+          if len(recent) >= 5:
+              recent.pop(0)
+          recent.append(event)
+      return recent
+  PROCESSOR
+
+outputs:
+  - {path: session/processor.py, kind: program, run: 'python3 -c ''from session.manager import SessionManager; from session.processor import process_events; m=SessionManager(); r1=process_events(m,"alice",["login","view"]); r2=process_events(m,"bob",["login"]); assert r1==["login","view"], r1; assert r2==["login"], r2; assert r1==["login","view"], r1; assert m.get_default_recent()==[], m.get_default_recent(); assert m.get_session("alice")==["login","view"], m.get_session("alice"); assert m.get_session("bob")==["login"], m.get_session("bob"); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from session.manager import SessionManager; from session.processor import process_events; m=SessionManager(); r1=process_events(m,"alice",["login","view"]); r2=process_events(m,"bob",["login"]); assert r1==["login","view"], r1; assert r2==["login"], r2; assert r1==["login","view"], r1; assert m.get_default_recent()==[], m.get_default_recent(); assert m.get_session("alice")==["login","view"], m.get_session("alice"); assert m.get_session("bob")==["login"], m.get_session("bob"); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0152
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: mutable-varsayilan

@@ -1,0 +1,111 @@
+id: gen-k-0123-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) uni/student.py dosyasındaki Student sınıfının add_grade metodunu bul.
+  2) Bu metodu, eklenen notları tam sayıya çevirmek yerine ondalıklı değer olarak saklayacak şekilde düzelt.
+  3) Değişikliği uni/student.py dosyasına kaydet.
+
+setup: |
+  mkdir -p uni
+  cat > uni/student.py <<'STUDENT'
+  class Student:
+      def __init__(self, name, sid):
+          self.name = name
+          self.sid = sid
+          self.grades = []
+
+      def add_grade(self, course, grade):
+          self.grades.append((course, int(grade)))
+
+      def gpa(self):
+          if not self.grades:
+              return 0.0
+          total = 0
+          for _, grade in self.grades:
+              total += grade
+          return total / len(self.grades)
+  STUDENT
+  cat > uni/transcript.py <<'TRANSCRIPT'
+  from uni.student import Student
+
+
+  def build_transcript(records):
+      students = {}
+      for name, sid, course, grade in records:
+          if sid not in students:
+              students[sid] = Student(name, sid)
+          students[sid].add_grade(course, grade)
+      return students
+
+
+  def top_student(students):
+      best = None
+      best_gpa = -1.0
+      for sid, student in students.items():
+          g = student.gpa()
+          if g > best_gpa:
+              best_gpa = g
+              best = student
+      return best
+  TRANSCRIPT
+
+goal_tr: >
+  uni/student.py icindeki Student.add_grade metodunu, notlari tam sayiya
+  cevirmek yerine ondalikli deger olarak saklayacak sekilde duzelt
+
+reference_solution: |
+  cat > uni/student.py <<'STUDENT'
+  class Student:
+      def __init__(self, name, sid):
+          self.name = name
+          self.sid = sid
+          self.grades = []
+
+      def add_grade(self, course, grade):
+          self.grades.append((course, float(grade)))
+
+      def gpa(self):
+          if not self.grades:
+              return 0.0
+          total = 0.0
+          for _, grade in self.grades:
+              total += grade
+          return total / len(self.grades)
+  STUDENT
+
+outputs:
+  - {path: uni/student.py, kind: program, run: 'python3 -c ''from uni.transcript import build_transcript, top_student; records=[("Alice","A1","MATH",3.7),("Alice","A1","PHYS",3.3),("Bob","B2","MATH",4.0)]; students=build_transcript(records); top=top_student(students); assert top.name=="Bob", top.name; assert abs(top.gpa()-4.0)<1e-9; records2=[("Alice","A1","MATH",3.5)]; s2=build_transcript(records2); assert abs(s2["A1"].gpa()-3.5)<1e-9; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from uni.transcript import build_transcript, top_student; records=[("Alice","A1","MATH",3.7),("Alice","A1","PHYS",3.3),("Bob","B2","MATH",4.0)]; students=build_transcript(records); top=top_student(students); assert top.name=="Bob", top.name; assert abs(top.gpa()-4.0)<1e-9; records2=[("Alice","A1","MATH",3.5)]; s2=build_transcript(records2); assert abs(s2["A1"].gpa()-3.5)<1e-9; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0123
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: tip-karismasi

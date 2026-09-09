@@ -1,0 +1,101 @@
+id: gen-k-0160-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  event_scheduler/event_queue.py dosyasında yer alan EventQueue sınıfının dequeue, is_empty ve size metotlarını, kuyruğun FIFO (ilk giren ilk çıkar) mantığını doğru biçimde uygulayacak şekilde tamamla.
+
+setup: |
+  mkdir -p event_scheduler
+  cat > event_scheduler/event_queue.py <<'EOF'
+  class EventQueue:
+      def __init__(self):
+          self._items = []
+
+      def enqueue(self, item):
+          self._items.append(item)
+
+      def dequeue(self):
+          raise NotImplementedError
+
+      def is_empty(self):
+          raise NotImplementedError
+
+      def size(self):
+          raise NotImplementedError
+  EOF
+  cat > event_scheduler/process_events.py <<'EOF'
+  from event_scheduler.event_queue import EventQueue
+
+
+  def process_events(event_list):
+      queue = EventQueue()
+      for event in event_list:
+          queue.enqueue(event)
+
+      processed = []
+      while not queue.is_empty():
+          processed.append(queue.dequeue())
+      return processed
+  EOF
+
+goal_tr: >
+  event_scheduler/event_queue.py icindeki EventQueue sinifinin dequeue,
+  is_empty ve size metodlarini, kuyruk FIFO (ilk giren ilk cikar)
+  semantigini dogru uygulayacak sekilde tamamla
+
+reference_solution: |
+  cat > event_scheduler/event_queue.py <<'EOF'
+  class EventQueue:
+      def __init__(self):
+          self._items = []
+
+      def enqueue(self, item):
+          self._items.append(item)
+
+      def dequeue(self):
+          if not self._items:
+              raise IndexError("dequeue from empty queue")
+          return self._items.pop(0)
+
+      def is_empty(self):
+          return len(self._items) == 0
+
+      def size(self):
+          return len(self._items)
+  EOF
+
+outputs:
+  - {path: event_scheduler/event_queue.py, kind: program, run: 'python3 -c ''from event_scheduler.process_events import process_events as p; assert p(["meeting","lunch","review"])==["meeting","lunch","review"]; assert p([])==[]; assert p(["standup"])==["standup"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from event_scheduler.process_events import process_events as p; assert p(["meeting","lunch","review"])==["meeting","lunch","review"]; assert p([])==[]; assert p(["standup"])==["standup"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0160
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kuyruk

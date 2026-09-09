@@ -1,0 +1,91 @@
+id: gen-k-0241-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  bank/statement.py dosyasını oluştur. Bu dosya, bank/transactions.py içindeki parse_transactions fonksiyonunu kullanarak data.txt dosyasındaki işlemleri ay cinsinden gruplandırmalı ve her ay için net akışı (toplam deposit miktarından toplam withdrawal ve fee miktarlarını çıkararak) hesaplamalıdır. Fonksiyon, verilen işlem metnini ayıklayıp her ayın net akışını doğru şekilde döndürmelidir.
+
+setup: |
+  mkdir -p bank
+  cat > bank/transactions.py <<'EOF'
+  def parse_transactions(text):
+      entries = []
+      for line in text.strip().splitlines():
+          if not line or line.startswith('#'):
+              continue
+          date, kind, amount = line.split('|')
+          entries.append({
+              'date': date.strip(),
+              'kind': kind.strip(),
+              'amount': float(amount.strip())
+          })
+      return entries
+  EOF
+  cat > data.txt <<'EOF'
+  2024-01-15|DEPOSIT|1000.50
+  2024-01-20|WITHDRAWAL|250.25
+  2024-02-03|DEPOSIT|500.00
+  2024-02-14|WITHDRAWAL|75.75
+  2024-03-01|FEE|10.00
+  2024-03-10|DEPOSIT|2000.00
+  EOF
+
+goal_tr: >
+  bank/statement.py dosyasini, verilen islem metnini ayristirip her ayin net
+  akisini (depositlar eksi withdrawal'lar ve fee'ler) dogru hesaplayan bir
+  fonksiyonla olustur
+
+reference_solution: |
+  cat > bank/statement.py <<'EOF'
+  from collections import OrderedDict
+  from bank.transactions import parse_transactions
+
+
+  def net_monthly_flow(text):
+      entries = parse_transactions(text)
+      months = OrderedDict()
+      for e in entries:
+          month = e['date'][:7]
+          if month not in months:
+              months[month] = 0.0
+          if e['kind'] == 'DEPOSIT':
+              months[month] += e['amount']
+          else:
+              months[month] -= e['amount']
+      return months
+  EOF
+
+outputs:
+  - {path: bank/statement.py, kind: program, run: 'python3 -c ''from bank.statement import net_monthly_flow as f; t=open("data.txt").read(); r=f(t); assert len(r)==3, r; assert abs(r["2024-01"]-750.25)<1e-9, r; assert abs(r["2024-02"]-424.25)<1e-9, r; assert abs(r["2024-03"]-1990.00)<1e-9, r; assert list(r.keys())==["2024-01","2024-02","2024-03"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bank.statement import net_monthly_flow as f; t=open("data.txt").read(); r=f(t); assert len(r)==3, r; assert abs(r["2024-01"]-750.25)<1e-9, r; assert abs(r["2024-02"]-424.25)<1e-9, r; assert abs(r["2024-03"]-1990.00)<1e-9, r; assert list(r.keys())==["2024-01","2024-02","2024-03"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0241
+    bundle: yarisma
+    tools:
+    - python3
+    konu: banka-hareketleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: zor
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: metin-ayristirma

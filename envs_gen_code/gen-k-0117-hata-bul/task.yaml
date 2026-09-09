@@ -1,0 +1,99 @@
+id: gen-k-0117-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün uzun bir gün oldu, özellikle kullanıcı oturumlarının yönetimiyle uğraşırken bazı tutarsızlıklar fark ettim. Her kullanıcı için roller listesinin ayrı ayrı saklanması gerekiyor ama şu an sistem bunu doğru yapmıyor. Yeni bir kullanıcı kaydederken roller listesinin bağımsız olması gerekiyor, yani `auth/session_store.py` dosyasındaki `SessionStore.register` metodunu, her kullanıcının kendi roller listesini bağımsız olarak saklayacak şekilde düzeltmeni istiyorum. Bu düzeltmeyi `auth/session_store.py` dosyasında yapmalısın.
+
+setup: |
+  mkdir -p auth
+  cat > auth/session_store.py <<'SESSION'
+  class SessionStore:
+      def __init__(self):
+          self.sessions = {}
+
+      def register(self, user_id, roles=[]):
+          self.sessions[user_id] = roles
+          return self.sessions[user_id]
+
+      def get_roles(self, user_id):
+          return self.sessions.get(user_id, [])
+  SESSION
+  cat > auth/access.py <<'ACCESS'
+  from auth.session_store import SessionStore
+
+
+  def create_admin_session(store, user_id):
+      return store.register(user_id, ['admin'])
+
+
+  def create_default_session(store, user_id):
+      return store.register(user_id)
+  ACCESS
+  cat > main.py <<'MAIN'
+  from auth.access import create_admin_session, create_default_session
+  from auth.session_store import SessionStore
+
+  store = SessionStore()
+  create_default_session(store, 'user1')
+  create_admin_session(store, 'admin1')
+
+  assert store.get_roles('user1') == [], store.get_roles('user1')
+  assert store.get_roles('admin1') == ['admin'], store.get_roles('admin1')
+  print("TAMAM")
+  MAIN
+
+goal_tr: >
+  auth/session_store.py icindeki SessionStore.register metodunu, her
+  kullanici icin roles listesini bagimsiz olarak saklayacak bicimde duzelt.
+
+reference_solution: |
+  cat > auth/session_store.py <<'SESSION'
+  class SessionStore:
+      def __init__(self):
+          self.sessions = {}
+
+      def register(self, user_id, roles=None):
+          if roles is None:
+              roles = []
+          self.sessions[user_id] = roles
+          return self.sessions[user_id]
+
+      def get_roles(self, user_id):
+          return self.sessions.get(user_id, [])
+  SESSION
+
+outputs:
+  - {path: auth/session_store.py, kind: program, run: 'python3 -c ''from auth.session_store import SessionStore; s=SessionStore(); s.register("u1"); r1=s.get_roles("u1"); r1.append("admin"); s.register("u2"); assert s.get_roles("u2")==[], s.get_roles("u2"); assert s.get_roles("u1")==["admin"], s.get_roles("u1"); s.register("u3", ["guest"]); assert s.get_roles("u3")==["guest"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from auth.session_store import SessionStore; s=SessionStore(); s.register("u1"); r1=s.get_roles("u1"); r1.append("admin"); s.register("u2"); assert s.get_roles("u2")==[], s.get_roles("u2"); assert s.get_roles("u1")==["admin"], s.get_roles("u1"); s.register("u3", ["guest"]); assert s.get_roles("u3")==["guest"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0117
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: mutable-varsayilan

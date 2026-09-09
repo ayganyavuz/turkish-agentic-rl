@@ -1,0 +1,117 @@
+id: gen-k-0196-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) `.` dizinindeki `transcript.py` dosyasını aç ve içindeki `TranscriptStack` sınıfını incele.
+
+  2) `TranscriptStack` sınıfının `push`, `pop`, `peek`, `is_empty`, `size`, `clear` ve `__len__` metotlarının gövdelerini, yığın (stack) veri yapısının doğru semantiğini uygulayacak şekilde tamamla.
+
+  3) Her metottaki `NotImplementedError` ifadesini, o metodun amacına uygun gerçek bir uygulamayla değiştir.
+
+  4) Yaptığın değişiklikleri `transcript.py` dosyasına kaydet.
+
+setup: |
+  cat > transcript.py <<'PY'
+  class TranscriptStack:
+      def __init__(self):
+          self._items = []
+          self._size = 0
+
+      def push(self, course, grade):
+          raise NotImplementedError
+
+      def pop(self):
+          raise NotImplementedError
+
+      def peek(self):
+          raise NotImplementedError
+
+      def is_empty(self):
+          raise NotImplementedError
+
+      def size(self):
+          raise NotImplementedError
+
+      def clear(self):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+  PY
+
+goal_tr: >
+  transcript.py icindeki TranscriptStack sinifinin tum metotlarini, yigin
+  semantigini dogru uygulayacak sekilde tamamla (NotImplementedError
+  govdelerini dogru gerceklestirmelerle degistir).
+
+reference_solution: |
+  cat > transcript.py <<'PY'
+  class TranscriptStack:
+      def __init__(self):
+          self._items = []
+          self._size = 0
+
+      def push(self, course, grade):
+          self._items.append((course, grade))
+          self._size += 1
+
+      def pop(self):
+          if self._size == 0:
+              raise IndexError("pop from empty stack")
+          self._size -= 1
+          return self._items.pop()
+
+      def peek(self):
+          if self._size == 0:
+              raise IndexError("peek from empty stack")
+          return self._items[-1]
+
+      def is_empty(self):
+          return self._size == 0
+
+      def size(self):
+          return self._size
+
+      def clear(self):
+          self._items = []
+          self._size = 0
+
+      def __len__(self):
+          return self._size
+  PY
+
+outputs:
+  - {path: transcript.py, kind: program, run: 'python3 -c ''from transcript import TranscriptStack; s=TranscriptStack(); assert s.is_empty() and len(s)==0 and s.size()==0; s.push("MATH101",85); s.push("CS102",92); assert len(s)==2 and s.size()==2 and not s.is_empty(); assert s.peek()==("CS102",92); assert s.pop()==("CS102",92); assert s.pop()==("MATH101",85); assert s.is_empty(); ok=False; exec("try:\n s.pop()\nexcept IndexError:\n ok=True"); assert ok; ok=False; exec("try:\n s.peek()\nexcept IndexError:\n ok=True"); assert ok; s.push("PHY101",70); s.clear(); assert len(s)==0 and s.is_empty(); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from transcript import TranscriptStack; s=TranscriptStack(); assert s.is_empty() and len(s)==0 and s.size()==0; s.push("MATH101",85); s.push("CS102",92); assert len(s)==2 and s.size()==2 and not s.is_empty(); assert s.peek()==("CS102",92); assert s.pop()==("CS102",92); assert s.pop()==("MATH101",85); assert s.is_empty(); ok=False; exec("try:\n s.pop()\nexcept IndexError:\n ok=True"); assert ok; ok=False; exec("try:\n s.peek()\nexcept IndexError:\n ok=True"); assert ok; s.push("PHY101",70); s.clear(); assert len(s)==0 and s.is_empty(); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0196
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yigin

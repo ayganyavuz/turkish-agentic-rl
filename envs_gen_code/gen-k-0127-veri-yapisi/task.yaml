@@ -1,0 +1,194 @@
+id: gen-k-0127-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  orders/tree.py içindeki OrderBST sınıfının range_count metodunu ağaçtaki anahtarların sayısını [lo, hi] aralığında doğru döndürecek, top_k metodunu da en büyük k anahtarın değerlerini doğru döndürecek şekilde gerçekleştir.
+
+setup: |
+  mkdir -p orders
+  cat > orders/tree.py <<'TREE'
+  class BSTNode:
+      def __init__(self, key, value):
+          self.key = key
+          self.value = value
+          self.left = None
+          self.right = None
+
+  class OrderBST:
+      def __init__(self):
+          self.root = None
+
+      def insert(self, key, value):
+          if self.root is None:
+              self.root = BSTNode(key, value)
+              return
+          self._insert(self.root, key, value)
+
+      def _insert(self, node, key, value):
+          if key < node.key:
+              if node.left is None:
+                  node.left = BSTNode(key, value)
+              else:
+                  self._insert(node.left, key, value)
+          elif key > node.key:
+              if node.right is None:
+                  node.right = BSTNode(key, value)
+              else:
+                  self._insert(node.right, key, value)
+          else:
+              node.value = value
+
+      def find(self, key):
+          return self._find(self.root, key)
+
+      def _find(self, node, key):
+          if node is None:
+              return None
+          if key == node.key:
+              return node.value
+          elif key < node.key:
+              return self._find(node.left, key)
+          else:
+              return self._find(node.right, key)
+
+      def range_count(self, lo, hi):
+          raise NotImplementedError
+
+      def top_k(self, k):
+          raise NotImplementedError
+  TREE
+  cat > orders/query.py <<'QUERY'
+  from orders.tree import OrderBST
+
+
+  def count_in_range(bst, lo, hi):
+      return bst.range_count(lo, hi)
+
+
+  def get_top(bst, k):
+      return bst.top_k(k)
+  QUERY
+  cat > data.txt <<'DATA'
+  1001,apple
+  1005,banana
+  1002,cherry
+  1008,date
+  1003,elderberry
+  1009,fig
+  1007,grape
+  DATA
+
+goal_tr: >
+  orders/tree.py icindeki OrderBST sinifinin range_count ve top_k
+  metodlarini, agactaki anahtarlarin sayisini ve en buyuk k anahtarin
+  degerlerini dogru dondurecek sekilde gerceklestir
+
+reference_solution: |
+  cat > orders/tree.py <<'TREE'
+  class BSTNode:
+      def __init__(self, key, value):
+          self.key = key
+          self.value = value
+          self.left = None
+          self.right = None
+
+  class OrderBST:
+      def __init__(self):
+          self.root = None
+
+      def insert(self, key, value):
+          if self.root is None:
+              self.root = BSTNode(key, value)
+              return
+          self._insert(self.root, key, value)
+
+      def _insert(self, node, key, value):
+          if key < node.key:
+              if node.left is None:
+                  node.left = BSTNode(key, value)
+              else:
+                  self._insert(node.left, key, value)
+          elif key > node.key:
+              if node.right is None:
+                  node.right = BSTNode(key, value)
+              else:
+                  self._insert(node.right, key, value)
+          else:
+              node.value = value
+
+      def find(self, key):
+          return self._find(self.root, key)
+
+      def _find(self, node, key):
+          if node is None:
+              return None
+          if key == node.key:
+              return node.value
+          elif key < node.key:
+              return self._find(node.left, key)
+          else:
+              return self._find(node.right, key)
+
+      def range_count(self, lo, hi):
+          return self._range_count(self.root, lo, hi)
+
+      def _range_count(self, node, lo, hi):
+          if node is None:
+              return 0
+          if node.key < lo:
+              return self._range_count(node.right, lo, hi)
+          elif node.key > hi:
+              return self._range_count(node.left, lo, hi)
+          else:
+              return (1 + self._range_count(node.left, lo, hi) +
+                      self._range_count(node.right, lo, hi))
+
+      def top_k(self, k):
+          result = []
+          self._top_k(self.root, k, result)
+          return result
+
+      def _top_k(self, node, k, result):
+          if node is None or len(result) >= k:
+              return
+          self._top_k(node.right, k, result)
+          if len(result) < k:
+              result.append(node.value)
+              self._top_k(node.left, k, result)
+  TREE
+
+outputs:
+  - {path: orders/tree.py, kind: program, run: 'python3 -c ''from orders.tree import OrderBST; from orders.query import count_in_range, get_top; b=OrderBST(); lines=[l.strip().split(",") for l in open("data.txt")]; [b.insert(int(k),v) for k,v in lines]; assert count_in_range(b,1000,1004)==3, count_in_range(b,1000,1004); assert count_in_range(b,1006,1010)==3, count_in_range(b,1006,1010); assert count_in_range(b,1000,1010)==7, count_in_range(b,1000,1010); assert get_top(b,3)==["fig","date","grape"], get_top(b,3); assert get_top(b,1)==["fig"], get_top(b,1); assert get_top(b,5)==["fig","date","grape","banana","elderberry"], get_top(b,5); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from orders.tree import OrderBST; from orders.query import count_in_range, get_top; b=OrderBST(); lines=[l.strip().split(",") for l in open("data.txt")]; [b.insert(int(k),v) for k,v in lines]; assert count_in_range(b,1000,1004)==3, count_in_range(b,1000,1004); assert count_in_range(b,1006,1010)==3, count_in_range(b,1006,1010); assert count_in_range(b,1000,1010)==7, count_in_range(b,1000,1010); assert get_top(b,3)==["fig","date","grape"], get_top(b,3); assert get_top(b,1)==["fig"], get_top(b,1); assert get_top(b,5)==["fig","date","grape","banana","elderberry"], get_top(b,5); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0127
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: ikili-arama-agaci

@@ -225,6 +225,15 @@ def checks_for_file(rel: str, raw: bytes, override: dict | None,
         if res.exit_code != 0:
             sorunlar.append(f"{rel}: `{run}` referans dunyasinda exit={res.exit_code}")
             return [{"op": "is_file", "path": rel}], notes, sorunlar
+        if not res.stdout.strip():
+            # Bos cikti her dunyada esit: basarisiz bir test de bos stdout
+            # birakir, yani check bozuk dunya ile dogruyu ayirt edemez.
+            # Kapilar bunu yakaliyor ama sebebi uc ayri hata olarak
+            # gosteriyordu; burada tek ve net soyleniyor.
+            sorunlar.append(
+                f"{rel}: `{run}` hicbir sey basmiyor -- basarili durumda "
+                f"sabit ve bos olmayan bir metin bas (orn. print('TAMAM'))")
+            return [{"op": "is_file", "path": rel}], notes, sorunlar
         return ([{"op": "run_stdout_eq", "cmd": run, "value": res.stdout.strip()}],
                 notes, sorunlar)
 

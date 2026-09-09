@@ -1,0 +1,249 @@
+# PROJECT-TRACE
+
+Bu dosya projenin karar ve calisma gunlugudur. Yeni bolumler **append** edilir,
+gecmis bolumler yeniden yazilmaz. Her bolum tarih + baslik ile acilir.
+
+---
+
+## Bolum 0 — Su ana kadar yapilanlar (ozet, 2026-09-09 itibariyla)
+
+### Amac
+Turkce, **dogrulanabilir** (verifiable) terminal/arac-kullanimi gorevlerinden olusan
+bir RL veri seti uretmek. Her gorev, bir Linux sandbox'inda coklu tur arac cagrisiyla
+cozulur ve sonuc host tarafinda deterministik check'lerle notlandirilir.
+
+### Mimari (`src/verifiable_dataset/terminal/`, ~3.6k satir)
+
+| Modul | Isi |
+|---|---|
+| `seeds.py` | Gorev tohumlari: arac demeti, konu, hedef, girdi/cikti bicimi, olcek/bukulme eksenleri |
+| `prompts.py` | LLM'e verilen uretim promptlari (spec → prompt → referans cozum → check) |
+| `generate.py` | Tohumdan aday gorev uretimi; adaylar es zamanli uretilir, key endpoint'e gore secilir |
+| `derive.py` | Referans cozumu sandbox'ta calistirip **check'leri gozlemden turetme**; turetilen check'ler `task.yaml`'a yazilir |
+| `gates.py` | Kalite kapilari: spec tamligi, ASCII veri, Turkce prompt, prompt↔cikti ortusmesi, arac uyumu, **determinizm**, **ayirt edicilik**, **ucuz hile** (bos/kopya cozumun gecmemesi), esdegerlik |
+| `checks.py` | 12 deklaratif check op'u: `file_content_eq`, `file_lines_eq`, `file_matches`, `dir_entries_eq`, `json_eq`, `json_field_eq`, `run_stdout_eq`, ... |
+| `equiv.py` | Esdegerlik: arsiv / JSON / cok satirli metin **byte** yerine semantik karsilastirilir |
+| `sandbox.py` | Docker sandbox — episode basina bir konteyner, turler arasi FS durumu korunur, `docker exec` ile calisir, `--network none`, 1 cpu / 512m / pids 256 |
+| `task.py` | `task.yaml` yukleme + host tarafinda notlandirma (`grade`); betikler `set -o pipefail` ile kosar |
+| `runner.py` | Episode dongusu: native tool-calling **veya** `<komut>` metin protokolu (Gemma gibi tool'suz modeller icin); dusunce zinciri (`reasoning_content`) ve komut ciktisi ekrana basilir |
+| `sweep.py` | Tum korpusu kosturup gorevleri **banda** ayirir |
+
+### Odul ve bantlama
+- `reward`: **ikili** — tum check'ler gectiyse 1.0, aksi halde 0.0.
+- `partial`: gecen check orani; **yalnizca teshis icin** tutuluyor, odul degil.
+- Bant (`sweep.py:band_of`): pass-rate'e gore `BANT` (ogretici) / `OLU-kolay` (hep cozuluyor)
+  / `OLU-zor` (hic cozulemiyor) / `BOZUK`.
+
+### Korpus durumu
+- `envs/` — 9 elle yazilmis smoke/seed gorevi.
+- `envs_gen/` — **154** uretilmis gorev (`gen-s-XXXX-<hedef>`), her biri tek dizin + `task.yaml`.
+- Gorev alanlari: `ozetle, donustur, ayikla, denetle, bol, birlestir, karsilastir, onar,
+  grupla-say, yeniden-duzenle, arsivle, dogrula, sirala-sec, toplu-yeniden-adlandir`.
+
+### Son sweep sonucu (`data/sweep2.log`, `data/sweep2.jsonl`, 154 gorev)
+
+| Metrik | Deger |
+|---|---|
+| Cozulen | 36 / 154 |
+| Ortalama reward (ikili) | 0.393 |
+| Ortalama kismi (teshis) | 0.408 |
+| Ortalama tur | 5.1 |
+| **BANT (egitimde ise yarar)** | **44 / 154 (%29)** |
+| OLU-kolay | 36 |
+| OLU-zor | 74 |
+
+Ana darbogaz: 74 gorev hic cozulemiyor (OLU-zor). Egitim sinyali tasiyan korpus
+su an **44 prompt**.
+
+### Bilinen acik konular
+- `data/*.log` dosyalari UTF-16 yazilmis; Turkce karakterler bozuk gorunuyor.
+- Bazi `reference_solution` alanlari LLM'in "dusunerek" yazdigi coklu deneme
+  metinleri iceriyor (orn. `gen-s-0043-dogrula`) — calisiyor ama kirli.
+- `.mcp.json` takip edilmiyor; `data/sweep2.log` commit edilmemis.
+
+### Sonraki hedef
+Bu veri setinin **ise yarayip yaramadigini** olcmek: Colab uzerinde GRPO ile
+4-5 epoch egitim, her epoch sonunda sabit 30 soruluk SWE-Bench alt kumesiyle
+dogrulama. Plan Bolum 1'de.
+
+---
+
+## Bolum 1 — GRPO egitim plani (2026-09-09, mutabik kalindi)
+
+### Amac
+Veri setinin **ise yarayip yaramadigini** olcmek. Hipotez: bu Turkce dogrulanabilir
+terminal korpusunda GRPO ile egitim, modelin ajanik arac-kullanimi becerisini
+olcelebilir sekilde artirir.
+
+### Mutabik kalinan kararlar
+
+| Konu | Karar |
+|---|---|
+| Platform | **Colab** (A100 80GB). Lokal makine devrede degil. |
+| Sandbox | Colab'de Docker yok → **`LocalSandbox`** (tempdir + subprocess). `docker exec` semantigi birebir korunur. |
+| Taban model | **Qwen3.5-4B** (tam repo id Faz 0'da teyit edilecek) |
+| Egitim | **Full fine-tune** + `adamw_bnb_8bit` + gradient checkpointing (~40GB, vLLM'e ~35GB kalir) |
+| Thinking modu | **Kapali** — cok turlu dongude baglam ve sure patlamasin, maskeleme temiz kalsin |
+| Cerceve | **TRL GRPOTrainer** + kendi cok-turlu rollout kopru kodumuz |
+| Uretim | **vLLM**, egitimle ayni kartta (colocate) |
+| Odul | **Ikili** (solved=1, aksi 0). `partial` yalnizca teshis. Sekillendirme/format odulu **yok**. |
+| Grup | **G = 8**, egitim rollout'larinda yuksek sicaklik; eval'de `temperature=0`, tek rollout |
+| Epoch | **4-5**, ayrica **epoch 0 baseline** |
+| Kontrol grubu | Yok — epoch'lar kendi aralarinda karsilastirilacak |
+| Basari esigi | Held-out cozum oraninda epoch 0'a gore **+%15 mutlak**, son iki epoch'ta korunuyor |
+| Repo | **public**, Colab'e `git clone` ile |
+| Kayit | Drive'a checkpoint + `data/train/epochNN.jsonl`; **W&B**. Tum log yazimi **UTF-8**. |
+
+### Faz 0 — Dogrulama (kod yazmadan once)
+- **0.1** Colab'de A100 80GB tahsisini `nvidia-smi` ile teyit
+- **0.2** **sb-cli** (swebench.com barindirilan degerlendirme) erisimini test et.
+  Calisiyorsa Colab'de SWE-bench icin **hic Docker gerekmez**: ajan `git clone` +
+  `git checkout <base_commit>` yapip **patch uretir**, patch'ler uzaga gonderilir.
+  Kapaliysa **yedek plan**: Colab patch uretir, degerlendirme Docker'li lokal makinede kosar.
+- **0.3** TRL surumunde custom-rollout API'sinin (`rollout_func` vb.) varligini teyit
+- **0.4** `Qwen3.5-4B` icin dogru HF repo id, context uzunlugu, tool-calling sablonu
+
+Ucu de yesil degilse plan revize edilir.
+
+### Faz 1 — `LocalSandbox`
+- `sandbox.py`'a yeni sinif: episode basina `mkdtemp()`, `subprocess.run(..., cwd=root, shell=True)`
+- **`docker exec` semantigi bilerek korunur**: her tur taze shell, `cd` ve env turlar arasi tasinmaz.
+  Yoksa mevcut bant olcumleri gecersizlesir.
+- `snapshot()` / timeout / cikti kirpma arayuzu birebir ayni → `task.py` ve `grade()` degismez
+- `--sandbox {docker,local}` bayragi
+- **Guvenlik (izolasyon olmadigi icin):** tehlikeli komut deseni reddi, calisma dizini
+  disina yazma engeli, per-komut timeout
+- **Kabul testi:** `envs/` + `envs_gen/` uzerinde `--reference` sweep'i Docker'li kosuyla
+  **ayni bant dagilimini** vermeli
+
+### Faz 2 — Bant genisletme
+- Jeneratoru tekrar kostur: **+150 gorev**, **concurrency ≤ 8**, mevcut `.env` endpoint'i
+- Hedef: BANT ~200 gorev
+- **Held-out ayrimi simdi dondurulur**: genisletilmis korpus `domain` bazinda tabakali
+  **%70 train / %30 held-out**, dosyaya yazilip sabitlenir. Held-out egitime **hic** girmez.
+- **Dinamik mufredat:** ayri sweep kosmaya gerek yok — egitimde zaten her prompt'un G=8
+  rollout'u var, pass-rate oradan gelir. Her epoch sonunda `0/8` ve `8/8` prompt'lar bir
+  sonraki epoch'tan dusurulur; OLU-zor havuzu ara sira yoklanip BANT'a girenler geri alinir.
+
+### Faz 3 — Cok turlu GRPO koprusu (en agir parca)
+TRL'in GRPOTrainer'i tek turluk uretir; ortam cok turlu. Cozum **tur-senkron toplu rollout**:
+
+```
+her adim:
+  B prompt x G=8 = N episode baslat (N adet LocalSandbox)
+  tur t = 1..max_turns:
+      aktif episode'larin mesaj gecmislerini tek batch'te vLLM'e ver
+      yanitlardan komutu ayikla (native tool-call veya <komut>)
+      komutlari thread pool ile paralel calistir (16 worker)
+      gozlemleri gecmise ekle; komut yoksa episode kapanir
+  her episode grade edilir -> ikili odul
+  GRPO: grup ici avantaj = (r - grup_ort) / grup_std
+  loss YALNIZCA assistant token'lari uzerinde (gozlem token'lari maskeli)
+```
+
+Kritik detaylar:
+- **Gozlem token'lari loss'tan maskelenmeli** — aksi halde model kendi uretmedigi metni ogrenir
+- Bir gruptaki G rollout ayni prompt'tan gelmeli
+- Grup std = 0 ise (hepsi 0 veya hepsi 1) o prompt o adimda avantaj uretmez, atlanir
+
+**Hiz hedefi:** ~200 prompt x 8 = 1600 episode, ~5 tur → 5 toplu uretim dalgasi.
+Dalga ~3 dk + ortam ~2 dk + egitim ~20 dk ≈ **epoch basina 45-60 dk**.
+5 epoch + eval tek Colab oturumuna sigar.
+
+### Faz 4 — Degerlendirme
+Her epoch sonunda **ve epoch 0'da**:
+1. **Held-out cozum orani** — ANA METRIK. `temperature=0`, tek rollout, ~60 gorev.
+2. **SWE-bench Verified 30** — zorluk etiketine gore **10 kolay / 10 orta / 10 zor**,
+   sabit seed, her epoch **ayni liste**. Scaffold: **kendi `runner.py`'imiz** (egitilen
+   protokolun aynisi olsun ki transfer olcumu temiz kalsin). Patch uret → sb-cli → resolved orani.
+3. Yardimci: ortalama tur sayisi, gecersiz arac cagrisi orani, bant dagilimi kaymasi.
+
+### Faz 5 — Operasyon
+- `notebooks/train_grpo.ipynb` — Colab'de, Colab MCP uzerinden yonetilir
+- Drive mount → her epoch sonu checkpoint + optimizer state + episode kayitlari; kopma sonrasi resume
+- W&B: reward, cozum orani, KL, grad norm, bant dagilimi, held-out, SWE-bench
+
+### Bilinen riskler
+| Risk | Etki | Azaltma |
+|---|---|---|
+| sb-cli kapali | SWE-bench olcumu Colab'de kosmaz | Yedek: patch Colab'de, degerlendirme lokal Docker'da |
+| LocalSandbox'ta izolasyon yok | Model komutu VM'e zarar verebilir | Desen reddi + dizin siniri + timeout; VM zaten atilabilir |
+| LocalSandbox bant dagilimini kaydirir | Tum onceki olcumler gecersizlesir | Faz 1 kabul testi bunu yakalar |
+| 44 → 200 prompt hala kucuk | Zayif sinyal, asiri uyum | Dinamik mufredat + held-out ile izleme |
+| Transfer yok (Turkce shell → Python repo) | SWE-bench oynamaz | Ana metrik held-out; SWE-bench ikincil metrik |
+| Colab oturumu duser | Egitim kaybi | Drive checkpoint + resume |
+
+---
+
+## Bolum 2 — Uretim hattinin toparlanmasi (2026-09-09)
+
+### Saglayici degisikligi: t3ai -> DeepSeek
+Eski uc (`t3ai.baykartech.net/Jailbreak/v1`) HTTP 401 vermeye basladi
+("invalid api key for app Jailbreak"). Endpoint on-kontrolu bunu kosu
+baslamadan yakaladi, para harcanmadi.
+
+Yeni uc: **DeepSeek**, model **`deepseek-v4-flash`**.
+- `llm.py` yalnizca `OPENAI_API_KEY` ve `MISTRAL_API_KEY` taniyordu; uca gore
+  anahtar secen yapiya **DeepSeek eklendi** (`DEEPSEEK_API_KEY`, `DEEPSEEK_API`).
+  Saglayicilar artik tek bir tabloda (`SAGLAYICILAR`), mevcut davranis bozulmadi.
+- `.env`'de eski t3ai degerleri **yorum satirinda korundu**, yedegi `.env.bak`.
+
+### `pipeline.py` — uctan uca metascript
+Asamalar (`generate`, `prompts`, `gates`, `sweep`) ayri komutlardi ve her biri
+uc/anahtar/model'i yeniden cozumluyordu; biri farkli bir uca giderse korpus
+sessizce karisiyordu. Yeni modul dordunu **tek istemci ve tek uc** uzerinden
+kosuyor:
+
+| Asama | Is | API |
+|---|---|---|
+| `uret` | seed -> spec (setup, referans cozum, turetilen check'ler) + spec-only kapilar | evet |
+| `prompt` | Turkce gorev metni (referans cozum gosterilmeden) | evet |
+| `kapi` | **tam gauntlet** (prompt kapilari dahil); dusenler karantinaya | hayir |
+| `bant` | gorev basina N rollout -> BANT / OLU-kolay / OLU-zor | evet |
+
+- **Yeniden calistirilabilir**: her asama isini bitirmis task'lari atlar.
+- **Karantina** (`envs_gen/_red`): kapilarda dusen silinmez, kenara alinir.
+- **Token sayaci**: asama basina istek/giris/cikis; `--fiyat-*` ile dolar tahmini.
+  Butce gercek bir kisit ve panel geriye donuk kirilim vermiyordu.
+
+### Kritik bulgu: `deepseek-v4-flash` bir reasoning modeli
+Prompt asamasinda 9 task'in 3'u yazilamadi. Belirti yaniltiyordu: denetleyici
+"prompt cok kisa + hic Turkce karakter yok + cikti dosyasi anilmiyor" diyordu.
+Gercek sebep: model `max_tokens`'in **tamamini dusunmeye** harciyor, `content`
+bos donuyordu (`finish_reason=length`, `reasoning_tokens=1024/1024`).
+
+`max_tokens` buyutmek cozmedi — 4096 verildiginde onu da tamamen dusunmeye
+harcadi. Cozum **`reasoning_effort="none"`**.
+
+Duzeltme `llm.py`'da **tek yerde**, cunku sorun her asamayi etkiliyordu
+(`runner.py` da `max_tokens=1024` kullaniyor, yani bant asamasi da cokecekti):
+- `_Completions` her istege ortak alan enjekte ediyor
+- Ucun **tanimadigi alan sessizce dusurulup** istek tekrarlaniyor (yerel vLLM
+  `reasoning_effort` bilmeyebilir; kosu comesin diye)
+- `pipeline.py`'da `--reasoning-effort`, varsayilan `none`
+
+### Dusunme kapali/acik olcumu (n=10, `uret` asamasi)
+
+| | dusunme acik | dusunme kapali |
+|---|---|---|
+| Kabul | 9/10 | 9/10 |
+| Ortalama deneme | 2.2 | **1.9** |
+| 10 aday maliyeti | $0.42 (panelden) | **$0.016** (tahmin) |
+
+Karar: **dusunme kapali**. Kabul orani dusmuyor, onarim turu azaliyor.
+(n=10 kucuk bir orneklem; karar "kotu degil + cok ucuz" gerekcesiyle alindi.)
+
+Asama bazinda: `prompt` kapali, `uret` kapali, `bant` **bu uctan hic
+kosulmayacak** -- bant, egitilecek modelle olculmeli, DeepSeek'in cozebildigi
+gorev kumesi Qwen3.5-4B'ninkiyle ayni degil. Bant Colab'de olculecek.
+
+### Butce -- onceki tahmin gecersiz
+Onceki "150 aday $6.3, BANT 200 hedefi ~$30" tahmini **tamamen dusunme
+token'iydi**. Olculen: 10 aday = 20 istek, 27.6k giris, 7.9k cikis.
+Buradan 400 aday ~$0.65, prompt asamasi ~$0.24, uctan uca **~$1**.
+Yatirilan $2 yeterli.
+
+### Korpus durumu
+**163 task**, prompt'u bos olan yok, yeni 9'un dokuzu da tam gauntlet'ten gecti.
+En cok tetiklenen kapi: `arac uygunlugu` (model seed'in verdigi araci
+kullanmadan cozuyor, onarim turunda duzeliyor).

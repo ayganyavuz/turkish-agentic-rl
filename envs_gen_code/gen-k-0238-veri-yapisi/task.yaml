@@ -1,0 +1,105 @@
+id: gen-k-0238-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) `roadnet/merger.py` dosyasındaki `merge_contiguous` fonksiyonunu gerçekleştir. Bu fonksiyon, aynı yol kimliğine sahip ve bitişik olan yol parçalarını (bir parçanın `end_km` değeri ile sonraki parçanın `start_km` değeri eşitse) tek bir `RoadSegment` olarak birleştirmelidir.
+
+  2) `roadnet/segments.py` dosyasındaki `RoadSegment` sınıfını kullanarak, birleştirilmiş parçaları temsil eden yeni `RoadSegment` nesneleri oluştur. Birleştirilen parçanın `road_id` değeri aynı kalmalı, `start_km` değeri ilk parçanın başlangıcı, `end_km` değeri ise son parçanın sonu olmalıdır.
+
+  3) `roadnet/merger.py` dosyasındaki `merge_contiguous` fonksiyonunun, girdi olarak aldığı parça listesini işleyip birleştirilmiş parçaların listesini döndürmesini sağla. Birleştirme işlemi, aynı yol üzerinde ardışık gelen ve bitişik olan tüm parçalar için yapılmalıdır.
+
+setup: |
+  mkdir -p roadnet
+  cat > roadnet/segments.py <<'SEGMENTS'
+  class RoadSegment:
+      def __init__(self, road_id, start_km, end_km):
+          self.road_id = road_id
+          self.start_km = start_km
+          self.end_km = end_km
+
+      def __repr__(self):
+          return f"RoadSegment({self.road_id!r}, {self.start_km}, {self.end_km})"
+  SEGMENTS
+  cat > roadnet/merger.py <<'MERGER'
+  from roadnet.segments import RoadSegment
+
+
+  def merge_contiguous(segments):
+      """Merge segments that are contiguous (end_km == next start_km) on same road."""
+      raise NotImplementedError
+  MERGER
+  cat > roadnet/navigator.py <<'NAVIGATOR'
+  from roadnet.segments import RoadSegment
+  from roadnet.merger import merge_contiguous
+
+
+  def build_route(segments):
+      """Return list of merged RoadSegments covering the full route."""
+      return merge_contiguous(segments)
+  NAVIGATOR
+
+goal_tr: >
+  roadnet/merger.py icindeki merge_contiguous fonksiyonunu, ayni yol
+  uzerinde bitisik (end_km ile sonraki start_km esit) parcalari tek
+  RoadSegment'te birlestiren gerceklestirmeyle doldur.
+
+reference_solution: |
+  cat > roadnet/merger.py <<'MERGER'
+  from roadnet.segments import RoadSegment
+
+
+  def merge_contiguous(segments):
+      if not segments:
+          return []
+      sorted_segs = sorted(segments, key=lambda s: (s.road_id, s.start_km))
+      result = []
+      cur_road = sorted_segs[0].road_id
+      cur_start = sorted_segs[0].start_km
+      cur_end = sorted_segs[0].end_km
+      for seg in sorted_segs[1:]:
+          if seg.road_id == cur_road and seg.start_km == cur_end:
+              cur_end = seg.end_km
+          else:
+              result.append(RoadSegment(cur_road, cur_start, cur_end))
+              cur_road = seg.road_id
+              cur_start = seg.start_km
+              cur_end = seg.end_km
+      result.append(RoadSegment(cur_road, cur_start, cur_end))
+      return result
+  MERGER
+
+outputs:
+  - {path: roadnet/merger.py, kind: program, run: 'python3 -c ''from roadnet.navigator import build_route; from roadnet.segments import RoadSegment; segs=[RoadSegment("A",0,5),RoadSegment("B",0,3),RoadSegment("A",5,10),RoadSegment("A",10,15),RoadSegment("B",3,7),RoadSegment("C",0,2)]; res=build_route(segs); assert len(res)==3, res; assert (res[0].road_id,res[0].start_km,res[0].end_km)==("A",0,15), res[0]; assert (res[1].road_id,res[1].start_km,res[1].end_km)==("B",0,7), res[1]; assert (res[2].road_id,res[2].start_km,res[2].end_km)==("C",0,2), res[2]; assert all(s.start_km<s.end_km for s in res); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from roadnet.navigator import build_route; from roadnet.segments import RoadSegment; segs=[RoadSegment("A",0,5),RoadSegment("B",0,3),RoadSegment("A",5,10),RoadSegment("A",10,15),RoadSegment("B",3,7),RoadSegment("C",0,2)]; res=build_route(segs); assert len(res)==3, res; assert (res[0].road_id,res[0].start_km,res[0].end_km)==("A",0,15), res[0]; assert (res[1].road_id,res[1].start_km,res[1].end_km)==("B",0,7), res[1]; assert (res[2].road_id,res[2].start_km,res[2].end_km)==("C",0,2), res[2]; assert all(s.start_km<s.end_km for s in res); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0238
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: aralik-birlestirme

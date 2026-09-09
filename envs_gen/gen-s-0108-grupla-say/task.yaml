@@ -1,0 +1,81 @@
+id: gen-s-0108-grupla-say
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) veri/kayitlar dizini altındaki JSON hava kayıt dosyalarını oku; bu dosyalardaki "durum" alanlarının değerlerini topla. veri/yedek dizinindeki dosyaları bu işleme dahil etme.
+
+  2) Topladığın durum değerlerini gruplayarak her bir durumun kaç kez geçtiğini say.
+
+  3) Bu gruplama sonucunu geçerli bir JSON nesnesi olarak sonuc.json dosyasına yaz.
+
+setup: |
+  rm -rf veri sonuc.json
+  mkdir -p veri/kayitlar veri/yedek
+  cat > veri/kayitlar/1.json <<'EOF'
+  {"sehir": "Ankara", "durum": "gunesli", "sicaklik": 12}
+  EOF
+  cat > veri/kayitlar/2.json <<'EOF'
+  {"sehir": "Istanbul", "durum": "yagmurlu", "sicaklik": 9}
+  EOF
+  cat > veri/kayitlar/3.json <<'EOF'
+  {"sehir": "Ankara", "durum": "bulutlu", "sicaklik": 8}
+  EOF
+  cat > veri/kayitlar/4.json <<'EOF'
+  {"sehir": "Izmir", "durum": "gunesli", "sicaklik": 18}
+  EOF
+  cat > veri/kayitlar/5.json <<'EOF'
+  {"sehir": "Bursa", "durum": "yagmurlu", "sicaklik": 10}
+  EOF
+  cat > veri/yedek/trap.json <<'EOF'
+  {"sehir": "Ankara", "durum": "kar", "uret": true}
+  EOF
+  cat > veri/atil.log <<'EOF'
+  Ankara,kar
+  EOF
+
+goal_tr: >
+  veri/kayitlar altındaki JSON hava kayıt dosyalarındaki "durum" değerlerini
+  gruplayıp her durumun adedini sonuc.json dosyasına geçerli JSON olarak
+  yaz; veri/yedek içindeki dosyaları kullanma.
+
+reference_solution: |
+  export LC_ALL=C
+  find veri/kayitlar -name '*.json' -type f -exec grep -h '"durum"' {} + | sed 's/.*"durum": *"\([^"]*\)".*/\1/' > /tmp/durumlar.txt
+  sort /tmp/durumlar.txt > /tmp/durumlar_sirali.txt
+  uniq -c /tmp/durumlar_sirali.txt > /tmp/durum_sayilari.txt
+  awk 'BEGIN { print "{" } { printf "%s  \"%s\": %s", sep, $2, $1; sep = ",\n" } END { print "\n}" }' /tmp/durum_sayilari.txt > sonuc.json
+
+outputs:
+  - {path: sonuc.json, kind: json}
+
+checks:
+  - {op: json_eq, path: sonuc.json, value: {bulutlu: 1, gunesli: 2, yagmurlu: 2}}
+
+metadata:
+  domain: grupla-say
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0108
+    bundle: sirala
+    tools:
+    - sort
+    - uniq
+    konu: hava-durumu-kayitlari
+    hedef: grupla-say
+    girdi: json
+    kaynak: cok-dosya
+    cikti: json
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: baslik-yok
+    bukulme: tuzak-dosya
+    adim: 5
+    image: verifiable-dataset/base:latest
+    metadata: {}

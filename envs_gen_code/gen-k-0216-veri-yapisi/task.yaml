@@ -1,0 +1,106 @@
+id: gen-k-0216-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  store/priority_queue.py içinde PriorityQueue adında bir sınıf yaz. Bu sınıf, store/inventory.py içindeki ProductQueue sınıfından miras almalıdır. enqueue metodu, eklenen ürünü fiyatına göre (düşük fiyat öncelikli olacak şekilde) doğru sırada kuyruğa eklemeli, dequeue metodu ise en düşük fiyatlı ürünü kuyruktan çıkarmalıdır.
+
+  Şu şartlar sağlanmalı:
+  - PriorityQueue sınıfı ProductQueue'dan türetilmelidir.
+  - enqueue, ürünü fiyatına göre artan sırada (en düşük fiyat en önde olacak şekilde) yerleştirmelidir.
+  - dequeue, kuyruktaki en düşük fiyatlı ürünü döndürmeli ve kuyruktan çıkarmalıdır.
+  - Kuyruk boşken dequeue çağrılırsa None dönmelidir.
+
+setup: |
+  mkdir -p store
+  cat > store/product.py <<'PRODUCT'
+  class Product:
+      def __init__(self, name, price):
+          self.name = name
+          self.price = price
+  PRODUCT
+  cat > store/inventory.py <<'INV'
+  from collections import deque
+
+
+  class ProductQueue:
+      def __init__(self):
+          self.items = deque()
+
+      def enqueue(self, product):
+          self.items.append(product)
+
+      def dequeue(self):
+          if not self.items:
+              return None
+          return self.items.popleft()
+
+      def peek(self):
+          if not self.items:
+              return None
+          return self.items[0]
+
+      def is_empty(self):
+          return len(self.items) == 0
+
+      def size(self):
+          return len(self.items)
+  INV
+
+goal_tr: >
+  store/priority_queue.py icinde PriorityQueue sinifi yaz: ProductQueue'dan
+  miras alsin, enqueue metodu urunu fiyatina gore (dusuk fiyat oncelikli)
+  dogru sirada eklesin ve dequeue en dusuk fiyatli urunu cikarsin.
+
+reference_solution: |
+  cat > store/priority_queue.py <<'PQ'
+  from store.inventory import ProductQueue
+  from store.product import Product
+
+
+  class PriorityQueue(ProductQueue):
+      def enqueue(self, product):
+          # Find correct position based on price (lowest price first)
+          index = 0
+          for item in self.items:
+              if item.price <= product.price:
+                  index += 1
+              else:
+                  break
+          self.items.insert(index, product)
+  PQ
+
+outputs:
+  - {path: store/priority_queue.py, kind: program, run: 'python3 -c ''from store.priority_queue import PriorityQueue; from store.product import Product; q=PriorityQueue(); q.enqueue(Product("a",10.0)); q.enqueue(Product("b",5.0)); q.enqueue(Product("c",7.5)); q.enqueue(Product("d",5.0)); assert q.size()==4; assert q.dequeue().name=="b"; assert q.dequeue().name=="d"; assert q.dequeue().name=="c"; assert q.dequeue().name=="a"; assert q.is_empty(); q2=PriorityQueue(); assert q2.dequeue() is None; q2.enqueue(Product("x",1.0)); assert q2.peek().name=="x"; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from store.priority_queue import PriorityQueue; from store.product import Product; q=PriorityQueue(); q.enqueue(Product("a",10.0)); q.enqueue(Product("b",5.0)); q.enqueue(Product("c",7.5)); q.enqueue(Product("d",5.0)); assert q.size()==4; assert q.dequeue().name=="b"; assert q.dequeue().name=="d"; assert q.dequeue().name=="c"; assert q.dequeue().name=="a"; assert q.is_empty(); q2=PriorityQueue(); assert q2.dequeue() is None; q2.enqueue(Product("x",1.0)); assert q2.peek().name=="x"; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0216
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: oncelik-kuyrugu

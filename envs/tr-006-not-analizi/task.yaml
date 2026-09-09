@@ -110,7 +110,7 @@ setup: |
   CSV
 
 prompt: |
-  Bir Linux terminalindesin, çalışma dizinin /workspace.
+  Bir Linux terminalindesin, çalışma dizinin ..
 
   Bu dizindeki "notlar.csv" dosyası bir sınıfın sınav sonuçlarını tutuyor.
   Dosyanın ilk satırı başlık ("isim,not"), sonraki 100 satırın her biri bir

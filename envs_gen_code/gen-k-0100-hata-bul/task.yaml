@@ -1,0 +1,126 @@
+id: gen-k-0100-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) nav/router.py dosyasındaki `shortest_paths` fonksiyonunu, yol-tarifi ağındaki en kısa yolları doğru hesaplayacak şekilde düzelt.
+
+  2) Bu fonksiyonun, verilen kenarlar ve başlangıç düğümü için her düğüme olan en kısa mesafeyi doğru şekilde bulmasını sağla.
+
+setup: |
+  mkdir -p nav
+  cat > nav/graph.py <<'GRAPH'
+  def build_graph(edges):
+      g = {}
+      for a, b, cost in edges:
+          g.setdefault(a, {})[b] = cost
+          g.setdefault(b, {})[a] = cost
+      return g
+  GRAPH
+  cat > nav/router.py <<'ROUTER'
+  from nav.graph import build_graph
+
+
+  def shortest_paths(edges, start):
+      g = build_graph(edges)
+      dist = {start: 0}
+      visited = set()
+      while len(visited) < len(g):
+          current = None
+          best = float('inf')
+          for node in g:
+              if node not in visited and dist.get(node, float('inf')) < best:
+                  best = dist.get(node, float('inf'))
+                  current = node
+          if current is None:
+              break
+          visited.add(current)
+          for nxt, cost in g[current].items():
+              new = dist[current] + cost
+              if new > dist.get(nxt, float('inf')):
+                  dist[nxt] = new
+      return dist
+  ROUTER
+  cat > nav/route.py <<'ROUTE'
+  from nav.router import shortest_paths
+
+
+  def find_route(edges, start, stop):
+      dist = shortest_paths(edges, start)
+      if stop not in dist:
+          return None
+      return dist[stop]
+  ROUTE
+  cat > roads.txt <<'TXT'
+  A,B,4
+  B,C,3
+  A,C,10
+  C,D,2
+  D,E,1
+  A,E,7
+  TXT
+
+goal_tr: >
+  nav/router.py icindeki shortest_paths fonksiyonunu, yol-tarifi-agi icin en
+  kisa yollari dogru hesaplayacak bicimde duzelt
+
+reference_solution: |
+  cat > nav/router.py <<'ROUTER'
+  from nav.graph import build_graph
+
+
+  def shortest_paths(edges, start):
+      g = build_graph(edges)
+      dist = {start: 0}
+      visited = set()
+      while len(visited) < len(g):
+          current = None
+          best = float('inf')
+          for node in g:
+              if node not in visited and dist.get(node, float('inf')) < best:
+                  best = dist.get(node, float('inf'))
+                  current = node
+          if current is None:
+              break
+          visited.add(current)
+          for nxt, cost in g[current].items():
+              new = dist[current] + cost
+              if new < dist.get(nxt, float('inf')):
+                  dist[nxt] = new
+      return dist
+  ROUTER
+
+outputs:
+  - {path: nav/router.py, kind: program, run: 'python3 -c ''from nav.route import find_route as f; e=[("A","B",4),("B","C",3),("A","C",10),("C","D",2),("D","E",1),("A","E",7)]; assert f(e,"A","E")==7, f(e,"A","E"); assert f(e,"A","C")==7, f(e,"A","C"); assert f(e,"B","D")==5, f(e,"B","D"); assert f(e,"A","Z") is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from nav.route import find_route as f; e=[("A","B",4),("B","C",3),("A","C",10),("C","D",2),("D","E",1),("A","E",7)]; assert f(e,"A","E")==7, f(e,"A","E"); assert f(e,"A","C")==7, f(e,"A","C"); assert f(e,"B","D")==5, f(e,"B","D"); assert f(e,"A","Z") is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0100
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: zor
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-karsilastirma

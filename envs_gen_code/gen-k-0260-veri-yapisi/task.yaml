@@ -1,0 +1,129 @@
+id: gen-k-0260-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  corpus/merger.py içindeki SpanMerger.merge metodunu, eklenen (start, end) aralıklarını birleşik (overlap veya bitişik) aralıklar halinde doğru sıralanmış liste olarak döndürecek şekilde tamamla.
+
+setup: |
+  mkdir -p corpus
+  cat > corpus/loader.py <<'LOADER'
+  import os
+
+  def load_documents(directory):
+      docs = {}
+      for fname in sorted(os.listdir(directory)):
+          if fname.endswith('.txt'):
+              with open(os.path.join(directory, fname), 'r', encoding='utf-8') as f:
+                  docs[fname[:-4]] = f.read()
+      return docs
+  LOADER
+  cat > corpus/merger.py <<'MERGER'
+  class SpanMerger:
+      def __init__(self):
+          self.spans = []
+
+      def add(self, start, end):
+          self.spans.append((start, end))
+
+      def merge(self):
+          raise NotImplementedError
+  MERGER
+  cat > corpus/analyzer.py <<'ANALYZER'
+  from corpus.loader import load_documents
+  from corpus.merger import SpanMerger
+
+
+  def find_quotes(directory, keyword):
+      docs = load_documents(directory)
+      result = {}
+      for name, text in docs.items():
+          merger = SpanMerger()
+          lower = text.lower()
+          kw = keyword.lower()
+          pos = 0
+          while True:
+              idx = lower.find(kw, pos)
+              if idx == -1:
+                  break
+              start = max(0, idx - 10)
+              end = min(len(text), idx + len(kw) + 10)
+              merger.add(start, end)
+              pos = idx + len(kw)
+          result[name] = merger.merge()
+      return result
+  ANALYZER
+  cat > text1.txt <<'TXT'
+  The quick brown fox jumps over the lazy dog. The dog sleeps.
+  TXT
+  cat > text2.txt <<'TXT'
+  Python is a programming language. Python is also a snake.
+  TXT
+  cat > text3.txt <<'TXT'
+  No keywords here, just plain text.
+  TXT
+
+goal_tr: >
+  corpus/merger.py icindeki SpanMerger.merge metodunu, eklenen (start, end)
+  araliklarini birlesik (overlap veya bitisik) araliklar halinde dogru
+  siralanmis liste olarak dondurecek sekilde tamamla
+
+reference_solution: |
+  cat > corpus/merger.py <<'MERGER'
+  class SpanMerger:
+      def __init__(self):
+          self.spans = []
+
+      def add(self, start, end):
+          self.spans.append((start, end))
+
+      def merge(self):
+          if not self.spans:
+              return []
+          self.spans.sort()
+          merged = []
+          cur_start, cur_end = self.spans[0]
+          for s, e in self.spans[1:]:
+              if s <= cur_end:
+                  cur_end = max(cur_end, e)
+              else:
+                  merged.append((cur_start, cur_end))
+                  cur_start, cur_end = s, e
+          merged.append((cur_start, cur_end))
+          return merged
+  MERGER
+
+outputs:
+  - {path: corpus/merger.py, kind: program, run: 'python3 -c ''from corpus.merger import SpanMerger; m=SpanMerger(); m.add(0,5); m.add(3,8); m.add(10,12); assert m.merge()==[(0,8),(10,12)], m.merge(); m2=SpanMerger(); m2.add(0,2); m2.add(2,4); m2.add(6,7); assert m2.merge()==[(0,4),(6,7)], m2.merge(); m3=SpanMerger(); assert m3.merge()==[]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from corpus.merger import SpanMerger; m=SpanMerger(); m.add(0,5); m.add(3,8); m.add(10,12); assert m.merge()==[(0,8),(10,12)], m.merge(); m2=SpanMerger(); m2.add(0,2); m2.add(2,4); m2.add(6,7); assert m2.merge()==[(0,4),(6,7)], m2.merge(); m3=SpanMerger(); assert m3.merge()==[]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0260
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: zor
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: aralik-birlestirme

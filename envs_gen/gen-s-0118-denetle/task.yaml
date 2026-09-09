@@ -1,0 +1,89 @@
+id: gen-s-0118-denetle
+split: single_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 8
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  data dizininde yer alan urunler.txt ve depolar.txt dosyalarını inceleyin. Her ürün kodu için, o ürüne ait depoların toplam kapasitesinin, ürünün adet sayısından az olup olmadığını denetleyen bir rapor oluşturun. Bu raporları rapor/ dizini altında, her ürün için ayrı bir dosya olacak şekilde hazırlayın. Rapor dosyaları rapor/A100.txt, rapor/B200.txt ve rapor/C300.txt olarak adlandırılmalıdır. Ayrıca, oluşturulan bu rapor dosyalarının adlarını listeleyen rapor/dosya_adlari.txt ve rapor dosyalarının bulunduğu dizinin tam yolunu içeren rapor/dizin_yolu.txt adlı dosyaları da oluşturun.
+
+setup: |
+  mkdir -p data
+  cat > data/urunler.txt <<'EOF'
+  KOD     ADET  FIYAT
+  A100    10    150
+  B200    5     300
+  C300    20    75
+  EOF
+  cat > data/depolar.txt <<'EOF'
+  DEPO    KOD     KAPASITE
+  MERKEZ  A100    100
+  MERKEZ  B200    50
+  SUBE    C300    200
+  SUBE    A100    80
+  EOF
+
+goal_tr: >
+  data dizinindeki urunler.txt ve depolar.txt dosyalarini inceleyerek, her
+  urun kodu icin toplam depo kapasitesinin urun adedinden az olup olmadigini
+  denetleyen bir raporu rapor/ dizini altinda her urun icin ayri bir dosya
+  olusturacak sekilde uret
+
+reference_solution: |
+  mkdir -p rapor
+  for dosya in data/urunler.txt data/depolar.txt; do
+    basename "$dosya" .txt
+  done > rapor/dosya_adlari.txt
+  for kod in $(cut -c1-4 data/urunler.txt | tail -n +2); do
+    dirname "rapor/${kod}.txt"
+  done > rapor/dizin_yolu.txt
+  for kod in $(cut -c1-4 data/urunler.txt | tail -n +2); do
+    adet=$(grep "^$kod" data/urunler.txt | awk '{print $2}')
+    kapasite=$(grep "$kod" data/depolar.txt | awk '{sum += $3} END {print sum}')
+    if [ "$kapasite" -lt "$adet" ]; then
+      durum="YETERSIZ"
+    else
+      durum="YETERLI"
+    fi
+    printf "%s %s\n" "$kod" "$durum" > "rapor/${kod}.txt"
+  done
+
+outputs:
+  - {path: rapor/A100.txt, kind: file}
+  - {path: rapor/B200.txt, kind: file}
+  - {path: rapor/C300.txt, kind: file}
+  - {path: rapor/dosya_adlari.txt, kind: file}
+  - {path: rapor/dizin_yolu.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: rapor/A100.txt, value: A100 YETERLI}
+  - {op: file_content_eq, path: rapor/B200.txt, value: B200 YETERLI}
+  - {op: file_content_eq, path: rapor/C300.txt, value: C300 YETERLI}
+  - {op: file_lines_eq, path: rapor/dizin_yolu.txt, value: [rapor, rapor, rapor]}
+  - {op: file_lines_eq, path: rapor/dosya_adlari.txt, value: [urunler, depolar]}
+
+metadata:
+  domain: denetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0118
+    bundle: yol-parcala
+    tools:
+    - basename
+    - dirname
+    konu: envanter
+    hedef: denetle
+    girdi: sabit-genislik
+    kaynak: cok-dosya
+    cikti: dizin-yapisi
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: yok
+    adim: 1
+    image: verifiable-dataset/base:latest
+    metadata: {}

@@ -1,0 +1,78 @@
+id: gen-s-0116-donustur
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün mali kayıtlarımızı düzenlerken elimizdeki verilerin dağınık olduğunu fark ettim. Kalemler ve kategoriler ayrı dosyalarda tutulmuş, bu yüzden toplamları çıkarmak oldukça zor oluyor. Şu an . dizininde kalemler.json ve kategoriler.json dosyalarında tutulan verileri birleştirmem gerekiyor.
+
+  Kalemlerdeki her kaydın hesap alanı, kategorilerdeki hesap alanıyla eşleşiyor ve bu eşleşme bize her kalemin tipini veriyor. Bu tiplere göre tutarları toplamam ve sonucu sonuc.json dosyasına {"A": toplam1, "B": toplam2} formatında geçerli bir JSON olarak yazmam gerekiyor. Yani her tip için ayrı ayrı toplam tutarı hesaplayıp bu dosyada saklayacağım.
+
+setup: |
+  cat > kalemler.json <<'JSON'
+  [
+    {"id": 1, "tutar": 100, "hesap": "gelir"},
+    {"id": 2, "tutar": 250, "hesap": "gider"},
+    {"id": 3, "tutar": 75, "hesap": "gelir"}
+  ]
+  JSON
+  cat > kategoriler.json <<'JSON'
+  [
+    {"hesap": "gelir", "tip": "A"},
+    {"hesap": "gider", "tip": "B"}
+  ]
+  JSON
+
+goal_tr: >
+  kalemler.json ve kategoriler.json dosyalarindaki verileri hesap alanina
+  gore eslestirerek, her kalemin tutarini tip alanina gore toplayip
+  sonuc.json dosyasinda {"A": toplam1, "B": toplam2} biciminde gecerli JSON
+  olarak uret
+
+reference_solution: |
+  python3 -c "
+  import json
+  with open('kalemler.json') as f:
+      kalemler = json.load(f)
+  with open('kategoriler.json') as f:
+      kategoriler = json.load(f)
+  tip_map = {k['hesap']: k['tip'] for k in kategoriler}
+  toplam = {}
+  for k in kalemler:
+      tip = tip_map[k['hesap']]
+      toplam[tip] = toplam.get(tip, 0) + k['tutar']
+  with open('sonuc.json', 'w') as f:
+      json.dump(toplam, f)
+  "
+
+outputs:
+  - {path: sonuc.json, kind: json, run: cat sonuc.json}
+
+checks:
+  - {op: json_eq, path: sonuc.json, value: {A: 175, B: 250}}
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0116
+    bundle: python-veri
+    tools:
+    - python3
+    konu: muhasebe-kalemleri
+    hedef: donustur
+    girdi: json
+    kaynak: iki-dosya-capraz
+    cikti: json
+    kesif: dolayli-hedef
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: yok
+    adim: 2
+    image: verifiable-dataset/base:latest
+    metadata: {}

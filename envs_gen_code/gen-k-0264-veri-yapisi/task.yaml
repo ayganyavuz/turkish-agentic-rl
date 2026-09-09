@@ -1,0 +1,117 @@
+id: gen-k-0264-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün mağaza tarafındaki fiyatlandırma işlemleriyle uğraşıyordum; ürünlerin fiyatlarını hızlı bir şekilde çekebilmek için küçük bir önbellek sistemi kurmamız gerekiyor. Elimizdeki `store/catalog.py` dosyasında ürün kataloğu, `store/cache.py` dosyasında ise LRU önbellek yapısı hazır durumda. Şimdi sıra, bu iki bileşeni birleştiren `store/pricing.py` dosyasındaki `ProductPriceService` sınıfını tamamlamakta. Bu sınıfın `get_price` metodunu, önce önbellekten fiyatı kontrol edecek, bulamazsa katalogdan alıp önbelleğe ekleyecek ve sonucu döndürecek şekilde doldurmanı istiyorum. `store/pricing.py` dosyasını bu mantıkla güncelle.
+
+setup: |
+  mkdir -p store
+  cat > store/catalog.py <<'CATALOG'
+  class ProductCatalog:
+      def __init__(self):
+          self.products = {}
+
+      def add_product(self, product_id, price):
+          self.products[product_id] = price
+
+      def get_price(self, product_id):
+          return self.products.get(product_id)
+  CATALOG
+  cat > store/cache.py <<'CACHE'
+  class LRUCache:
+      def __init__(self, capacity):
+          self.capacity = capacity
+          self.cache = {}
+          self.order = []
+
+      def get(self, key):
+          if key in self.cache:
+              self.order.remove(key)
+              self.order.append(key)
+              return self.cache[key]
+          return None
+
+      def put(self, key, value):
+          if key in self.cache:
+              self.order.remove(key)
+          elif len(self.cache) >= self.capacity:
+              oldest = self.order.pop(0)
+              del self.cache[oldest]
+          self.cache[key] = value
+          self.order.append(key)
+  CACHE
+  cat > store/pricing.py <<'PRICING'
+  from store.cache import LRUCache
+
+
+  class ProductPriceService:
+      def __init__(self, catalog, cache_size=2):
+          self.catalog = catalog
+          self.cache = LRUCache(cache_size)
+
+      def get_price(self, product_id):
+          raise NotImplementedError
+  PRICING
+  cat > store/__init__.py <<'INIT'
+  INIT
+
+goal_tr: >
+  store/pricing.py icindeki ProductPriceService sinifini, urun fiyatlarini
+  bir LRU onbellek kullanarak dogru sekilde dondurecek bicimde tamamla
+
+reference_solution: |
+  cat > store/pricing.py <<'PRICING'
+  from store.cache import LRUCache
+
+
+  class ProductPriceService:
+      def __init__(self, catalog, cache_size=2):
+          self.catalog = catalog
+          self.cache = LRUCache(cache_size)
+
+      def get_price(self, product_id):
+          cached = self.cache.get(product_id)
+          if cached is not None:
+              return cached
+
+          price = self.catalog.get_price(product_id)
+          if price is not None:
+              self.cache.put(product_id, price)
+          return price
+  PRICING
+
+outputs:
+  - {path: store/pricing.py, kind: program, run: 'python3 -c ''from store.catalog import ProductCatalog; from store.pricing import ProductPriceService; c=ProductCatalog(); c.add_product("A",100); c.add_product("B",200); c.add_product("C",300); s=ProductPriceService(c); assert s.get_price("A")==100; assert s.get_price("B")==200; assert s.get_price("C")==300; assert s.get_price("A")==100; assert s.cache.cache=={"A":100,"C":300}, s.cache.cache; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from store.catalog import ProductCatalog; from store.pricing import ProductPriceService; c=ProductCatalog(); c.add_product("A",100); c.add_product("B",200); c.add_product("C",300); s=ProductPriceService(c); assert s.get_price("A")==100; assert s.get_price("B")==200; assert s.get_price("C")==300; assert s.get_price("A")==100; assert s.cache.cache=={"A":100,"C":300}, s.cache.cache; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0264
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: zor
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: lru-onbellek

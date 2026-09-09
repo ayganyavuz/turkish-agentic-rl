@@ -1,0 +1,76 @@
+id: gen-s-0106-denetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) . dizininde bulunan randevular.tsv dosyasındaki randevu satırlarını denetle: her satırdaki "bitis" saatini, aynı satırdaki "baslangic" saatiyle karşılaştır.
+
+  2) Bitiş saati, başlangıç saatinden önce olan veya başlangıç saatine eşit olan tüm randevu satırlarını belirle.
+
+  3) Belirlediğin satırları, randevular.tsv'deki özgün hâlleriyle ve satır satır olacak şekilde denetim.txt dosyasına yaz.
+
+setup: |
+  cat > randevular.tsv <<'TSV'
+  id	tarih	baslangic	bitis	bolum
+  H001	20240506	0900	0930	Dahiliye
+  H002	20240506	0930	1000	KBB
+  H003	20240506	1000	1030	Ortopedi
+  H004	20240506	1030	1100	KBB
+  H005	20240506	1100	1130	Dahiliye
+  H006	20240506	1130	1200	KBB
+  H007	20240506	1200	1230	Ortopedi
+  H008	20240506	1230	1300	Dahiliye
+  H009	20240506	1300	1330	KBB
+  H010	20240506	1330	0900	Ortopedi
+  H011	20240506	0900	0900	Dahiliye
+  H012	20240506	1400	1430	KBB
+  TSV
+
+goal_tr: >
+  randevular.tsv dosyasindaki bitis saati baslangic saatinden once veya esit
+  olan randevu satirlarini denetle ve bu satirlari oldugu gibi satir satir
+  denetim.txt dosyasina yaz.
+
+reference_solution: |
+  python3 - <<'PY' > denetim.txt
+  import csv
+  with open('randevular.tsv', newline='') as f:
+      reader = csv.reader(f, delimiter='\t')
+      next(reader)
+      for row in reader:
+          if int(row[3]) <= int(row[2]):
+              print('\t'.join(row))
+  PY
+
+outputs:
+  - {path: denetim.txt, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: denetim.txt, value: ["H010\t20240506\t1330\t0900\tOrtopedi", "H011\t20240506\t0900\t0900\tDahiliye"]}
+
+metadata:
+  domain: denetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0106
+    bundle: python-veri
+    tools:
+    - python3
+    konu: hastane-randevulari
+    hedef: denetle
+    girdi: tsv
+    kaynak: tek-dosya
+    cikti: satir-listesi
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: yok
+    adim: 2
+    image: verifiable-dataset/base:latest
+    metadata: {}

@@ -1,0 +1,100 @@
+id: gen-k-0270-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  events/busy_days.py dosyasını, verilen metindeki etkinlikleri günlere göre sayarak en çok etkinlik içeren günün tarihini döndüren count_events_on_busiest_day fonksiyonuyla birlikte oluştur. Fonksiyon, en çok etkinlik olan günün tarihini döndürmeli; eşitlik durumunda tarihsel olarak en erken günü seçmelidir.
+
+setup: |
+  mkdir -p events
+  cat > events/parser.py <<'PY'
+  def parse_events(text):
+      events = []
+      for line in text.strip().splitlines():
+          parts = line.split('|')
+          name = parts[0].strip()
+          date = parts[1].strip()
+          priority = int(parts[2].strip())
+          events.append((name, date, priority))
+      return events
+  PY
+  cat > events/analyzer.py <<'PY'
+  from events.parser import parse_events
+
+
+  def busy_days(text):
+      events = parse_events(text)
+      day_count = {}
+      for name, date, priority in events:
+          if date not in day_count:
+              day_count[date] = 0
+          day_count[date] += 1
+      return day_count
+  PY
+  cat > schedule.txt <<'TXT'
+  Team Meeting | 2024-01-15 | 3
+  Project Review | 2024-01-15 | 2
+  Planning Session | 2024-01-16 | 1
+  Client Call | 2024-01-15 | 4
+  Status Update | 2024-01-17 | 2
+  TXT
+
+goal_tr: >
+  events/busy_days.py dosyasini, verilen metindeki etkinlikleri gunlere gore
+  sayarak en cok etkinlik iceren gunun tarihini donduren
+  count_events_on_busiest_day fonksiyonuyla birlikte olustur. Fonksiyon, en
+  cok etkinlik olan gunun tarihini dondurmeli; esitlik durumunda tarihsel
+  olarak en erken gunu secmelidir.
+
+reference_solution: |
+  cat > events/busy_days.py <<'PY'
+  from events.analyzer import busy_days
+
+
+  def count_events_on_busiest_day(text):
+      counts = busy_days(text)
+      if not counts:
+          return None
+      busiest_day = None
+      max_count = -1
+      for day in sorted(counts.keys()):
+          if counts[day] > max_count:
+              max_count = counts[day]
+              busiest_day = day
+      return busiest_day
+  PY
+
+outputs:
+  - {path: events/busy_days.py, kind: program, run: 'python3 -c ''from events.busy_days import count_events_on_busiest_day as f; t=open("schedule.txt").read(); assert f(t)=="2024-01-15", f(t); assert f("A|2024-01-01|1\nB|2024-01-01|2\nC|2024-01-02|3")=="2024-01-01"; assert f("A|2024-01-02|1\nB|2024-01-01|2")=="2024-01-01"; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from events.busy_days import count_events_on_busiest_day as f; t=open("schedule.txt").read(); assert f(t)=="2024-01-15", f(t); assert f("A|2024-01-01|1\nB|2024-01-01|2\nC|2024-01-02|3")=="2024-01-01"; assert f("A|2024-01-02|1\nB|2024-01-01|2")=="2024-01-01"; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0270
+    bundle: yarisma
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sayma

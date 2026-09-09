@@ -1,0 +1,142 @@
+id: gen-k-0266-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) `orderbook/fulfillment.py` dosyasındaki `FulfillmentQueue` sınıfının tüm metodlarını, en yüksek öncelikli siparişi (öncelik numarası en küçük olan) verimli şekilde çıkaran bir öncelik kuyruğu olarak gerçekleştir.
+
+  2) `add_order` metodu, verilen sipariş kimliği, ürünler ve öncelik değeriyle yeni bir siparişi kuyruğa eklemelidir.
+
+  3) `pop_highest_priority` metodu, en yüksek öncelikli siparişi kuyruktan çıkarıp döndürmelidir.
+
+  4) `peek_highest_priority` metodu, en yüksek öncelikli siparişi kuyruktan çıkarmadan döndürmelidir.
+
+  5) `__len__` metodu kuyruktaki sipariş sayısını, `is_empty` metodu ise kuyruğun boş olup olmadığını döndürmelidir.
+
+setup: |
+  mkdir -p orderbook
+  cat > orderbook/order.py <<'ORDER'
+  class Order:
+      def __init__(self, order_id, items, priority):
+          self.order_id = order_id
+          self.items = items
+          self.priority = priority
+          self.status = "pending"
+  ORDER
+  cat > orderbook/fulfillment.py <<'FULFILLMENT'
+  from orderbook.order import Order
+
+
+  class FulfillmentQueue:
+      def __init__(self):
+          self._orders = []
+
+      def add_order(self, order_id, items, priority):
+          self._orders.append(Order(order_id, items, priority))
+
+      def pop_highest_priority(self):
+          raise NotImplementedError
+
+      def peek_highest_priority(self):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+
+      def is_empty(self):
+          raise NotImplementedError
+  FULFILLMENT
+
+goal_tr: >
+  orderbook/fulfillment.py icindeki FulfillmentQueue sinifinin tum
+  metodlarini, en yuksek oncelikli siparisi (oncelik numarasi en kucuk olan)
+  verimli sekilde cikaran bir oncelik kuyrugu olarak gerceklestir.
+
+reference_solution: |
+  cat > orderbook/fulfillment.py <<'FULFILLMENT'
+  from orderbook.order import Order
+
+
+  class FulfillmentQueue:
+      def __init__(self):
+          self._orders = []
+
+      def add_order(self, order_id, items, priority):
+          self._orders.append(Order(order_id, items, priority))
+          idx = len(self._orders) - 1
+          while idx > 0:
+              parent = (idx - 1) // 2
+              if self._orders[parent].priority <= self._orders[idx].priority:
+                  break
+              self._orders[parent], self._orders[idx] = self._orders[idx], self._orders[parent]
+              idx = parent
+
+      def pop_highest_priority(self):
+          if not self._orders:
+              raise IndexError("pop from empty queue")
+          root = self._orders[0]
+          last = self._orders.pop()
+          if self._orders:
+              self._orders[0] = last
+              idx = 0
+              n = len(self._orders)
+              while True:
+                  left = 2 * idx + 1
+                  right = 2 * idx + 2
+                  smallest = idx
+                  if left < n and self._orders[left].priority < self._orders[smallest].priority:
+                      smallest = left
+                  if right < n and self._orders[right].priority < self._orders[smallest].priority:
+                      smallest = right
+                  if smallest == idx:
+                      break
+                  self._orders[idx], self._orders[smallest] = self._orders[smallest], self._orders[idx]
+                  idx = smallest
+          return root
+
+      def peek_highest_priority(self):
+          if not self._orders:
+              raise IndexError("peek from empty queue")
+          return self._orders[0]
+
+      def __len__(self):
+          return len(self._orders)
+
+      def is_empty(self):
+          return len(self._orders) == 0
+  FULFILLMENT
+
+outputs:
+  - {path: orderbook/fulfillment.py, kind: program, run: 'python3 -c ''from orderbook.fulfillment import FulfillmentQueue as Q; q=Q(); import random; random.seed(42); pairs=[(i%7, i//7) for i in range(50)]; random.shuffle(pairs); [q.add_order("o"+str(i), [i], pr) for i,(pr,_) in enumerate(pairs)]; out=[]; [out.append(q.pop_highest_priority().order_id) for _ in range(50)]; assert out==sorted(out, key=lambda x: pairs[int(x[1:])][0]), out[:5]; assert q.is_empty() and len(q)==0; q2=Q(); q2.add_order("a",[],5); q2.add_order("b",[],1); q2.add_order("c",[],3); assert q2.peek_highest_priority().order_id=="b"; q2.pop_highest_priority(); assert q2.peek_highest_priority().order_id=="c"; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from orderbook.fulfillment import FulfillmentQueue as Q; q=Q(); import random; random.seed(42); pairs=[(i%7, i//7) for i in range(50)]; random.shuffle(pairs); [q.add_order("o"+str(i), [i], pr) for i,(pr,_) in enumerate(pairs)]; out=[]; [out.append(q.pop_highest_priority().order_id) for _ in range(50)]; assert out==sorted(out, key=lambda x: pairs[int(x[1:])][0]), out[:5]; assert q.is_empty() and len(q)==0; q2=Q(); q2.add_order("a",[],5); q2.add_order("b",[],1); q2.add_order("c",[],3); assert q2.peek_highest_priority().order_id=="b"; q2.pop_highest_priority(); assert q2.peek_highest_priority().order_id=="c"; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0266
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: zor
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: oncelik-kuyrugu

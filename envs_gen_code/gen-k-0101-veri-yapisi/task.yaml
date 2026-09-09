@@ -1,0 +1,125 @@
+id: gen-k-0101-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  stack_orders.py dosyasındaki OrderStack sınıfının reverse_orders, top_n ve remove_order metodlarını gerçekleştir. reverse_orders yığını ters çevirsin, top_n yığındaki en üst n elemanı döndürsün (n yığın boyutundan büyükse tümünü), remove_order ise belirtilen sipariş numarasını yığından silsin (yoksa hata fırlatmasın).
+
+setup: |
+  cat > stack_orders.py <<'PY'
+  class OrderStack:
+      def __init__(self):
+          self._items = []
+
+      def push(self, order_id):
+          self._items.append(order_id)
+
+      def pop(self):
+          if self.is_empty():
+              raise IndexError("pop from empty stack")
+          return self._items.pop()
+
+      def peek(self):
+          if self.is_empty():
+              raise IndexError("peek from empty stack")
+          return self._items[-1]
+
+      def is_empty(self):
+          return len(self._items) == 0
+
+      def size(self):
+          return len(self._items)
+
+      def clear(self):
+          self._items = []
+
+      def reverse_orders(self):
+          raise NotImplementedError
+
+      def top_n(self, n):
+          raise NotImplementedError
+
+      def remove_order(self, order_id):
+          raise NotImplementedError
+  PY
+
+goal_tr: >
+  stack_orders.py icindeki OrderStack sinifinin reverse_orders, top_n ve
+  remove_order metodlarini gerceklestir: reverse_orders yigini ters cevirir,
+  top_n yigindaki en ust n elemani (n yigin boyutundan buyukse tumunu)
+  dondurur, remove_order belirtilen siparis numarasini yigindan siler (yoksa
+  hata firlatmaz)
+
+reference_solution: |
+  cat > stack_orders.py <<'PY'
+  class OrderStack:
+      def __init__(self):
+          self._items = []
+
+      def push(self, order_id):
+          self._items.append(order_id)
+
+      def pop(self):
+          if self.is_empty():
+              raise IndexError("pop from empty stack")
+          return self._items.pop()
+
+      def peek(self):
+          if self.is_empty():
+              raise IndexError("peek from empty stack")
+          return self._items[-1]
+
+      def is_empty(self):
+          return len(self._items) == 0
+
+      def size(self):
+          return len(self._items)
+
+      def clear(self):
+          self._items = []
+
+      def reverse_orders(self):
+          self._items.reverse()
+
+      def top_n(self, n):
+          return self._items[-n:][::-1] if n > 0 else []
+
+      def remove_order(self, order_id):
+          if order_id in self._items:
+              self._items.remove(order_id)
+  PY
+
+outputs:
+  - {path: stack_orders.py, kind: program, run: 'python3 -c ''from stack_orders import OrderStack; s=OrderStack(); [s.push(x) for x in [1,2,3,4]]; s.reverse_orders(); assert s._items==[4,3,2,1], s._items; s2=OrderStack(); [s2.push(x) for x in [10,20,30,40]]; assert s2.top_n(2)==[40,30]; assert s2.top_n(10)==[40,30,20,10]; s2.remove_order(20); assert s2._items==[10,30,40], s2._items; s2.remove_order(99); assert s2._items==[10,30,40]; assert s2.size()==3; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from stack_orders import OrderStack; s=OrderStack(); [s.push(x) for x in [1,2,3,4]]; s.reverse_orders(); assert s._items==[4,3,2,1], s._items; s2=OrderStack(); [s2.push(x) for x in [10,20,30,40]]; assert s2.top_n(2)==[40,30]; assert s2.top_n(10)==[40,30,20,10]; s2.remove_order(20); assert s2._items==[10,30,40], s2._items; s2.remove_order(99); assert s2._items==[10,30,40]; assert s2.size()==3; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0101
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yigin

@@ -1,0 +1,89 @@
+id: gen-k-0226-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  bank/ledger.py dosyasındaki daily_balance fonksiyonunu düzeltmen gerekiyor. Bu fonksiyon, verilen bir hedef tarihe kadar olan işlemleri toplayarak bakiye hesaplıyor. Ancak şu anda tarih karşılaştırması yaparken yalnızca hedef tarihten önceki veya aynı günkü işlemleri değil, tüm işlemleri dahil ediyor. Fonksiyonu, yalnızca target_date tarihinden önceki (o gün dahil) işlemleri toplayacak şekilde düzeltmelisin. Bu düzeltmeyi bank/ledger.py dosyasında yapman gerekiyor.
+
+setup: |
+  mkdir -p bank
+  cat > bank/transactions.py <<'TRANS'
+  def parse_transactions(text):
+      entries = []
+      for line in text.strip().splitlines():
+          date, desc, amount = line.split('|')
+          entries.append((date.strip(), desc.strip(), float(amount)))
+      return entries
+  TRANS
+  cat > bank/ledger.py <<'LEDGER'
+  from bank.transactions import parse_transactions
+
+
+  def daily_balance(text, target_date):
+      entries = parse_transactions(text)
+      balance = 0.0
+      for date, _, amount in entries:
+          if date <= target_date:
+              balance += amount
+      return balance
+  LEDGER
+  cat > data.txt <<'DATA'
+  2024-01-01|opening|1000.00
+  2024-01-05|salary|500.00
+  2024-01-10|rent|-300.00
+  2024-01-15|food|-50.00
+  2024-01-20|bonus|200.00
+  DATA
+
+goal_tr: >
+  bank/ledger.py icindeki daily_balance fonksiyonunu, yalnizca target_date
+  tarihinden onceki (o gun dahil) islemleri toplayacak sekilde duzelt
+
+reference_solution: |
+  cat > bank/ledger.py <<'LEDGER'
+  from bank.transactions import parse_transactions
+
+
+  def daily_balance(text, target_date):
+      entries = parse_transactions(text)
+      balance = 0.0
+      for date, _, amount in entries:
+          if date < target_date:
+              balance += amount
+      return balance
+  LEDGER
+
+outputs:
+  - {path: bank/ledger.py, kind: program, run: 'python3 -c ''from bank.ledger import daily_balance as f; t=open("data.txt").read(); assert f(t,"2024-01-10")==1500.0, f(t,"2024-01-10"); assert f(t,"2024-01-05")==1000.0, f(t,"2024-01-05"); assert f(t,"2024-01-01")==0.0, f(t,"2024-01-01"); assert f(t,"2024-12-31")==1350.0, f(t,"2024-12-31"); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bank.ledger import daily_balance as f; t=open("data.txt").read(); assert f(t,"2024-01-10")==1500.0, f(t,"2024-01-10"); assert f(t,"2024-01-05")==1000.0, f(t,"2024-01-05"); assert f(t,"2024-01-01")==0.0, f(t,"2024-01-01"); assert f(t,"2024-12-31")==1350.0, f(t,"2024-12-31"); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0226
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: banka-hareketleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum

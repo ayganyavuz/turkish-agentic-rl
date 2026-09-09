@@ -21,7 +21,8 @@ from pathlib import Path
 
 from verifiable_dataset.terminal.llm import make_client, preflight, resolve_model
 from verifiable_dataset.terminal.runner import Episode, run_model, run_reference
-from verifiable_dataset.terminal.sandbox import docker_available
+from verifiable_dataset.terminal.sandbox import (bash_var, docker_available,
+                                                 yerel_kullan)
 from verifiable_dataset.terminal.task import Task
 
 # Ogrenme sinyali bu bandin disinda kaybolur.
@@ -75,6 +76,9 @@ def main() -> int:
 
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--sandbox", choices=["docker", "yerel"],
+                        default="docker",
+                        help="yerel = Docker'siz (Colab); izolasyon yok")
     parser.add_argument("--envs", default="envs", help="task dizinlerini iceren klasor")
     parser.add_argument("--reference", action="store_true",
                         help="model yerine referans cozumleri calistir (saglik kontrolu)")
@@ -92,10 +96,17 @@ def main() -> int:
                         help="her turu, modelin yorumunu ve komut ciktisini bas")
     args = parser.parse_args()
 
-    ok, info = docker_available()
-    if not ok:
-        print(f"Docker daemon'a ulasilamiyor: {info}")
-        return 1
+    if args.sandbox == "yerel":
+        yerel_kullan(True)
+        ok, info = bash_var()
+        if not ok:
+            print(f"yerel sandbox icin bash gerekli: {info}")
+            return 1
+    else:
+        ok, info = docker_available()
+        if not ok:
+            print(f"Docker daemon'a ulasilamiyor: {info}")
+            return 1
 
     task_dirs = discover(Path(args.envs))
     if args.only:

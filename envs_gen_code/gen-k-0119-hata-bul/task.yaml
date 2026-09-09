@@ -1,0 +1,139 @@
+id: gen-k-0119-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) `transcript/calculator.py` dosyasındaki `calculate_gpa` fonksiyonunu, her öğrenci için doğru not ortalamasını (GPA) hesaplayacak şekilde düzelt.
+
+  2) `calculate_gpa` fonksiyonunun, `transcript/courses.py` içindeki `grade_points` fonksiyonunu kullanarak derslerin kredi ve harf notlarını doğru bir şekilde işlemesini sağla.
+
+  3) `transcript/calculator.py` dosyasını, `transcript/student.py` ve `main.py` dosyalarıyla uyumlu çalışacak şekilde güncelle.
+
+setup: |
+  mkdir -p transcript
+  cat > transcript/courses.py <<'COURSES'
+  def grade_points(grade):
+      if grade == "AA":
+          return 4.0
+      elif grade == "BA":
+          return 3.5
+      elif grade == "BB":
+          return 3.0
+      elif grade == "CB":
+          return 2.5
+      elif grade == "CC":
+          return 2.0
+      elif grade == "DC":
+          return 1.5
+      elif grade == "DD":
+          return 1.0
+      elif grade == "FF":
+          return 0.0
+      return 0.0
+  COURSES
+  cat > transcript/calculator.py <<'CALC'
+  from transcript.courses import grade_points
+
+
+  def calculate_gpa(course_list):
+      total_credits = 0
+      total_points = 0
+      for course in course_list:
+          credits = course["credits"]
+          points = grade_points(course["grade"]) * credits
+          total_credits += credits
+          total_points += points
+      gpa = total_points / total_credits
+      return round(gpa, 2)
+  CALC
+  cat > transcript/student.py <<'STUDENT'
+  from transcript.calculator import calculate_gpa
+
+
+  class Student:
+      def __init__(self, name):
+          self.name = name
+          self.courses = []
+
+      def add_course(self, course):
+          self.courses.append(course)
+
+      def get_gpa(self):
+          return calculate_gpa(self.courses)
+  STUDENT
+  cat > main.py <<'MAIN'
+  from transcript.student import Student
+
+
+  def process_students(data):
+      students = []
+      for student_data in data:
+          student = Student(student_data["name"])
+          for course in student_data["courses"]:
+              student.add_course(course)
+          students.append(student)
+      return students
+
+
+  def print_transcript(students):
+      for student in students:
+          print(f"{student.name}: {student.get_gpa()}")
+  MAIN
+
+goal_tr: >
+  transcript/calculator.py icindeki calculate_gpa fonksiyonunu, her ogrenci
+  icin dogru GPA hesaplayacak sekilde duzelt
+
+reference_solution: |
+  cat > transcript/calculator.py <<'CALC'
+  from transcript.courses import grade_points
+
+
+  def calculate_gpa(course_list):
+      total_credits = 0
+      total_points = 0
+      for course in course_list:
+          credits = course["credits"]
+          points = grade_points(course["grade"]) * credits
+          total_credits += credits
+          total_points += points
+      if total_credits == 0:
+          return 0.0
+      gpa = total_points / total_credits
+      return round(gpa, 2)
+  CALC
+
+outputs:
+  - {path: transcript/calculator.py, kind: program, run: 'python3 -c ''from transcript.student import Student; s1=Student("Alice"); s2=Student("Bob"); s1.add_course({"grade":"AA","credits":3}); s1.add_course({"grade":"BB","credits":2}); s2.add_course({"grade":"CB","credits":4}); assert s1.get_gpa()==3.6, s1.get_gpa(); assert s2.get_gpa()==2.5, s2.get_gpa(); s3=Student("Empty"); assert s3.get_gpa()==0.0, s3.get_gpa(); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from transcript.student import Student; s1=Student("Alice"); s2=Student("Bob"); s1.add_course({"grade":"AA","credits":3}); s1.add_course({"grade":"BB","credits":2}); s2.add_course({"grade":"CB","credits":4}); assert s1.get_gpa()==3.6, s1.get_gpa(); assert s2.get_gpa()==2.5, s2.get_gpa(); s3=Student("Empty"); assert s3.get_gpa()==0.0, s3.get_gpa(); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0119
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-durum-sifirlama

@@ -15,9 +15,12 @@ import json
 import re
 import shutil
 import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
+
+from verifiable_dataset.terminal.sandbox import BASH
 
 DOCKER = shutil.which("docker") or "docker"
 
@@ -242,9 +245,41 @@ def op_json_eq(root: Path, spec: dict) -> CheckResult:
 
 # -- execution op -----------------------------------------------------
 
+def _yerel_calistir(root: Path, spec: dict):
+    """Komutu snapshot'in bir kopyasinda, konteynersiz calistir.
+
+    Kopya uzerinde kosuyor cunku Docker yolu da oyle yapiyor: komut
+    dosyalari degistirirse sonraki check'ler bundan etkilenmemeli.
+    """
+    with tempfile.TemporaryDirectory(prefix="vds-check-") as tmp:
+        calisma = Path(tmp) / "ws"
+        shutil.copytree(root, calisma, symlinks=True)
+        return subprocess.run(
+            [BASH, "-lc", spec["cmd"]], cwd=calisma,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            timeout=spec.get("timeout", 30))
+
+
 def op_run_stdout_eq(root: Path, spec: dict) -> CheckResult:
-    """Run a command over the snapshot in a throwaway container."""
+    """Run a command over the snapshot in a throwaway container.
+
+    Imaj adi bos ise yerel mod: Colab'de Docker yok, ayni check host'ta
+    kosuyor (bkz. sandbox.LocalSandbox).
+    """
     image = spec["_image"]
+    if not image:
+        try:
+            run = _yerel_calistir(root, spec)
+        except subprocess.SubprocessError as e:
+            raise CheckError(f"grade komutu calistirilamadi: {e}") from e
+        actual, expected = run.stdout, str(spec["value"])
+        if spec.get("strip", True):
+            actual, expected = actual.strip(), expected.strip()
+        return CheckResult(
+            "run_stdout_eq", actual == expected,
+            f"`{spec['cmd']}`: beklenen {expected!r}, bulunan {actual!r} "
+            f"(exit={run.returncode}, stderr={run.stderr.strip()[:200]!r})")
+
     workdir = spec.get("workdir", "/workspace")
     proc = subprocess.run(
         [DOCKER, "run", "-d", "--rm", "--network", "none", "--cpus", "1",

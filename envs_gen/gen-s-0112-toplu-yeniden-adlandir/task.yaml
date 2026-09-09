@@ -1,0 +1,92 @@
+id: gen-s-0112-toplu-yeniden-adlandir
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  muhasebe klasöründe eski_isimler.txt ve yeni_isimler.txt dosyalarındaki satırları sırayla eşleştir, eski adlı dosyaları yeni adlarıyla taşı ve her işlemi muhasebe/islem_raporu.csv dosyasına eski_ad,yeni_ad,sonuç olarak yaz. Taşınan dosyalar muhasebe/islemler klasöründe fatura_2024_001.dat, fatura_2024_002.dat, fatura_2024_003.dat, makbuz_2024_001.dat ve makbuz_2024_002.dat olarak bulunsun.
+
+setup: |
+  mkdir -p muhasebe
+  cd muhasebe
+  cat > eski_isimler.txt <<'EOF'
+  fatura_2023_001.dat
+  fatura_2023_002.dat
+  fatura_2023_003.dat
+  makbuz_2023_001.dat
+  makbuz_2023_002.dat
+  EOF
+  cat > yeni_isimler.txt <<'EOF'
+  fatura_2024_001.dat
+  fatura_2024_002.dat
+  fatura_2024_003.dat
+  makbuz_2024_001.dat
+  makbuz_2024_002.dat
+  EOF
+  touch fatura_2023_001.dat fatura_2023_002.dat fatura_2023_003.dat makbuz_2023_001.dat makbuz_2023_002.dat
+
+goal_tr: >
+  eski_isimler.txt ve yeni_isimler.txt dosyalarindaki satirlari satir satir
+  eslestirerek, muhasebe klasorundeki eski adli dosyalari tasi ve sonucu
+  islem_raporu.csv dosyasina eski_ad,yeni_ad,sonuc biciminde yaz
+
+reference_solution: |
+  cd muhasebe
+  mkdir -p islemler
+  echo "eski_ad,yeni_ad,sonuc" > islem_raporu.csv
+  while IFS= read -r eski && IFS= read -r yeni <&3; do
+    if [ -f "$eski" ]; then
+      mv "$eski" "islemler/$yeni"
+      echo "$eski,$yeni,basarili" >> islem_raporu.csv
+    else
+      echo "$eski,$yeni,bulunamadi" >> islem_raporu.csv
+    fi
+  done < eski_isimler.txt 3< yeni_isimler.txt
+
+outputs:
+  - {path: muhasebe/islem_raporu.csv, kind: file}
+  - {path: muhasebe/islemler/fatura_2024_001.dat, kind: file}
+  - {path: muhasebe/islemler/fatura_2024_002.dat, kind: file}
+  - {path: muhasebe/islemler/fatura_2024_003.dat, kind: file}
+  - {path: muhasebe/islemler/makbuz_2024_001.dat, kind: file}
+  - {path: muhasebe/islemler/makbuz_2024_002.dat, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: muhasebe/islem_raporu.csv, value: ['eski_ad,yeni_ad,sonuc', 'fatura_2023_001.dat,fatura_2024_001.dat,basarili', 'fatura_2023_002.dat,fatura_2024_002.dat,basarili', 'fatura_2023_003.dat,fatura_2024_003.dat,basarili', 'makbuz_2023_001.dat,makbuz_2024_001.dat,basarili', 'makbuz_2023_002.dat,makbuz_2024_002.dat,basarili']}
+  - {op: is_file, path: muhasebe/islemler/fatura_2024_001.dat}
+  - {op: is_file, path: muhasebe/islemler/fatura_2024_002.dat}
+  - {op: is_file, path: muhasebe/islemler/fatura_2024_003.dat}
+  - {op: is_file, path: muhasebe/islemler/makbuz_2024_001.dat}
+  - {op: is_file, path: muhasebe/islemler/makbuz_2024_002.dat}
+  - {op: not_exists, path: muhasebe/fatura_2023_001.dat}
+  - {op: not_exists, path: muhasebe/fatura_2023_002.dat}
+  - {op: not_exists, path: muhasebe/fatura_2023_003.dat}
+  - {op: not_exists, path: muhasebe/makbuz_2023_001.dat}
+  - {op: not_exists, path: muhasebe/makbuz_2023_002.dat}
+
+metadata:
+  domain: toplu-yeniden-adlandir
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0112
+    bundle: dosya-duzen
+    tools:
+    - mkdir
+    - mv
+    konu: muhasebe-kalemleri
+    hedef: toplu-yeniden-adlandir
+    girdi: sabit-genislik
+    kaynak: iki-dosya-capraz
+    cikti: csv
+    kesif: dosyayi-bul
+    uslup: terse
+    direnc: yok
+    bukulme: yok
+    adim: 5
+    image: verifiable-dataset/base:latest
+    metadata: {}

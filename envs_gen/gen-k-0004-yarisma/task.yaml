@@ -1,0 +1,107 @@
+id: gen-k-0004-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) `.` dizininde `nav` klasörünün içinde `planner.py` adlı bir Python dosyası oluştur.
+
+  2) Bu dosyayı, `routes.txt` dosyasındaki rotaları kullanarak verilen bir başlangıç noktasından bitiş noktasına giden bir rota planlayıcı olarak yaz.
+
+  3) Planlayıcı, `routes.txt` içindeki rotaların başlangıç ve bitiş noktalarını dikkate alarak, bir noktadan diğerine ulaşabilecek bir rota zinciri bulmalıdır.
+
+  4) Eğer başlangıçtan bitişe ulaşan bir rota zinciri varsa, bu zinciri oluşturan rotaların adlarını sırayla listelemelidir; ulaşan bir yol yoksa uygun bir hata veya boş sonuç döndürmelidir.
+
+setup: |
+  mkdir -p nav
+  cat > nav/parser.py <<'PY'
+  def parse_route(line):
+      parts = line.strip().split(';')
+      if len(parts) != 4:
+          raise ValueError("Invalid route format")
+      name, start, end, steps = parts
+      steps_list = [s.strip() for s in steps.split(',')]
+      return {'name': name, 'start': start, 'end': end, 'steps': steps_list}
+  PY
+  cat > nav/network.py <<'PY'
+  from nav.parser import parse_route
+
+  def load_routes(filename):
+      routes = []
+      with open(filename) as f:
+          for line in f:
+              if line.strip():
+                  routes.append(parse_route(line))
+      return routes
+
+  def find_route(routes, name):
+      for r in routes:
+          if r['name'] == name:
+              return r
+      return None
+  PY
+  cat > routes.txt <<'TXT'
+  Downtown;A;D;go north, turn left, go straight
+  Park;A;C;go south, turn right, go straight
+  Mall;B;D;go east, turn left, go north
+  TXT
+
+goal_tr: >
+  nav/planner.py dosyasini, verilen bir baslangic noktasindan bitis
+  noktasina giden ve routes.txt icindeki rotalardan yararlanan bir rota
+  planlayicisi olarak yaz
+
+reference_solution: |
+  cat > nav/planner.py <<'PY'
+  from nav.network import load_routes
+
+  def plan_route(start, end):
+      routes = load_routes('routes.txt')
+      for r in routes:
+          if r['start'] == start and r['end'] == end:
+              return r['name']
+      # Try multi-hop via intermediate
+      for r1 in routes:
+          if r1['start'] == start:
+              for r2 in routes:
+                  if r2['start'] == r1['end'] and r2['end'] == end:
+                      return r1['name'] + ' -> ' + r2['name']
+      return None
+
+  if __name__ == '__main__':
+      print(plan_route('A', 'D'))
+  PY
+
+outputs:
+  - {path: nav/planner.py, kind: program, run: 'python3 -c ''import sys; sys.path.insert(0,"nav"); from planner import plan_route; assert plan_route("A","D")=="Downtown"; assert plan_route("A","C")=="Park"; assert plan_route("B","D")=="Mall"; assert plan_route("A","B") is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import sys; sys.path.insert(0,"nav"); from planner import plan_route; assert plan_route("A","D")=="Downtown"; assert plan_route("A","C")=="Park"; assert plan_route("B","D")=="Mall"; assert plan_route("A","B") is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0004
+    bundle: yarisma
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: metin-ayristirma

@@ -1,0 +1,172 @@
+id: gen-k-0208-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  railnet/route_planner.py içindeki RoutePlanner sınıfının find_route metodunu, başlangıç ve bitiş durağı arasındaki toplam seyahat süresini en aza indiren durak listesini döndürecek şekilde gerçekleştir. Eğer başlangıçtan bitişe ulaşan bir rota yoksa boş liste döndürülmeli.
+
+  railnet/route_planner.py dosyasını, verilen ağ yapısında en kısa (minimum toplam seyahat süresi) rotayı bulan algoritmayı içerecek şekilde düzenle.
+
+  Su şartlar sağlanmalı:
+  - find_route metodu, başlangıç durağından bitiş durağına kadar olan istasyon adlarını içeren bir liste döndürmeli (başlangıç ve bitiş dahil).
+  - Döndürülen rota, toplam seyahat süresini en aza indiren rota olmalı.
+  - Eğer başlangıç ile bitiş durağı arasında bir bağlantı yoksa, metod boş liste döndürmeli.
+  - Metod, test_network.py dosyasındaki testleri geçmelidir.
+
+setup: |
+  mkdir -p railnet
+  cat > railnet/stations.py <<'STATIONS'
+  class Station:
+      def __init__(self, name):
+          self.name = name
+          self.neighbors = []  # list of (Station, travel_time_minutes)
+
+      def add_neighbor(self, other, travel_time):
+          self.neighbors.append((other, travel_time))
+          other.neighbors.append((self, travel_time))
+  STATIONS
+  cat > railnet/route_planner.py <<'ROUTE_PLANNER'
+  from railnet.stations import Station
+
+
+  class RoutePlanner:
+      def __init__(self):
+          self.stations = {}
+
+      def add_station(self, name):
+          self.stations[name] = Station(name)
+
+      def add_connection(self, name_a, name_b, travel_time):
+          if name_a not in self.stations:
+              self.add_station(name_a)
+          if name_b not in self.stations:
+              self.add_station(name_b)
+          self.stations[name_a].add_neighbor(self.stations[name_b], travel_time)
+
+      def find_route(self, start_name, end_name):
+          """
+          Find the route from start to end that minimizes total travel time.
+          Returns a list of station names from start to end inclusive.
+          If no route exists, returns an empty list.
+          """
+          raise NotImplementedError
+  ROUTE_PLANNER
+  cat > test_network.py <<'TEST_NETWORK'
+  from railnet.route_planner import RoutePlanner
+
+
+  def build_network():
+      planner = RoutePlanner()
+      # Central hub network
+      planner.add_connection("Central", "Northgate", 12)
+      planner.add_connection("Central", "Southgate", 15)
+      planner.add_connection("Central", "Eastgate", 8)
+      planner.add_connection("Northgate", "Airport", 25)
+      planner.add_connection("Southgate", "Airport", 18)
+      planner.add_connection("Eastgate", "Harbor", 10)
+      planner.add_connection("Harbor", "Airport", 30)
+      return planner
+
+
+  def test_known_route():
+      planner = build_network()
+      route = planner.find_route("Central", "Airport")
+      assert route == ["Central", "Southgate", "Airport"], f"Got {route}"
+  TEST_NETWORK
+
+goal_tr: >
+  railnet/route_planner.py icindeki RoutePlanner.find_route metodunu, toplam
+  seyahat suresini en aza indiren durak listesini dondurecek sekilde
+  gerceklestir (ulasilamazsa bos liste dondur)
+
+reference_solution: |
+  cat > railnet/route_planner.py <<'ROUTE_PLANNER'
+  from railnet.stations import Station
+
+
+  class RoutePlanner:
+      def __init__(self):
+          self.stations = {}
+
+      def add_station(self, name):
+          self.stations[name] = Station(name)
+
+      def add_connection(self, name_a, name_b, travel_time):
+          if name_a not in self.stations:
+              self.add_station(name_a)
+          if name_b not in self.stations:
+              self.add_station(name_b)
+          self.stations[name_a].add_neighbor(self.stations[name_b], travel_time)
+
+      def find_route(self, start_name, end_name):
+          if start_name not in self.stations or end_name not in self.stations:
+              return []
+          if start_name == end_name:
+              return [start_name]
+
+          # Dijkstra's algorithm
+          import heapq
+          distances = {name: float('inf') for name in self.stations}
+          previous = {}
+          distances[start_name] = 0
+          pq = [(0, start_name)]
+
+          while pq:
+              current_dist, current_name = heapq.heappop(pq)
+              if current_dist > distances[current_name]:
+                  continue
+              if current_name == end_name:
+                  break
+              for neighbor, travel_time in self.stations[current_name].neighbors:
+                  new_dist = current_dist + travel_time
+                  if new_dist < distances[neighbor.name]:
+                      distances[neighbor.name] = new_dist
+                      previous[neighbor.name] = current_name
+                      heapq.heappush(pq, (new_dist, neighbor.name))
+
+          if distances[end_name] == float('inf'):
+              return []
+
+          # Reconstruct path
+          path = []
+          current = end_name
+          while current is not None:
+              path.append(current)
+              current = previous.get(current)
+          return path[::-1]
+  ROUTE_PLANNER
+
+outputs:
+  - {path: railnet/route_planner.py, kind: program, run: 'python3 -c ''from railnet.route_planner import RoutePlanner; p=RoutePlanner(); p.add_connection("A","B",5); p.add_connection("B","C",3); p.add_connection("A","C",10); assert p.find_route("A","C")==["A","B","C"], p.find_route("A","C"); assert p.find_route("A","X")==[]; assert p.find_route("A","A")==["A"]; p2=RoutePlanner(); p2.add_connection("Central","North",12); p2.add_connection("Central","South",15); p2.add_connection("Central","East",8); p2.add_connection("North","Airport",25); p2.add_connection("South","Airport",18); p2.add_connection("East","Harbor",10); p2.add_connection("Harbor","Airport",30); assert p2.find_route("Central","Airport")==["Central","South","Airport"], p2.find_route("Central","Airport"); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from railnet.route_planner import RoutePlanner; p=RoutePlanner(); p.add_connection("A","B",5); p.add_connection("B","C",3); p.add_connection("A","C",10); assert p.find_route("A","C")==["A","B","C"], p.find_route("A","C"); assert p.find_route("A","X")==[]; assert p.find_route("A","A")==["A"]; p2=RoutePlanner(); p2.add_connection("Central","North",12); p2.add_connection("Central","South",15); p2.add_connection("Central","East",8); p2.add_connection("North","Airport",25); p2.add_connection("South","Airport",18); p2.add_connection("East","Harbor",10); p2.add_connection("Harbor","Airport",30); assert p2.find_route("Central","Airport")==["Central","South","Airport"], p2.find_route("Central","Airport"); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0208
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: graf-gezinme

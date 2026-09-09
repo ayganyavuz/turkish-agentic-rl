@@ -1,0 +1,100 @@
+id: gen-k-0168-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  `.` içindeki `sensor/analyze.py` dosyasını aç. Bu dosyadaki `max_range` fonksiyonu, verilen satırları işleyip hangi sensörün değer aralığının en geniş olduğunu bulmaya çalışıyor. Ancak şu an fonksiyon, tüm değerlerin aynı olduğu (yani aralığın 0 olduğu) bir seriyle karşılaştığında `best_sensor` değişkeni `None` olarak kalıyor ve bu sensörün adı döndürülmüyor.
+
+  `max_range` fonksiyonunu, tüm değerler aynı olsa bile (aralık 0 olsa dahi) o sensörün adını döndürecek şekilde düzelt. Yani fonksiyon, en geniş aralığa sahip sensörü her durumda doğru şekilde belirlemeli ve `None` döndürmemeli. `sensor/analyze.py` dosyasındaki mevcut mantığı koruyarak bu sorunu çöz.
+
+setup: |
+  mkdir -p sensor
+  cat > sensor/reading.py <<'READING'
+  def parse_reading(line):
+      parts = line.strip().split(',')
+      if len(parts) != 2:
+          raise ValueError("invalid line format")
+      sensor_id = parts[0]
+      values = [float(v) for v in parts[1].split(';')]
+      return sensor_id, values
+  READING
+  cat > sensor/analyze.py <<'ANALYZE'
+  from sensor.reading import parse_reading
+
+
+  def max_range(lines):
+      max_diff = 0.0
+      best_sensor = None
+      for line in lines:
+          if not line.strip():
+              continue
+          sensor_id, values = parse_reading(line)
+          diff = max(values) - min(values)
+          if diff > max_diff:
+              max_diff = diff
+              best_sensor = sensor_id
+      return best_sensor
+  ANALYZE
+  cat > data.txt <<'DATA'
+  s1,1.0;3.0;2.0
+  s2,5.0;5.0;5.0
+  s3,10.0;20.0;15.0
+  DATA
+
+goal_tr: >
+  sensor/analyze.py icindeki max_range fonksiyonunu, tek degerli bir seri
+  icin None yerine o sensorun adini dondurecek sekilde duzelt
+
+reference_solution: |
+  cat > sensor/analyze.py <<'ANALYZE'
+  from sensor.reading import parse_reading
+
+
+  def max_range(lines):
+      max_diff = -1.0
+      best_sensor = None
+      for line in lines:
+          if not line.strip():
+              continue
+          sensor_id, values = parse_reading(line)
+          diff = max(values) - min(values)
+          if diff > max_diff:
+              max_diff = diff
+              best_sensor = sensor_id
+      return best_sensor
+  ANALYZE
+
+outputs:
+  - {path: sensor/analyze.py, kind: program, run: 'python3 -c ''from sensor.analyze import max_range as f; assert f(open("data.txt"))=="s3"; assert f(["x,1.0"])=="x"; assert f([]) is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor.analyze import max_range as f; assert f(open("data.txt"))=="s3"; assert f(["x,1.0"])=="x"; assert f([]) is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0168
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum

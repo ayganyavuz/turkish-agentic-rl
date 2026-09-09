@@ -1,0 +1,76 @@
+id: gen-s-0101-bol
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) `sunucu.ini` dosyasındaki yorum satırlarını, boş satırlarını ve bölüm başlığı olarak görünen `[islem-...]` satırlarını yok say; yalnızca `seviye = deger` biçimindeki satırları dikkate al.
+
+  2) Bu satırlardaki `seviye =` kısmını eşittir işaretinden bölerek her satırın değerini ayrı birer kayıt olarak değerlendir ve kayıtlara 1'den başlayarak sırayla kimlik numarası ver.
+
+  3) Elde ettiğin kayıtları, ilk satırında `id,seviye` başlığı olacak şekilde CSV biçiminde `sonuc.csv` dosyasına yaz; her kayıt bir satırda `id,deger` olarak yer alsın.
+
+setup: |
+  cat > sunucu.ini <<'INI'
+  # sunucu loglari: her bolum bir kayittir
+
+  [islem-1]
+  seviye = HATA
+  mesaj = disk dolu
+
+  [islem-2]
+  seviye = BILGI
+  mesaj = kullanici giris yapti
+
+  # bugunku ilk uyari
+
+  [islem-3]
+  seviye = UYARI
+  mesaj = bellek az
+
+  [islem-4]
+  seviye = HATA
+  mesaj = zaman asimi
+  INI
+
+goal_tr: >
+  sunucu.ini icinde yorum ve bos satirlari yok sayarak 'seviye = deger'
+  bicimindeki satirlari esittir isaretinden bol, her kayda 1'den baslayan id
+  ver ve sonuc.csv dosyasina id,seviye basligiyla CSV olarak yaz
+
+reference_solution: |
+  printf 'id,seviye\n' > sonuc.csv
+  seq 1 4 | paste -d, - <(sed -n 's/^[[:space:]]*seviye[[:space:]]*=[[:space:]]*//p' sunucu.ini) >> sonuc.csv
+
+outputs:
+  - {path: sonuc.csv, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: sonuc.csv, value: ['id,seviye', '1,HATA', '2,BILGI', '3,UYARI', '4,HATA']}
+
+metadata:
+  domain: bol
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0101
+    bundle: uret
+    tools:
+    - printf
+    - seq
+    konu: sunucu-loglari
+    hedef: bol
+    girdi: ini
+    kaynak: tek-dosya
+    cikti: csv
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 2
+    image: verifiable-dataset/base:latest
+    metadata: {}

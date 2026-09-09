@@ -1,0 +1,53 @@
+id: gen-s-0103-denetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  randevular.tsv dosyasındaki her randevu kaydını hastalar.tsv dosyasındaki hasta kayıtlarıyla çapraz denetle. Randevu kaydında belirtilen hasta kimliği hastalar.tsv dosyasında mevcutsa, o randevunun kimliğini belirten bir dizini denetim/gecerli/ altında oluştur. Eğer randevuda belirtilen hasta kimliği hastalar.tsv dosyasında bulunmuyorsa, o randevunun kimliğini belirten bir dizini denetim/hasta_yok/ altında oluştur. Tüm bu dizinleri kapsayan denetim adlı bir üst dizin oluştur.
+
+setup: |
+  printf 'P001\tAyse\nP002\tFatma\nP003\tMehmet\nP004\tZeynep\n' > hastalar.tsv
+  printf 'R101\tP001\nR102\tP003\nR103\tP002\nR104\tP999\nR105\tP004\n\nR106\tP001\n' > randevular.tsv
+
+goal_tr: >
+  randevular.tsv dosyasındaki her randevu kaydını hastalar.tsv ile çapraz
+  denetle; hastası bulunan randevu kimliğini denetim/gecerli/ altında,
+  bulunmayanı denetim/hasta_yok/ altında dizin olarak oluştur
+
+reference_solution: |
+  mkdir -p denetim/gecerli denetim/hasta_yok
+  grep -v '^$' randevular.tsv | cut -f1,2 | xargs -n2 sh -c 'if grep -q "^$2[[:space:]]" hastalar.tsv; then mkdir -p "denetim/gecerli/$1"; else mkdir -p "denetim/hasta_yok/$1"; fi' sh
+
+outputs:
+  - {path: denetim, kind: dir}
+
+checks:
+  - {op: dir_entries_eq, path: denetim, value: [gecerli, hasta_yok]}
+
+metadata:
+  domain: denetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0103
+    bundle: cok-dosya-ara
+    tools:
+    - xargs
+    - grep
+    konu: hastane-randevulari
+    hedef: denetle
+    girdi: tsv
+    kaynak: iki-dosya-capraz
+    cikti: dizin-yapisi
+    kesif: dosyayi-bul
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 2
+    image: verifiable-dataset/base:latest
+    metadata: {}

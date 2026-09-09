@@ -1,0 +1,131 @@
+id: gen-k-0163-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  roadnet/routes.py dosyasındaki register_potholes fonksiyonunu düzelt. Bu fonksiyon, reports.txt dosyasındaki konumları roadnet/network.py içindeki Road sınıfını kullanarak yollara kaydetmeli ve her yoldaki farklı çukur sayısını raporlamalıdır.
+
+  Yapılacaklar:
+  - roadnet/routes.py dosyasını düzenle
+  - register_potholes fonksiyonunu, reports.txt dosyasındaki verileri okuyup işleyecek şekilde güncelle
+  - Road sınıfını roadnet/network.py'den import et ve kullan
+  - Her yoldaki benzersiz (farklı) çukur pozisyonlarının sayısını hesapla ve raporla
+
+  Şu şartlar sağlanmalı:
+  - roadnet/routes.py dosyası düzenlenmeli
+  - reports.txt dosyasındaki veriler okunmalı ve işlenmeli
+  - Road sınıfı roadnet/network.py'den kullanılmalı
+  - Her yol için farklı çukur sayısı raporlanmalı (aynı pozisyon birden fazla kez bildirilse bile tek sayılmalı)
+  - Raporlama, her yolun adı ve o yoldaki benzersiz çukur sayısını içermeli
+
+setup: |
+  mkdir -p roadnet
+  cat > roadnet/network.py <<'NET'
+  class Road:
+      def __init__(self, name, length):
+          self.name = name
+          self.length = length
+          self.potholes = set()
+
+      def add_pothole(self, position):
+          if 0 <= position < self.length:
+              self.potholes.add(position)
+
+      def pothole_count(self):
+          return len(self.potholes)
+  NET
+  cat > roadnet/routes.py <<'ROUTES'
+  from roadnet.network import Road
+
+
+  def build_network(segments):
+      roads = {}
+      for name, length in segments:
+          roads[name] = Road(name, length)
+      return roads
+
+
+  def register_potholes(roads, reports):
+      for road_name, position in reports:
+          if road_name in roads:
+              roads[road_name].add_pothole(position)
+      return roads
+  ROUTES
+  cat > reports.txt <<'REP'
+  Main_St,12
+  Main_St,45
+  Main_St,12
+  Oak_Ave,3
+  Oak_Ave,99
+  Oak_Ave,3
+  Elm_Blvd,7
+  REP
+  cat > segments.txt <<'SEG'
+  Main_St,100
+  Oak_Ave,50
+  Elm_Blvd,20
+  SEG
+
+goal_tr: >
+  roadnet/routes.py icindeki register_potholes fonksiyonunu, reports.txt
+  dosyasindaki konumlari roadnet/network.py icindeki Road sinifini
+  kullanarak yollara kaydedecek ve her yoldaki farkli cukur sayisini
+  raporlayacak sekilde duzelt.
+
+reference_solution: |
+  cat > roadnet/routes.py <<'ROUTES'
+  from roadnet.network import Road
+
+
+  def build_network(segments):
+      roads = {}
+      for name, length in segments:
+          roads[name] = Road(name, length)
+      return roads
+
+
+  def register_potholes(roads, reports):
+      for road_name, position in reports:
+          if road_name in roads:
+              roads[road_name].add_pothole(position)
+      return roads
+
+
+  def count_potholes(roads, road_names):
+      return {name: roads[name].pothole_count() for name in road_names if name in roads}
+  ROUTES
+
+outputs:
+  - {path: roadnet/routes.py, kind: program, run: 'python3 -c ''from roadnet.routes import build_network, register_potholes, count_potholes; segments=[tuple(l.split(",")) for l in open("segments.txt")]; segments=[(n,int(l)) for n,l in segments]; reports=[(r.split(",")[0],int(r.split(",")[1])) for r in open("reports.txt")]; roads=build_network(segments); roads=register_potholes(roads,reports); res=count_potholes(roads,["Main_St","Oak_Ave","Elm_Blvd"]); assert res=={"Main_St":2,"Oak_Ave":1,"Elm_Blvd":1}, res; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from roadnet.routes import build_network, register_potholes, count_potholes; segments=[tuple(l.split(",")) for l in open("segments.txt")]; segments=[(n,int(l)) for n,l in segments]; reports=[(r.split(",")[0],int(r.split(",")[1])) for r in open("reports.txt")]; roads=build_network(segments); roads=register_potholes(roads,reports); res=count_potholes(roads,["Main_St","Oak_Ave","Elm_Blvd"]); assert res=={"Main_St":2,"Oak_Ave":1,"Elm_Blvd":1}, res; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0163
+    bundle: yarisma
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sayma

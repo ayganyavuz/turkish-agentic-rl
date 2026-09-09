@@ -1,0 +1,89 @@
+id: gen-k-0240-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün takvim uygulamamız üzerinde çalışıyordum ve bazı etkinliklerin aynı güne denk gelip gelmediğini kontrol eden bir bölümde sorun olduğunu fark ettim. Etkinlik verilerini ayrıştıran ve belirli bir tarihe denk gelen etkinlikleri listeleyen bir kodumuz var; ancak `events/scheduler.py` dosyasındaki `find_conflicts` fonksiyonu, verilen bir tarih için yalnızca ilk eşleşen etkinliği döndürüyor ve diğerlerini atlıyor. Bu yüzden aynı güne denk gelen birden fazla etkinlik olduğunda hepsini göremiyoruz. Bu fonksiyonu, verilen tarihteki tüm etkinlik adlarını doğru şekilde döndürecek biçimde düzeltmeni istiyorum. Yani `events/scheduler.py` dosyasındaki ilgili fonksiyonun mantığını güncellemen gerekiyor.
+
+setup: |
+  mkdir -p events
+  cat > events/parser.py <<'PARSER'
+  def parse_events(text):
+      events = []
+      for line in text.strip().splitlines():
+          name, date, attendees = line.split('|')
+          events.append((name, date, int(attendees)))
+      return events
+  PARSER
+  cat > events/scheduler.py <<'SCHEDULER'
+  from events.parser import parse_events
+
+
+  def find_conflicts(text, date):
+      events = parse_events(text)
+      result = []
+      for name, event_date, attendees in events:
+          if event_date == date:
+              result.append(name)
+              return result
+      return result
+  SCHEDULER
+  cat > calendar_data.txt <<'DATA'
+  Team Meeting|2025-03-10|12
+  Project Review|2025-03-12|8
+  Client Call|2025-03-10|5
+  Planning Session|2025-03-15|15
+  DATA
+
+goal_tr: >
+  events/scheduler.py icindeki find_conflicts fonksiyonunu, verilen
+  tarihteki tum etkinlik adlarini dogru dondurecek bicimde duzelt
+
+reference_solution: |
+  cat > events/scheduler.py <<'SCHEDULER'
+  from events.parser import parse_events
+
+
+  def find_conflicts(text, date):
+      events = parse_events(text)
+      result = []
+      for name, event_date, attendees in events:
+          if event_date == date:
+              result.append(name)
+      return result
+  SCHEDULER
+
+outputs:
+  - {path: events/scheduler.py, kind: program, run: 'python3 -c ''from events.scheduler import find_conflicts as f; t=open("calendar_data.txt").read(); assert f(t,"2025-03-10")==["Team Meeting","Client Call"], f(t,"2025-03-10"); assert f(t,"2025-03-12")==["Project Review"]; assert f(t,"2025-03-15")==["Planning Session"]; assert f(t,"2025-03-20")==[]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from events.scheduler import find_conflicts as f; t=open("calendar_data.txt").read(); assert f(t,"2025-03-10")==["Team Meeting","Client Call"], f(t,"2025-03-10"); assert f(t,"2025-03-12")==["Project Review"]; assert f(t,"2025-03-15")==["Planning Session"]; assert f(t,"2025-03-20")==[]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0240
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: erken-donus

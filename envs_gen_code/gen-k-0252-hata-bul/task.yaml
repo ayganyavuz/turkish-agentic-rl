@@ -1,0 +1,102 @@
+id: gen-k-0252-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  shop/report.py dosyasındaki average_order_value fonksiyonunu, boş girdi durumunda 0.0 yerine None değerini döndürecek şekilde düzeltin.
+
+setup: |
+  mkdir -p shop
+  cat > shop/orders.py <<'ORDERS'
+  def parse_orders(text):
+      rows = []
+      for line in text.strip().splitlines():
+          name, qty, price = line.split(',')
+          rows.append((name, int(qty), float(price)))
+      return rows
+  ORDERS
+  cat > shop/report.py <<'REPORT'
+  from shop.orders import parse_orders
+
+
+  def total_revenue(text):
+      rows = parse_orders(text)
+      total = 0.0
+      for name, qty, price in rows:
+          total += qty * price
+      return round(total, 2)
+
+
+  def average_order_value(text):
+      rows = parse_orders(text)
+      if len(rows) == 0:
+          return 0.0
+      total = sum(r[1] * r[2] for r in rows)
+      return round(total / len(rows), 2)
+  REPORT
+  cat > data1.csv <<'CSV'
+  widget,3,4.0
+  gadget,1,50.0
+  CSV
+  cat > data2.csv <<'CSV'
+  CSV
+
+goal_tr: >
+  shop/report.py icindeki average_order_value fonksiyonunu, bos girdi icin
+  0.0 yerine None dondurecek bicimde duzelt
+
+reference_solution: |
+  cat > shop/report.py <<'REPORT'
+  from shop.orders import parse_orders
+
+
+  def total_revenue(text):
+      rows = parse_orders(text)
+      total = 0.0
+      for name, qty, price in rows:
+          total += qty * price
+      return round(total, 2)
+
+
+  def average_order_value(text):
+      rows = parse_orders(text)
+      if len(rows) == 0:
+          return None
+      total = sum(r[1] * r[2] for r in rows)
+      return round(total / len(rows), 2)
+  REPORT
+
+outputs:
+  - {path: shop/report.py, kind: program, run: 'python3 -c ''from shop.report import average_order_value as a, total_revenue as t; assert t(open("data1.csv").read())==62.0; assert a(open("data1.csv").read())==31.0; assert a(open("data2.csv").read()) is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from shop.report import average_order_value as a, total_revenue as t; assert t(open("data1.csv").read())==62.0; assert a(open("data1.csv").read())==31.0; assert a(open("data2.csv").read()) is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0252
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum

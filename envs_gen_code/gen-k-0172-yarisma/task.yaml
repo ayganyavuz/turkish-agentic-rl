@@ -1,0 +1,77 @@
+id: gen-k-0172-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  shop/products.py dosyasındaki load_products fonksiyonunu, ürünlerin fiyatlarının toplamını ve toplam ürün sayısını hesaplayacak şekilde düzelt.
+
+setup: |
+  mkdir -p shop
+  cat > shop/products.py <<'PRODUCTS'
+  def load_products(text):
+      products = []
+      for line in text.strip().splitlines():
+          name, price = line.split(',')
+          products.append((name, float(price)))
+      return products
+  PRODUCTS
+  cat > data.txt <<'DATA'
+  apple,2.5
+  banana,1.0
+  cherry,3.0
+  DATA
+
+goal_tr: >
+  shop/products.py icindeki load_products fonksiyonunu, fiyatlarin toplamini
+  ve urun sayisini hesaplayan bir islevsellik ekleyecek sekilde duzelt
+
+reference_solution: |
+  cat > shop/products.py <<'PRODUCTS'
+  def load_products(text):
+      products = []
+      for line in text.strip().splitlines():
+          name, price = line.split(',')
+          products.append((name, float(price)))
+      return products
+
+  def total_cost(products):
+      return sum(price for _, price in products)
+
+  def product_count(products):
+      return len(products)
+  PRODUCTS
+
+outputs:
+  - {path: shop/products.py, kind: program, run: 'python3 -c ''from shop.products import load_products, total_cost, product_count; t=open("data.txt").read(); p=load_products(t); assert total_cost(p)==6.5, total_cost(p); assert product_count(p)==3, product_count(p); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from shop.products import load_products, total_cost, product_count; t=open("data.txt").read(); p=load_products(t); assert total_cost(p)==6.5, total_cost(p); assert product_count(p)==3, product_count(p); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0172
+    bundle: yarisma
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: onek-toplam

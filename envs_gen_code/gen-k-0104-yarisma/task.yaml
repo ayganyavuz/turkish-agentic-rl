@@ -1,0 +1,98 @@
+id: gen-k-0104-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  orderbook/matching.py dosyasını oluştur ve içinde count_orders_in_window(text, start, end) fonksiyonunu tanımla. Bu fonksiyon, verilen text içindeki siparişlerden miktarı [start, end] aralığında (sınırlar dahil) olanların sayısını döndürsün. Çözümde iki işaretçi (left, right) kullanarak ilerle.
+
+setup: |
+  mkdir -p orderbook
+  cat > orderbook/orders.py <<'ORDERS'
+  from datetime import datetime
+
+
+  def parse_orders(text):
+      orders = []
+      for line in text.strip().splitlines():
+          order_id, timestamp, qty = line.split(',')
+          orders.append({
+              'id': order_id,
+              'time': datetime.fromisoformat(timestamp),
+              'qty': int(qty)
+          })
+      return orders
+  ORDERS
+  cat > orders_data.txt <<'TXT'
+  A,2024-01-01T10:00:00,10
+  B,2024-01-01T10:01:00,15
+  C,2024-01-01T10:02:00,20
+  D,2024-01-01T10:03:00,25
+  E,2024-01-01T10:04:00,30
+  TXT
+
+goal_tr: >
+  orderbook/matching.py dosyasini olustur; icinde
+  count_orders_in_window(text, start, end) fonksiyonu olsun. Bu fonksiyon,
+  verilen text'teki siparislerden miktari [start, end] araliginda (sinirlar
+  dahil) olanlarin sayisini dondursun. Iki isaretci (left, right) kullanarak
+  coz.
+
+reference_solution: |
+  cat > orderbook/matching.py <<'MATCHING'
+  from orderbook.orders import parse_orders
+
+
+  def count_orders_in_window(text, start, end):
+      """Return number of orders whose qty is within [start, end] (inclusive)."""
+      orders = parse_orders(text)
+      # orders are sorted by time already
+      left = 0
+      right = 0
+      count = 0
+      while right < len(orders):
+          qty = orders[right]['qty']
+          if qty < start:
+              left += 1
+              right += 1
+          elif qty > end:
+              right += 1
+          else:
+              count += 1
+              right += 1
+      return count
+  MATCHING
+
+outputs:
+  - {path: orderbook/matching.py, kind: program, run: 'python3 -c ''from orderbook.matching import count_orders_in_window as f; t=open("orders_data.txt").read(); assert f(t,15,25)==3, f(t,15,25); assert f(t,10,10)==1, f(t,10,10); assert f(t,5,9)==0, f(t,5,9); assert f(t,10,30)==5, f(t,10,30); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from orderbook.matching import count_orders_in_window as f; t=open("orders_data.txt").read(); assert f(t,15,25)==3, f(t,15,25); assert f(t,10,10)==1, f(t,10,10); assert f(t,5,9)==0, f(t,5,9); assert f(t,10,30)==5, f(t,10,30); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0104
+    bundle: yarisma
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: iki-isaretci

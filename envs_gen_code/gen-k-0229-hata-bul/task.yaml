@@ -1,0 +1,99 @@
+id: gen-k-0229-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  bank/analyze.py dosyasındaki balance_on fonksiyonunu düzelt. Bu fonksiyon şu anda yalnızca target_date tarihinden kesin olarak önceki işlemleri hesaba katıyor; oysa target_date tarihi dahil ve o tarihten önceki tüm işlemlerin bakiyeye eklenmesi gerekiyor. Yani target_date tarihindeki işlemler de bakiyeye dahil edilmeli. Bunu sağlayacak şekilde balance_on fonksiyonunun mantığını güncelle.
+
+setup: |
+  mkdir -p bank
+  cat > bank/ledger.py <<'LEDGER'
+  def load_transactions(text):
+      transactions = []
+      for line in text.strip().splitlines():
+          date, desc, amount = line.split('|')
+          transactions.append((date, desc, float(amount)))
+      return transactions
+  LEDGER
+  cat > bank/analyze.py <<'ANALYZE'
+  from bank.ledger import load_transactions
+
+
+  def balance_on(text, target_date):
+      """Return balance after all transactions strictly before target_date."""
+      transactions = load_transactions(text)
+      balance = 0.0
+      for date, desc, amount in transactions:
+          if date < target_date:
+              balance += amount
+      return balance
+  ANALYZE
+  cat > bank/statement.py <<'STATEMENT'
+  from bank.analyze import balance_on
+
+
+  def closing_balance(text, dates):
+      """Return list of balances for each date in dates."""
+      return [balance_on(text, d) for d in dates]
+  STATEMENT
+  cat > transactions.txt <<'TXT'
+  2024-01-05|deposit|1000.00
+  2024-01-10|withdraw|-200.00
+  2024-01-15|deposit|500.00
+  2024-01-20|withdraw|-300.00
+  2024-01-25|deposit|700.00
+  TXT
+
+goal_tr: >
+  bank/analyze.py icindeki balance_on fonksiyonunu, target_date tarihi dahil
+  ve o tarihten onceki tum islemleri hesaba katacak sekilde duzelt
+
+reference_solution: |
+  cat > bank/analyze.py <<'ANALYZE'
+  from bank.ledger import load_transactions
+
+
+  def balance_on(text, target_date):
+      """Return balance after all transactions up to and including target_date."""
+      transactions = load_transactions(text)
+      balance = 0.0
+      for date, desc, amount in transactions:
+          if date <= target_date:
+              balance += amount
+      return balance
+  ANALYZE
+
+outputs:
+  - {path: bank/analyze.py, kind: program, run: 'python3 -c ''from bank.statement import closing_balance as f; t=open("transactions.txt").read(); assert f(t,["2024-01-15"])==[1300.0], f(t,["2024-01-15"]); assert f(t,["2024-01-20"])==[1000.0], f(t,["2024-01-20"]); assert f(t,["2024-01-25"])==[1700.0], f(t,["2024-01-25"]); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bank.statement import closing_balance as f; t=open("transactions.txt").read(); assert f(t,["2024-01-15"])==[1300.0], f(t,["2024-01-15"]); assert f(t,["2024-01-20"])==[1000.0], f(t,["2024-01-20"]); assert f(t,["2024-01-25"])==[1700.0], f(t,["2024-01-25"]); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0229
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: banka-hareketleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: off-by-one

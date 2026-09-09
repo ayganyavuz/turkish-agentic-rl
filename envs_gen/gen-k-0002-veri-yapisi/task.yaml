@@ -1,0 +1,104 @@
+id: gen-k-0002-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) `route_network/union_find.py` dosyasındaki `UnionFind` sınıfının `find` ve `union` metodlarını tamamla.
+  2) `find` metodu, bir düğümün kökünü (root) bulacak şekilde gerçekleştir.
+  3) `union` metodu, iki düğümü birleştirecek şekilde gerçekleştir.
+  4) Bu metodların, `route_network/route_planner.py` dosyasındaki `can_connect` fonksiyonunun şehirlerin birbirine bağlı olup olmadığını doğru şekilde denetlemesini sağlayacak biçimde çalışmasını sağla.
+
+setup: |
+  mkdir -p route_network
+  cat > route_network/union_find.py <<'EOF'
+  class UnionFind:
+      def __init__(self, n):
+          self.parent = list(range(n))
+          self.rank = [0] * n
+
+      def find(self, x):
+          raise NotImplementedError
+
+      def union(self, x, y):
+          raise NotImplementedError
+  EOF
+  cat > route_network/route_planner.py <<'EOF'
+  from route_network.union_find import UnionFind
+
+
+  def can_connect(city_count, routes):
+      uf = UnionFind(city_count)
+      for a, b in routes:
+          uf.union(a, b)
+      root = uf.find(0)
+      for city in range(1, city_count):
+          if uf.find(city) != root:
+              return False
+      return True
+  EOF
+
+goal_tr: >
+  route_network/union_find.py icindeki UnionFind sinifini, yol tarifi aginda
+  tum sehirlerin birbirine bagli olup olmadigini dogru denetleyecek sekilde
+  gerceklestir (find ve union metodlarini tamamla)
+
+reference_solution: |
+  cat > route_network/union_find.py <<'EOF'
+  class UnionFind:
+      def __init__(self, n):
+          self.parent = list(range(n))
+          self.rank = [0] * n
+
+      def find(self, x):
+          if self.parent[x] != x:
+              self.parent[x] = self.find(self.parent[x])
+          return self.parent[x]
+
+      def union(self, x, y):
+          rx, ry = self.find(x), self.find(y)
+          if rx == ry:
+              return False
+          if self.rank[rx] < self.rank[ry]:
+              self.parent[rx] = ry
+          elif self.rank[rx] > self.rank[ry]:
+              self.parent[ry] = rx
+          else:
+              self.parent[ry] = rx
+              self.rank[rx] += 1
+          return True
+  EOF
+
+outputs:
+  - {path: route_network/union_find.py, kind: program, run: 'python3 -c ''from route_network.route_planner import can_connect; assert can_connect(5, [(0,1),(1,2),(3,4)]) == False; assert can_connect(5, [(0,1),(1,2),(2,3),(3,4)]) == True; assert can_connect(6, [(0,1),(1,2),(3,4),(4,5)]) == False; assert can_connect(4, [(0,1),(1,2),(2,3),(0,3)]) == True; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from route_network.route_planner import can_connect; assert can_connect(5, [(0,1),(1,2),(3,4)]) == False; assert can_connect(5, [(0,1),(1,2),(2,3),(3,4)]) == True; assert can_connect(6, [(0,1),(1,2),(3,4),(4,5)]) == False; assert can_connect(4, [(0,1),(1,2),(2,3),(0,3)]) == True; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0002
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: birlesim-bulma

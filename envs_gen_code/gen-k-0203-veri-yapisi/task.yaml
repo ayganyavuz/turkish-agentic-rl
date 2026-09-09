@@ -1,0 +1,127 @@
+id: gen-k-0203-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  warehouse/stock.py içindeki StockManager sınıfında yer alan get_group_quantity metodunu gerçekleştir. Bu metot, link_products ile bağlanan ürün gruplarının toplam stok miktarını doğru hesaplamalıdır.
+
+  Su sartlar saglanmali:
+  - get_group_quantity metodu, verilen ürün kimliğinin (product_id) bağlı olduğu gruba ait tüm ürünlerin stok miktarlarının toplamını döndürmelidir.
+  - Bağlantılar, link_products çağrılarıyla kurulur; aynı gruba ait ürünler birlikte değerlendirilmelidir.
+  - Metot, NotImplementedError fırlatmamalı, gerçek bir hesaplama yapmalıdır.
+  - Ürün grubu bağlantıları dolaylı olabilir; yani A-B ve B-C bağlantıları varsa A, B ve C aynı grubu oluşturur.
+
+setup: |
+  mkdir -p warehouse
+  cat > warehouse/items.py <<'ITEMS'
+  class Product:
+      def __init__(self, product_id, name):
+          self.product_id = product_id
+          self.name = name
+
+      def __repr__(self):
+          return f"Product({self.product_id}, '{self.name}')"
+  ITEMS
+  cat > warehouse/stock.py <<'STOCK'
+  from warehouse.items import Product
+
+
+  class StockManager:
+      def __init__(self):
+          self.products = {}
+          self.connections = {}
+          self.quantities = {}
+
+      def add_product(self, product_id, name, qty):
+          self.products[product_id] = Product(product_id, name)
+          self.connections[product_id] = product_id
+          self.quantities[product_id] = qty
+
+      def _find_root(self, product_id):
+          while self.connections[product_id] != product_id:
+              product_id = self.connections[product_id]
+          return product_id
+
+      def link_products(self, id1, id2):
+          root1 = self._find_root(id1)
+          root2 = self._find_root(id2)
+          if root1 != root2:
+              self.connections[root1] = root2
+
+      def get_group_quantity(self, product_id):
+          raise NotImplementedError
+  STOCK
+  cat > warehouse/__init__.py <<'INIT'
+  INIT
+
+goal_tr: >
+  warehouse/stock.py icindeki StockManager sinifinda get_group_quantity
+  metodunu, link_products ile baglanan urun gruplarinin toplam stok
+  miktarini dogru hesaplayacak sekilde gerceklestir.
+
+reference_solution: |
+  cat > warehouse/stock.py <<'STOCK'
+  from warehouse.items import Product
+
+
+  class StockManager:
+      def __init__(self):
+          self.products = {}
+          self.connections = {}
+          self.quantities = {}
+
+      def add_product(self, product_id, name, qty):
+          self.products[product_id] = Product(product_id, name)
+          self.connections[product_id] = product_id
+          self.quantities[product_id] = qty
+
+      def _find_root(self, product_id):
+          while self.connections[product_id] != product_id:
+              product_id = self.connections[product_id]
+          return product_id
+
+      def link_products(self, id1, id2):
+          root1 = self._find_root(id1)
+          root2 = self._find_root(id2)
+          if root1 != root2:
+              self.connections[root1] = root2
+
+      def get_group_quantity(self, product_id):
+          root = self._find_root(product_id)
+          return sum(q for pid, q in self.quantities.items() if self._find_root(pid) == root)
+  STOCK
+
+outputs:
+  - {path: warehouse/stock.py, kind: program, run: 'python3 -c ''from warehouse.stock import StockManager; sm=StockManager(); sm.add_product("A","alpha",10); sm.add_product("B","beta",20); sm.add_product("C","gamma",30); sm.add_product("D","delta",40); sm.link_products("A","B"); sm.link_products("C","D"); sm.link_products("B","C"); assert sm.get_group_quantity("A")==100, "A group wrong"; assert sm.get_group_quantity("D")==100, "D group wrong"; sm2=StockManager(); sm2.add_product("X","x",5); sm2.add_product("Y","y",7); assert sm2.get_group_quantity("X")==5, "X alone wrong"; assert sm2.get_group_quantity("Y")==7, "Y alone wrong"; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from warehouse.stock import StockManager; sm=StockManager(); sm.add_product("A","alpha",10); sm.add_product("B","beta",20); sm.add_product("C","gamma",30); sm.add_product("D","delta",40); sm.link_products("A","B"); sm.link_products("C","D"); sm.link_products("B","C"); assert sm.get_group_quantity("A")==100, "A group wrong"; assert sm.get_group_quantity("D")==100, "D group wrong"; sm2=StockManager(); sm2.add_product("X","x",5); sm2.add_product("Y","y",7); assert sm2.get_group_quantity("X")==5, "X alone wrong"; assert sm2.get_group_quantity("Y")==7, "Y alone wrong"; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0203
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: birlesim-bulma

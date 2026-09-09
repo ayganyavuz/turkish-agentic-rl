@@ -1,0 +1,124 @@
+id: gen-k-0105-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) `calendar_app/reminders.py` dosyasındaki `upcoming_reminders` fonksiyonunu, hedef tarihten itibaren çakışan günleri ve o günlerdeki etkinlik sayılarını doğru şekilde döndürecek biçimde düzeltin.
+
+  2) Fonksiyon, hedef tarihten itibaren çakışan tüm günleri listelemeli ve her gün için o gündeki etkinlik sayısını doğru hesaplamalıdır.
+
+  3) Düzeltme sonrasında `calendar_app/reminders.py` dosyası, hedef tarihten itibaren çakışan günleri ve etkinlik sayılarını doğru sırayla döndürmelidir.
+
+setup: |
+  mkdir -p calendar_app
+  cat > calendar_app/events.py <<'EVENTS'
+  def parse_events(text):
+      events = {}
+      for line in text.strip().splitlines():
+          date, name = line.split('|')
+          date = date.strip()
+          name = name.strip()
+          if date not in events:
+              events[date] = []
+          events[date].append(name)
+      return events
+
+  def get_events(events_dict, date):
+      return events_dict.get(date, [])
+  EVENTS
+  cat > calendar_app/conflicts.py <<'CONFLICTS'
+  from calendar_app.events import parse_events, get_events
+
+
+  def find_conflicting_dates(text):
+      events = parse_events(text)
+      conflicts = []
+      for date in events:
+          if len(events[date]) > 1:
+              conflicts.append(date)
+      return conflicts
+
+
+  def get_all_events_on(text, date):
+      events = parse_events(text)
+      return get_events(events, date)
+  CONFLICTS
+  cat > calendar_app/reminders.py <<'REMINDERS'
+  from calendar_app.conflicts import find_conflicting_dates, get_all_events_on
+
+
+  def upcoming_reminders(text, target_date):
+      conflicts = find_conflicting_dates(text)
+      reminders = []
+      for date in conflicts:
+          if date >= target_date:
+              events = get_all_events_on(text, date)
+              reminders.append((date, len(events)))
+      reminders.sort()
+      return reminders
+  REMINDERS
+  cat > events.txt <<'TXT'
+  2024-05-10|Team Meeting
+  2024-05-10|Client Call
+  2024-05-12|Project Review
+  2024-05-12|Project Review
+  2024-05-12|Design Sync
+  2024-05-15|Board Meeting
+  TXT
+
+goal_tr: >
+  calendar_app/reminders.py icindeki upcoming_reminders fonksiyonunu, hedef
+  tarihten itibaren cakisan gunleri ve o gunlerdeki etkinlik sayilarini
+  dogru sekilde dondurecek bicimde duzelt
+
+reference_solution: |
+  cat > calendar_app/reminders.py <<'REMINDERS'
+  from calendar_app.conflicts import find_conflicting_dates, get_all_events_on
+
+
+  def upcoming_reminders(text, target_date):
+      conflicts = find_conflicting_dates(text)
+      reminders = []
+      for date in conflicts:
+          if date >= target_date:
+              events = get_all_events_on(text, date)
+              unique_events = set(events)
+              reminders.append((date, len(unique_events)))
+      reminders.sort()
+      return reminders
+  REMINDERS
+
+outputs:
+  - {path: calendar_app/reminders.py, kind: program, run: 'python3 -c ''from calendar_app.reminders import upcoming_reminders as f; t=open("events.txt").read(); assert f(t,"2024-05-10")==[("2024-05-10",2),("2024-05-12",2)], f(t,"2024-05-10"); assert f(t,"2024-05-12")==[("2024-05-12",2)], f(t,"2024-05-12"); assert f(t,"2024-05-13")==[], f(t,"2024-05-13"); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from calendar_app.reminders import upcoming_reminders as f; t=open("events.txt").read(); assert f(t,"2024-05-10")==[("2024-05-10",2),("2024-05-12",2)], f(t,"2024-05-10"); assert f(t,"2024-05-12")==[("2024-05-12",2)], f(t,"2024-05-12"); assert f(t,"2024-05-13")==[], f(t,"2024-05-13"); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0105
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: zor
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sozluk-anahtar-hatasi

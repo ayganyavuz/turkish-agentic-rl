@@ -1,0 +1,132 @@
+id: gen-k-0286-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Günün yoğunluğu içinde takvim uygulamamızın etkinlik yönetimini tamamlamamız gerekiyor. Etkinlikleri zamana göre düzenli tutacak veri yapısını henüz bitiremedik. Şu an event_tree.py dosyasında EventTree sınıfının insert, find ve list_between metodları boş durumda. Bu metodları, ikili arama ağacına etkinlik ekleyecek, verilen zamandaki etkinliği bulacak ve belirtilen zaman aralığındaki etkinlikleri artan sırada listeleyecek şekilde doldurmanı istiyorum. Ayrıca _collect yardımcı metodunu da bu işlevselliği destekleyecek biçimde gerçekleştir.
+
+setup: |
+  cat > event_tree.py <<'PY'
+  class EventNode:
+      def __init__(self, time, title):
+          self.time = time
+          self.title = title
+          self.left = None
+          self.right = None
+
+
+  class EventTree:
+      def __init__(self):
+          self.root = None
+
+      def insert(self, time, title):
+          raise NotImplementedError
+
+      def find(self, time):
+          raise NotImplementedError
+
+      def list_between(self, start, end):
+          raise NotImplementedError
+
+      def _collect(self, node, start, end, result):
+          raise NotImplementedError
+  PY
+
+goal_tr: >
+  event_tree.py dosyasindaki EventTree sinifini, ikili arama agacina
+  etkinlik ekleyen (insert), zamana gore etkinlik arayan (find) ve verilen
+  zaman araligindaki etkinlikleri artan sirada listeleyen (list_between)
+  dogru bir gerceklestirmeyle doldur
+
+reference_solution: |
+  cat > event_tree.py <<'PY'
+  class EventNode:
+      def __init__(self, time, title):
+          self.time = time
+          self.title = title
+          self.left = None
+          self.right = None
+
+
+  class EventTree:
+      def __init__(self):
+          self.root = None
+
+      def insert(self, time, title):
+          if self.root is None:
+              self.root = EventNode(time, title)
+              return
+          node = self.root
+          while True:
+              if time < node.time:
+                  if node.left is None:
+                      node.left = EventNode(time, title)
+                      return
+                  node = node.left
+              else:
+                  if node.right is None:
+                      node.right = EventNode(time, title)
+                      return
+                  node = node.right
+
+      def find(self, time):
+          node = self.root
+          while node is not None:
+              if time == node.time:
+                  return node.title
+              elif time < node.time:
+                  node = node.left
+              else:
+                  node = node.right
+          return None
+
+      def list_between(self, start, end):
+          result = []
+          self._collect(self.root, start, end, result)
+          return result
+
+      def _collect(self, node, start, end, result):
+          if node is None:
+              return
+          if node.time > start:
+              self._collect(node.left, start, end, result)
+          if start <= node.time <= end:
+              result.append((node.time, node.title))
+          if node.time < end:
+              self._collect(node.right, start, end, result)
+  PY
+
+outputs:
+  - {path: event_tree.py, kind: program, run: 'python3 -c ''from event_tree import EventTree; t=EventTree(); [(t.insert(h,"e"+str(h))) for h in [15, 9, 20, 3, 12, 18, 25]]; assert t.find(9)=="e9"; assert t.find(14) is None; r=t.list_between(10, 22); assert r==[(12,"e12"),(15,"e15"),(18,"e18"),(20,"e20")], r; r2=t.list_between(0, 5); assert r2==[(3,"e3")], r2; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from event_tree import EventTree; t=EventTree(); [(t.insert(h,"e"+str(h))) for h in [15, 9, 20, 3, 12, 18, 25]]; assert t.find(9)=="e9"; assert t.find(14) is None; r=t.list_between(10, 22); assert r==[(12,"e12"),(15,"e15"),(18,"e18"),(20,"e20")], r; r2=t.list_between(0, 5); assert r2==[(3,"e3")], r2; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0286
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: ikili-arama-agaci

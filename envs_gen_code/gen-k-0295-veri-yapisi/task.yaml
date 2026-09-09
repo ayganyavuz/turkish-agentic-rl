@@ -1,0 +1,112 @@
+id: gen-k-0295-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  warehouse/inventory.py dosyasında bulunan Inventory sınıfının add_item, get_next_item ve has_items metotlarını, warehouse/priority_queue.py dosyasında tanımlı PriorityQueue sınıfını kullanarak gerçekleştir. 
+
+  Şu şartlar sağlanmalı:
+  - add_item metodu, verilen isim ve öncelik değerini kuyruğa eklemeli.
+  - get_next_item metodu, kuyruktan en yüksek öncelikli öğeyi çıkarıp döndürmeli.
+  - has_items metodu, kuyrukta öğe olup olmadığını bildirmeli.
+
+setup: |
+  mkdir -p warehouse
+  cat > warehouse/priority_queue.py <<'PQ'
+  class PriorityQueue:
+      def __init__(self):
+          self._items = []
+
+      def push(self, item, priority):
+          self._items.append((priority, item))
+          self._items.sort(key=lambda x: x[0])
+
+      def pop(self):
+          if not self._items:
+              raise IndexError("pop from empty priority queue")
+          return self._items.pop(0)[1]
+
+      def peek(self):
+          if not self._items:
+              raise IndexError("peek from empty priority queue")
+          return self._items[0][1]
+
+      def is_empty(self):
+          return len(self._items) == 0
+  PQ
+  cat > warehouse/inventory.py <<'INV'
+  from warehouse.priority_queue import PriorityQueue
+
+
+  class Inventory:
+      def __init__(self):
+          self.queue = PriorityQueue()
+
+      def add_item(self, name, priority):
+          raise NotImplementedError
+
+      def get_next_item(self):
+          raise NotImplementedError
+
+      def has_items(self):
+          raise NotImplementedError
+  INV
+
+goal_tr: >
+  warehouse/inventory.py icindeki Inventory sinifinin add_item,
+  get_next_item ve has_items metodlarini, oncelik kuyrugu PriorityQueue'yu
+  kullanarak gerceklestir.
+
+reference_solution: |
+  cat > warehouse/inventory.py <<'INV'
+  from warehouse.priority_queue import PriorityQueue
+
+
+  class Inventory:
+      def __init__(self):
+          self.queue = PriorityQueue()
+
+      def add_item(self, name, priority):
+          self.queue.push(name, priority)
+
+      def get_next_item(self):
+          return self.queue.pop()
+
+      def has_items(self):
+          return not self.queue.is_empty()
+  INV
+
+outputs:
+  - {path: warehouse/inventory.py, kind: program, run: 'python3 -c ''from warehouse.inventory import Inventory; inv=Inventory(); inv.add_item("low",5); inv.add_item("high",1); inv.add_item("mid",3); assert inv.has_items(); assert inv.get_next_item()=="high"; assert inv.get_next_item()=="mid"; assert inv.get_next_item()=="low"; assert not inv.has_items(); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from warehouse.inventory import Inventory; inv=Inventory(); inv.add_item("low",5); inv.add_item("high",1); inv.add_item("mid",3); assert inv.has_items(); assert inv.get_next_item()=="high"; assert inv.get_next_item()=="mid"; assert inv.get_next_item()=="low"; assert not inv.has_items(); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0295
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: zor
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: oncelik-kuyrugu

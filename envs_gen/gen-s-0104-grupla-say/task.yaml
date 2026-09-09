@@ -1,0 +1,68 @@
+id: gen-s-0104-grupla-say
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) vardiya1.txt ve vardiya2.txt dosyalarındaki personel kayıtlarını oku.
+
+  2) Bu kayıtları vardiya koduna göre gruplayıp her kodun kaç kayıt içerdiğini hesapla.
+
+  3) Sonuçları bir başlık satırıyla birlikte CSV biçiminde gruplu.csv dosyasına yaz.
+
+setup: |
+  cat > vardiya1.txt <<'EOF'
+  P101,E
+  P102,M
+  P103,N
+  P104,M
+  P105,E
+  EOF
+
+  cat > vardiya2.txt <<'EOF'
+  P201,N
+  P202,M
+  P203,N
+  P204,E
+  P205,N
+  EOF
+
+goal_tr: >
+  vardiya1.txt ve vardiya2.txt dosyalarindaki personel kayitlarini vardiya
+  koduna gore gruplayip her kodun kac kayit icerdigini baslik satiriyla
+  birlikte gruplu.csv dosyasina CSV biciminde yaz
+
+reference_solution: |
+  awk -F, '{say[$2]++} END {print "shift,count"; print "E," say["E"]+0; print "M," say["M"]+0; print "N," say["N"]+0}' vardiya1.txt vardiya2.txt > gruplu.csv
+
+outputs:
+  - {path: gruplu.csv, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: gruplu.csv, value: ['shift,count', 'E,3', 'M,3', 'N,4']}
+
+metadata:
+  domain: grupla-say
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0104
+    bundle: awk
+    tools:
+    - awk
+    konu: personel-vardiyalari
+    hedef: grupla-say
+    girdi: duz-metin
+    kaynak: cok-dosya
+    cikti: csv
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: olcek
+    adim: 5
+    image: verifiable-dataset/base:latest
+    metadata: {}

@@ -1,0 +1,92 @@
+id: gen-s-0102-sirala-sec
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  randevular.dat dosyasındaki 20260715 tarihli KARDIOLOJI ve NOROLOJI randevularını tarih/saat ve bölüm adına göre sırala; her bölümün ilk iki kaydını tarih, saat, doktor ve hasta biçiminde sırasıyla sonuc/KARDIOLOJI/sirali.txt ve sonuc/NOROLOJI/sirali.txt dosyalarına yaz.
+
+  Su sartlar saglanmali:
+  - Olusturulacak dizinler ve dosyalar: sonuc/KARDIOLOJI/sirali.txt ve sonuc/NOROLOJI/sirali.txt
+  - Her dosyada yalnizca ilgili bolume ait, 20260715 tarihli, tarih/saat ve bolum adina gore siralanmis ilk iki kayit bulunmali.
+  - Her kayit tarih, saat, doktor ve hasta bilgilerini icermeli; her satirda bir kayit olmali.
+
+setup: |
+  printf '%-8s%-4s%-14s%-8s%-8s\n' \
+    20260710 0900 KARDIOLOJI DRKAYA ALI \
+    20260715 1100 KARDIOLOJI DRKAYA AYSE \
+    20260715 0900 KARDIOLOJI DROZAN ZEYNEP \
+    20260715 1400 KARDIOLOJI DRKAYA MEHMET \
+    20260714 1000 NOROLOJI DRDEMIR CEM \
+    20260715 0800 NOROLOJI DRISIK CAN \
+    20260715 1000 NOROLOJI DRDEMIR BURCU \
+    20260715 1300 NOROLOJI DRDEMIR ELIF \
+    20260711 1200 DAHILIYE DRATES HASAN \
+    20260712 0800 ORTOPEDI DRBORA IDIL \
+    > randevular.dat
+
+goal_tr: >
+  randevular.dat dosyasındaki 20260715 tarihli KARDIOLOJI ve NOROLOJI
+  randevularını tarih/saat ve bölüm adına göre sırala; her bölümün ilk iki
+  kaydını tarih, saat, doktor ve hasta biçiminde sırasıyla
+  sonuc/KARDIOLOJI/sirali.txt ve sonuc/NOROLOJI/sirali.txt dosyalarına yaz.
+
+reference_solution: |
+  rm -rf sonuc
+  mkdir -p sonuc/KARDIOLOJI sonuc/NOROLOJI
+  awk '{
+    date = substr($0, 1, 8)
+    time = substr($0, 9, 4)
+    dept = substr($0, 13, 14)
+    doctor = substr($0, 27, 8)
+    patient = substr($0, 35, 8)
+    gsub(/ /, "", dept)
+    gsub(/ /, "", doctor)
+    gsub(/ /, "", patient)
+    if (date == "20260715" && (dept == "KARDIOLOJI" || dept == "NOROLOJI"))
+      print date, time, dept, doctor, patient
+  }' randevular.dat | sort -k1,1 -k2,2 -k3,3 | awk '
+  {
+    if ($3 == "KARDIOLOJI" && kard < 2) {
+      print $1, $2, $4, $5 > "sonuc/KARDIOLOJI/sirali.txt"
+      kard++
+    } else if ($3 == "NOROLOJI" && nor < 2) {
+      print $1, $2, $4, $5 > "sonuc/NOROLOJI/sirali.txt"
+      nor++
+    }
+  }
+  '
+
+outputs:
+  - {path: sonuc/KARDIOLOJI/sirali.txt, kind: file}
+  - {path: sonuc/NOROLOJI/sirali.txt, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: sonuc/KARDIOLOJI/sirali.txt, value: [20260715 0900 DROZAN ZEYNEP, 20260715 1100 DRKAYA AYSE]}
+  - {op: file_lines_eq, path: sonuc/NOROLOJI/sirali.txt, value: [20260715 0800 DRISIK CAN, 20260715 1000 DRDEMIR BURCU]}
+
+metadata:
+  domain: sirala-sec
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0102
+    bundle: awk
+    tools:
+    - awk
+    konu: hastane-randevulari
+    hedef: sirala-sec
+    girdi: sabit-genislik
+    kaynak: tek-dosya
+    cikti: dizin-yapisi
+    kesif: veriye-bak
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: olcek
+    adim: 5
+    image: verifiable-dataset/base:latest
+    metadata: {}

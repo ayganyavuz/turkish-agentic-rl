@@ -6,7 +6,17 @@ dist/
 .venv/
 venv/
 
-# Rollout ciktilari yeniden uretilebilir; repoya girmesin.
-data/*.jsonl
-
+# Anahtar sizmasin: .env ve her turlu yedegi disarida, ornek dosya iceride.
 .env
+.env.*
+!.env.example
+
+# Rollout ciktilari ve loglar yeniden uretilebilir; repoya girmesin.
+# data/ tumden dislanamiyor: split.json donmus bir yapit ve Colab'de lazim.
+# (Dizin dislanirsa git icindeki dosyayi geri alamiyor, o yuzden data/*)
+data/*
+!data/split.json
+
+# Kapilarda reddedilen adaylar: teshis icin tutuluyor, veri setinin parcasi degil.
+envs_gen/_red/
+envs_gen_code/_red/

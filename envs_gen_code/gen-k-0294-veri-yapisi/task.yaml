@@ -1,0 +1,122 @@
+id: gen-k-0294-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  shop/checker.py dosyasındaki can_fulfill fonksiyonunu düzelt. Bu fonksiyon, required listesindeki her siparişin, available listesindeki en az bir siparişten başlayarak oluşturulan graf üzerinden erişilebilir olup olmadığını kontrol etmelidir. Graf yapısı orders.txt dosyasındaki bağımlılıklara göre kurulmaktadır; her satır "A,B" formatında olup B'nin A'ya bağımlı olduğunu gösterir. Fonksiyon, required'daki her bir sipariş için available'daki siparişlerden herhangi birinden yola çıkarak o siparişe ulaşabiliyorsa True, aksi halde False döndürmelidir. Ayrıca required'daki bir sipariş doğrudan available listesinde yer alıyorsa da bu sipariş kendisinden erişilebilir sayılmalıdır. shop/checker.py dosyasını bu mantığa uygun şekilde düzenle.
+
+setup: |
+  mkdir -p shop
+  cat > shop/orders.py <<'ORDERS'
+  from collections import deque
+
+
+  def build_graph(order_text):
+      """Build an adjacency list from order dependencies.
+      Format: each line is 'A,B' meaning B depends on A."""
+      graph = {}
+      for line in order_text.strip().splitlines():
+          a, b = line.split(',')
+          graph.setdefault(a, []).append(b)
+          graph.setdefault(b, [])
+      return graph
+
+
+  def find_route(graph, start, end):
+      """Return True if there is a path from start to end in the graph."""
+      if start not in graph or end not in graph:
+          return False
+      if start == end:
+          return True
+      visited = set()
+      queue = deque([start])
+      while queue:
+          node = queue.popleft()
+          if node in visited:
+              continue
+          visited.add(node)
+          for neighbor in graph.get(node, []):
+              if neighbor == end:
+                  return True
+              queue.append(neighbor)
+      return False
+  ORDERS
+  cat > shop/checker.py <<'CHECKER'
+  from shop.orders import build_graph, find_route
+
+
+  def can_fulfill(order_text, required, available):
+      """Check if all required orders can be fulfilled given available ones."""
+      graph = build_graph(order_text)
+      for req in required:
+          if req not in available:
+              return False
+          # Each required order must be reachable from at least one available order
+          if not any(find_route(graph, avail, req) for avail in available):
+              return False
+      return True
+  CHECKER
+  cat > orders.txt <<'TXT'
+  A,B
+  B,C
+  C,D
+  D,E
+  X,Y
+  Y,Z
+  TXT
+
+goal_tr: >
+  shop/checker.py icindeki can_fulfill fonksiyonunu, required'daki her
+  siparisin available'daki en az bir siparisten graf uzerinden erisilebilir
+  olup olmadigini dogru kontrol edecek sekilde duzelt
+
+reference_solution: |
+  cat > shop/checker.py <<'CHECKER'
+  from shop.orders import build_graph, find_route
+
+
+  def can_fulfill(order_text, required, available):
+      """Check if all required orders can be fulfilled given available ones."""
+      graph = build_graph(order_text)
+      for req in required:
+          if req not in graph:
+              return False
+          if not any(find_route(graph, avail, req) for avail in available):
+              return False
+      return True
+  CHECKER
+
+outputs:
+  - {path: shop/checker.py, kind: program, run: 'python3 -c ''from shop.checker import can_fulfill as f; t=open("orders.txt").read(); assert f(t,["E"],["A"])==True; assert f(t,["Z"],["X"])==True; assert f(t,["Z"],["A"])==False; assert f(t,["Q"],["A"])==False; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from shop.checker import can_fulfill as f; t=open("orders.txt").read(); assert f(t,["E"],["A"])==True; assert f(t,["Z"],["X"])==True; assert f(t,["Z"],["A"])==False; assert f(t,["Q"],["A"])==False; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0294
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: graf-gezinme

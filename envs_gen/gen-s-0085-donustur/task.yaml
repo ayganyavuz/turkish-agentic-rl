@@ -12,8 +12,8 @@ prompt: |
   3) Sonucu cikti.csv dosyasına yaz.
 
 setup: |
-  mkdir -p /tmp/workspace
-  cat > /tmp/workspace/yorumlar.tsv <<'EOF'
+  mkdir -p /tmp.
+  cat > /tmpyorumlar.tsv <<'EOF'
   id	urun	puan	yorum
   1	telefon	5	harika
   2	laptop	4	iyi
@@ -21,7 +21,7 @@ setup: |
   4	klavye	3	orta
   5	telefon	2	kotu
   EOF
-  cp /tmp/workspace/yorumlar.tsv .
+  cp /tmpyorumlar.tsv .
 
 goal_tr: >
   yorumlar.tsv dosyasindaki tekrar eden kayitlari kaldirip CSV formatina

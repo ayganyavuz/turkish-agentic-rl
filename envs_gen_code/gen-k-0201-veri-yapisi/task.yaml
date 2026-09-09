@@ -1,0 +1,108 @@
+id: gen-k-0201-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  textproc/line_ranges.py dosyasındaki get_line_ranges fonksiyonunu gerçekleştir. Bu fonksiyon, bir metindeki her paragrafın ilk ve son satır numarasını (1 tabanlı, satırlar \n ile ayrılmış) içeren (başlangıç, bitiş) demetlerinin listesini döndürmelidir. textproc/line_ranges.py dosyasındaki mevcut kodu kullanarak bu fonksiyonu doldur.
+
+setup: |
+  mkdir -p textproc
+  cat > textproc/paragraphs.py <<'PY'
+  def split_paragraphs(text):
+      return [p.strip() for p in text.split('\n\n') if p.strip()]
+  PY
+  cat > textproc/line_ranges.py <<'PY'
+  from textproc.paragraphs import split_paragraphs
+
+
+  def get_line_ranges(text):
+      raise NotImplementedError
+  PY
+
+goal_tr: >
+  textproc/line_ranges.py icindeki get_line_ranges fonksiyonunu, bir
+  metindeki her paragrafin ilk ve son satir numarasini (1 tabanli, satirlar
+  \n ile ayrilmis) iceren (baslangic, bitis) demetlerinin listesini
+  dondurecek sekilde gerceklestir
+
+reference_solution: |
+  cat > textproc/line_ranges.py <<'PY'
+  from textproc.paragraphs import split_paragraphs
+
+
+  def get_line_ranges(text):
+      lines = text.split('\n')
+      ranges = []
+      line_index = 0
+      for para in split_paragraphs(text):
+          start_line = None
+          end_line = None
+          for i in range(line_index, len(lines)):
+              if lines[i].strip() == '':
+                  continue
+              if start_line is None:
+                  start_line = i + 1
+              if lines[i].strip() == para.split('\n')[0] if '\n' in para else lines[i].strip() == para:
+                  # find matching paragraph start
+                  pass
+              # simpler: find first non-empty line that starts the paragraph
+          # reset and find by scanning
+          ranges.append((0, 0))
+      # Rebuild properly
+      ranges = []
+      current_para = 0
+      paras = split_paragraphs(text)
+      i = 0
+      while i < len(lines):
+          if lines[i].strip() == '':
+              i += 1
+              continue
+          # this line starts a paragraph
+          start = i + 1
+          # consume lines until we've covered all lines of this paragraph
+          para_lines = paras[current_para].split('\n')
+          consumed = 0
+          while i < len(lines) and consumed < len(para_lines):
+              if lines[i].strip() != '':
+                  consumed += 1
+              i += 1
+          end = i  # after loop, i points to next line after paragraph
+          ranges.append((start, end))
+          current_para += 1
+      return ranges
+  PY
+
+outputs:
+  - {path: textproc/line_ranges.py, kind: program, run: 'python3 -c ''from textproc.line_ranges import get_line_ranges as f; t="alpha\nbeta\n\ngamma\n\ndelta\nepsilon\nzeta"; r=f(t); assert r==[(1,2),(4,4),(6,8)], r; t2="one\n\ntwo\nthree\n\nfour"; r2=f(t2); assert r2==[(1,1),(3,4),(6,6)], r2; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from textproc.line_ranges import get_line_ranges as f; t="alpha\nbeta\n\ngamma\n\ndelta\nepsilon\nzeta"; r=f(t); assert r==[(1,2),(4,4),(6,8)], r; t2="one\n\ntwo\nthree\n\nfour"; r2=f(t2); assert r2==[(1,1),(3,4),(6,6)], r2; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0201
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: aralik-birlestirme

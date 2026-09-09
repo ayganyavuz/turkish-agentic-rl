@@ -1,0 +1,90 @@
+id: gen-k-0235-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  warehouse/stock.py dosyasındaki restock_alert fonksiyonunu düzeltmen gerekiyor. Bu fonksiyon, verilen metin ve eşik değerine göre, miktarı eşik değerine eşit veya altında olan tüm SKU'ları döndürmelidir. Şu anda fonksiyon, eşik değerinin bir altındaki miktarları kontrol ediyor; bu yüzden eşik değerine tam eşit olan ürünleri listeye dahil etmiyor. Fonksiyonu, miktarı eşik değerine eşit veya altında olan tüm SKU'ları içerecek şekilde düzelt.
+
+setup: |
+  mkdir -p warehouse
+  cat > warehouse/inventory.py <<'INV'
+  def load_inventory(text):
+      items = {}
+      for line in text.strip().splitlines():
+          sku, name, qty = line.split(',')
+          items[sku] = {'name': name, 'qty': int(qty)}
+      return items
+  INV
+  cat > warehouse/stock.py <<'STOCK'
+  from warehouse.inventory import load_inventory
+
+
+  def restock_alert(text, threshold):
+      """Return list of SKUs whose quantity is at or below threshold."""
+      items = load_inventory(text)
+      result = []
+      for sku in sorted(items):
+          if items[sku]['qty'] <= threshold - 1:
+              result.append(sku)
+      return result
+  STOCK
+  cat > stock_data.txt <<'TXT'
+  A1,widget,5
+  B2,gadget,3
+  C3,bolt,10
+  D4,gear,2
+  TXT
+
+goal_tr: >
+  warehouse/stock.py icindeki restock_alert fonksiyonunu, miktari esik
+  degerine esit veya altinda olan tum SKU'lari dondurecek bicimde duzelt
+
+reference_solution: |
+  cat > warehouse/stock.py <<'STOCK'
+  from warehouse.inventory import load_inventory
+
+
+  def restock_alert(text, threshold):
+      """Return list of SKUs whose quantity is at or below threshold."""
+      items = load_inventory(text)
+      result = []
+      for sku in sorted(items):
+          if items[sku]['qty'] <= threshold:
+              result.append(sku)
+      return result
+  STOCK
+
+outputs:
+  - {path: warehouse/stock.py, kind: program, run: 'python3 -c ''from warehouse.stock import restock_alert as f; t=open("stock_data.txt").read(); assert f(t,3)==["B2","D4"], f(t,3); assert f(t,5)==["A1","B2","D4"], f(t,5); assert f(t,0)==[], f(t,0); assert f(t,10)==["A1","B2","C3","D4"], f(t,10); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from warehouse.stock import restock_alert as f; t=open("stock_data.txt").read(); assert f(t,3)==["B2","D4"], f(t,3); assert f(t,5)==["A1","B2","D4"], f(t,5); assert f(t,0)==[], f(t,0); assert f(t,10)==["A1","B2","C3","D4"], f(t,10); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0235
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: off-by-one

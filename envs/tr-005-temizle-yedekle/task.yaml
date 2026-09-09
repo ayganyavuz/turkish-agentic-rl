@@ -13,12 +13,12 @@ setup: |
   printf 'gecici veri\n'   > proje/onbellek2.tmp
 
 prompt: |
-  Bir Linux terminalindesin, çalışma dizinin /workspace.
+  Bir Linux terminalindesin, çalışma dizinin ..
 
   "proje" klasöründe bazı geçici dosyalar birikmiş. Şunları yap:
 
   1) "proje" klasöründeki .tmp uzantılı bütün dosyaları sil.
-  2) /workspace altında "yedek" adında bir klasör oluştur.
+  2) . altında "yedek" adında bir klasör oluştur.
   3) "proje" klasöründe kalan .txt dosyalarını "yedek" klasörüne kopyala.
      Kopyala, taşıma -- dosyalar "proje" içinde de kalmalı.
 

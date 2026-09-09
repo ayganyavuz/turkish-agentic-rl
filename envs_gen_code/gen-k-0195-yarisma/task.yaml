@@ -1,0 +1,116 @@
+id: gen-k-0195-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) . dizininde bulunan ledger.py dosyasını aç ve içindeki mevcut read_transactions ile net_balance fonksiyonlarını aynen koru.
+
+  2) ledger.py içine accounts_with_positive_net adında bir fonksiyon ekle. Bu fonksiyon, kendisine verilen işlem listesini (transactions) kullanarak net bakiyesi pozitif olan tüm hesapların isimlerini bulsun ve bu isimleri alfabetik sırada döndürsün.
+
+  3) Fonksiyonun doğru çalıştığını doğrulamak için aynı dizindeki transactions.txt dosyasını kullanarak test et.
+
+setup: |
+  cat > ledger.py <<'PY'
+  from bisect import bisect_left, bisect_right
+
+
+  def read_transactions(path):
+      """Read (account, amount) lines from a file. Amounts in cents."""
+      txns = []
+      with open(path) as fh:
+          for line in fh:
+              line = line.strip()
+              if not line:
+                  continue
+              acct, amt = line.split(',')
+              txns.append((acct, int(amt)))
+      return txns
+
+
+  def net_balance(txns):
+      """Net balance across all accounts, in cents."""
+      return sum(amount for _, amount in txns)
+  PY
+  cat > transactions.txt <<'TXT'
+  alice,1200
+  bob,-500
+  carol,300
+  alice,-200
+  bob,700
+  carol,-150
+  dave,-1000
+  TXT
+
+goal_tr: >
+  ledger.py icinde accounts_with_positive_net fonksiyonunu, pozitif net
+  bakiyesi olan hesaplarin isimlerini alfabetik sirada dondurecek sekilde
+  yaz. Ayrica read_transactions ve net_balance fonksiyonlarini da mevcut
+  haliyle koru.
+
+reference_solution: |
+  cat > ledger.py <<'PY'
+  from bisect import bisect_left, bisect_right
+
+
+  def read_transactions(path):
+      """Read (account, amount) lines from a file. Amounts in cents."""
+      txns = []
+      with open(path) as fh:
+          for line in fh:
+              line = line.strip()
+              if not line:
+                  continue
+              acct, amt = line.split(',')
+              txns.append((acct, int(amt)))
+      return txns
+
+
+  def net_balance(txns):
+      """Net balance across all accounts, in cents."""
+      return sum(amount for _, amount in txns)
+
+
+  def accounts_with_positive_net(txns):
+      """Return sorted list of accounts whose net amount is positive."""
+      nets = {}
+      for acct, amt in txns:
+          nets[acct] = nets.get(acct, 0) + amt
+      result = [acct for acct, net in nets.items() if net > 0]
+      result.sort()
+      return result
+  PY
+
+outputs:
+  - {path: ledger.py, kind: program, run: 'python3 -c ''import ledger; txns=ledger.read_transactions("transactions.txt"); assert ledger.net_balance(txns)==350, ledger.net_balance(txns); pos=ledger.accounts_with_positive_net(txns); assert pos==["alice","bob","carol"], pos; assert ledger.accounts_with_positive_net([("x",5),("y",-1),("z",0)])==["x"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import ledger; txns=ledger.read_transactions("transactions.txt"); assert ledger.net_balance(txns)==350, ledger.net_balance(txns); pos=ledger.accounts_with_positive_net(txns); assert pos==["alice","bob","carol"], pos; assert ledger.accounts_with_positive_net([("x",5),("y",-1),("z",0)])==["x"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0195
+    bundle: yarisma
+    tools:
+    - python3
+    konu: banka-hareketleri
+    hedef: yarisma
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: siralama-ikili-arama

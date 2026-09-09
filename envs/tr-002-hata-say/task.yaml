@@ -21,7 +21,7 @@ setup: |
   LOG
 
 prompt: |
-  Bir Linux terminalindesin, çalışma dizinin /workspace.
+  Bir Linux terminalindesin, çalışma dizinin ..
 
   Bu dizinde "kayitlar.log" adında bir günlük dosyası var. İçinde "HATA"
   kelimesi geçen satırların sayısını bul ve bu sayıyı "sonuc.txt" adında

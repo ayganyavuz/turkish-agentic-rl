@@ -13,7 +13,8 @@ import yaml
 
 from verifiable_dataset.terminal.checks import report as checks_report
 from verifiable_dataset.terminal.checks import run_checks
-from verifiable_dataset.terminal.sandbox import DockerSandbox, ExecResult
+from verifiable_dataset.terminal.sandbox import (DockerSandbox, ExecResult,
+                                                 sandbox_yap)
 
 # Bir boru hattinin ortasindaki hata, son komut basarili oldugu surece
 # gorunmez: `bc` kurulu degilse `hesapla | bc | tee out` yine exit 0 doner,
@@ -70,8 +71,13 @@ class Task:
         """Legacy per-task checker script, used when no declarative checks exist."""
         return self.task_dir / "tests" / "check.py"
 
-    def make_sandbox(self) -> DockerSandbox:
-        return DockerSandbox(image=self.image, workdir=self.workdir)
+    def make_sandbox(self, yerel: bool | None = None):
+        """Moda gore Docker ya da yerel sandbox.
+
+        Butun cagri noktalari buradan gectigi icin mod tek yerde secilebiliyor
+        (bkz. sandbox.yerel_kullan).
+        """
+        return sandbox_yap(image=self.image, workdir=self.workdir, yerel=yerel)
 
     def prepare(self, sandbox: DockerSandbox) -> None:
         """Seed the world the task starts from."""
@@ -110,7 +116,10 @@ def grade(task: Task, sandbox: DockerSandbox) -> GradeResult:
     with tempfile.TemporaryDirectory(prefix="vds-grade-") as tmp:
         snapshot = sandbox.snapshot(Path(tmp) / "ws")
         if task.checks:
-            report = checks_report(run_checks(snapshot, task.checks, task.image))
+            # Yerel modda imaj adi yok: run_stdout_eq konteyner yerine
+            # host'ta kosar (bkz. checks.op_run_stdout_eq).
+            imaj = "" if getattr(sandbox, "yerel", False) else task.image
+            report = checks_report(run_checks(snapshot, task.checks, imaj))
         else:
             proc = subprocess.run(
                 [sys.executable, str(task.checker), str(snapshot)],

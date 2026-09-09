@@ -1,0 +1,91 @@
+id: gen-k-0122-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) `events/schedule.py` dosyasındaki `upcoming_events` fonksiyonunu incele.
+
+  2) Bu fonksiyonu, `today` değerine eşit veya daha büyük tarihli etkinliklerden en yakın `count` tanesinin adlarını doğru şekilde döndürecek biçimde düzelt.
+
+  3) Düzeltmeyi `events/schedule.py` dosyasına kaydet.
+
+setup: |
+  mkdir -p events
+  cat > events/loader.py <<'LOADER'
+  def load_events(path):
+      events = []
+      with open(path) as f:
+          lines = f.read().strip().splitlines()
+      for i in range(len(lines)):
+          name, day = lines[i].split(',')
+          events.append((name, int(day)))
+      return events
+  LOADER
+  cat > events/schedule.py <<'SCHEDULE'
+  from events.loader import load_events
+
+
+  def upcoming_events(path, today, count):
+      events = load_events(path)
+      upcoming = [e for e in events if e[1] >= today]
+      upcoming.sort(key=lambda e: e[1])
+      return [e[0] for e in upcoming[:count - 1]]
+  SCHEDULE
+  cat > calendar.txt <<'TXT'
+  team_standup,3
+  project_demo,7
+  client_review,10
+  sprint_planning,15
+  TXT
+
+goal_tr: >
+  events/schedule.py icindeki upcoming_events fonksiyonunu, bugun ve
+  sonrasindaki etkinliklerden en yakin `count` tanesinin adini dogru
+  dondurecek bicimde duzelt
+
+reference_solution: |
+  cat > events/schedule.py <<'SCHEDULE'
+  from events.loader import load_events
+
+
+  def upcoming_events(path, today, count):
+      events = load_events(path)
+      upcoming = [e for e in events if e[1] >= today]
+      upcoming.sort(key=lambda e: e[1])
+      return [e[0] for e in upcoming[:count]]
+  SCHEDULE
+
+outputs:
+  - {path: events/schedule.py, kind: program, run: 'python3 -c ''from events.schedule import upcoming_events as f; assert f("calendar.txt", 3, 2) == ["team_standup", "project_demo"], f("calendar.txt", 3, 2); assert f("calendar.txt", 3, 1) == ["team_standup"]; assert f("calendar.txt", 7, 3) == ["project_demo", "client_review", "sprint_planning"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from events.schedule import upcoming_events as f; assert f("calendar.txt", 3, 2) == ["team_standup", "project_demo"], f("calendar.txt", 3, 2); assert f("calendar.txt", 3, 1) == ["team_standup"]; assert f("calendar.txt", 7, 3) == ["project_demo", "client_review", "sprint_planning"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0122
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: off-by-one

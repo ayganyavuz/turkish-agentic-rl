@@ -1,0 +1,67 @@
+id: gen-s-0113-denetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  randevular klasöründeki tüm dosyalarda aynı hasta adının birden fazla kez geçtiği satırları bul. Bu satırları, hasta adına göre alfabetik olarak sıralayıp benzersiz olacak şekilde tekrar_edenler.txt dosyasına yaz.
+
+setup: |
+  mkdir -p randevular
+  cat > randevular/2024-01-15.txt <<'EOF'
+  Ali|10:30|kontrol
+  Ayse|09:00|muayene
+  Mehmet|14:00|tahlil
+  Zeynep|11:15|muayene
+  EOF
+  cat > randevular/2024-01-16.txt <<'EOF'
+  Fatma|13:30|kontrol
+  Ali|08:45|tahlil
+  Burak|15:20|muayene
+  EOF
+  cat > randevular/2024-01-17.txt <<'EOF'
+  Ayse|10:00|tahlil
+  Mehmet|09:30|kontrol
+  Zeynep|16:45|muayene
+  EOF
+
+goal_tr: >
+  randevular klasorundeki tum dosyalarda ayni hasta adinin birden fazla kez
+  gectigi satirlari, hasta adina gore alfabetik olarak benzersiz sekilde
+  listeleyip tekrar edenler.txt dosyasina yaz
+
+reference_solution: |
+  cat randevular/*.txt | sort -t'|' -k1,1 | comm -12 - <(cat randevular/*.txt | cut -d'|' -f1 | sort -u | while read h; do grep -h "^$h|" randevular/*.txt | head -1; done) > tekrar_edenler.txt
+
+outputs:
+  - {path: tekrar_edenler.txt, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: tekrar_edenler.txt, value: ['Ali|10:30|kontrol', 'Ayse|09:00|muayene', 'Burak|15:20|muayene', 'Fatma|13:30|kontrol', 'Mehmet|14:00|tahlil', 'Zeynep|11:15|muayene']}
+
+metadata:
+  domain: denetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0113
+    bundle: kume-farki
+    tools:
+    - comm
+    - sort
+    konu: hastane-randevulari
+    hedef: denetle
+    girdi: duz-metin
+    kaynak: cok-dosya
+    cikti: satir-listesi
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: baslik-yok
+    bukulme: yok
+    adim: 5
+    image: verifiable-dataset/base:latest
+    metadata: {}

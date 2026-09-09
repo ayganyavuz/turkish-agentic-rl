@@ -1,0 +1,91 @@
+id: gen-k-0142-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün ofiste yoğun bir gün geçirdim; toplantılar birbirini kovaladı ve sürekli kimin hangi saatte müsait olduğunu takip etmek zorunda kaldım. Akşamüstü ise sistemdeki oturum verilerini incelemem gerekti. `sessionlib` klasöründe `parser.py` ve `analyzer.py` dosyaları ile `sessions.txt` dosyası mevcut. Şimdi `sessionlib` klasörü içinde `popular.py` adında yeni bir Python dosyası oluşturmanı istiyorum. Bu dosyada `max_overlap(sessions)` adında bir fonksiyon tanımlanmalı. Bu fonksiyon, parametre olarak oturum listesini alacak; her oturum `(isim, giriş, çıkış)` şeklinde bir demet olacak. Fonksiyon, aynı anda en fazla kaç oturumun aktif olduğunu ve bu maksimuma ulaşılan ilk dakikayı döndürmeli. Oturumların giriş ve çıkış dakikaları tam sayı olup, çıkış anında oturum sona erer, giriş anında ise başlar.
+
+setup: |
+  mkdir -p sessionlib
+  cat > sessionlib/parser.py <<'PY'
+  def parse_session(line):
+      parts = line.strip().split()
+      return parts[0], int(parts[1]), int(parts[2])
+  PY
+  cat > sessionlib/analyzer.py <<'PY'
+  def total_active(sessions, start, end):
+      total = 0
+      for name, login, logout in sessions:
+          if login < end and logout > start:
+              total += 1
+      return total
+  PY
+  cat > sessions.txt <<'TXT'
+  alice 1 5
+  bob 2 7
+  carol 3 4
+  dave 6 9
+  eve 8 12
+  TXT
+
+goal_tr: >
+  sessionlib/popular.py dosyasini olustur; icinde max_overlap(sessions)
+  fonksiyonu olsun. Bu fonksiyon verilen oturum listesinde (her oturum
+  (isim, giris, cikis) demeti) ayni anda en fazla kac oturumun aktif
+  oldugunu ve bu maksimuma ulasilan ilk zaman noktasini (dakika) dondursun.
+  Oturumlarin giris ve cikis dakikalari tam sayidir; cikis aninda oturum
+  sona erer, giris aninda baslar.
+
+reference_solution: |
+  cat > sessionlib/popular.py <<'PY'
+  def max_overlap(sessions):
+      events = []
+      for name, login, logout in sessions:
+          events.append((login, 1))
+          events.append((logout, -1))
+      events.sort()
+      current = 0
+      best = 0
+      best_time = events[0][0] if events else 0
+      for time, delta in events:
+          current += delta
+          if current > best:
+              best = current
+              best_time = time
+      return best, best_time
+  PY
+
+outputs:
+  - {path: sessionlib/popular.py, kind: program, run: 'python3 -c ''from sessionlib.parser import parse_session; from sessionlib.popular import max_overlap; sessions=[parse_session(l) for l in open("sessions.txt")]; assert max_overlap(sessions)==(3,3), max_overlap(sessions); assert max_overlap([])==(0,0); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sessionlib.parser import parse_session; from sessionlib.popular import max_overlap; sessions=[parse_session(l) for l in open("sessions.txt")]; assert max_overlap(sessions)==(3,3), max_overlap(sessions); assert max_overlap([])==(0,0); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0142
+    bundle: yarisma
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: onek-toplam

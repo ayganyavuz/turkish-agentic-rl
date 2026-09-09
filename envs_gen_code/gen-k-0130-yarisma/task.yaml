@@ -1,0 +1,76 @@
+id: gen-k-0130-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  store/pricing.py dosyasını sıfırdan oluştur. Bu dosyada, verilen bir önek ile başlayan ürünlerin fiyat aralığını (en düşük ve en yüksek fiyat) hesaplayan bir `price_range` fonksiyonu tanımla. Fonksiyon, bir sözlük almalı ve `(min, max)` şeklinde bir tuple döndürmelidir; eğer verilen önek ile eşleşen hiçbir ürün yoksa `None` döndürmelidir.
+
+setup: |
+  mkdir -p store
+  cat > store/catalog.py <<'CATALOG'
+  def load_items(path):
+      items = {}
+      with open(path) as f:
+          for line in f:
+              name, price = line.strip().split(',')
+              items[name] = float(price)
+      return items
+  CATALOG
+  cat > catalog_data.txt <<'DATA'
+  apple,1.50
+  apricot,3.00
+  banana,0.75
+  cherry,4.25
+  grape,2.10
+  orange,1.80
+  DATA
+
+goal_tr: >
+  store/pricing.py dosyasini, verilen oneke sahip urunlerin fiyat araligini
+  (en dusuk, en yuksek) hesaplayan bir price_range fonksiyonu icerecek
+  sekilde sifirdan yaz. Fonksiyon sozluk alip (min, max) tuple'i dondursun;
+  eslesen urun yoksa None donsun.
+
+reference_solution: |
+  cat > store/pricing.py <<'PRICING'
+  def price_range(items, prefix):
+      prices = [p for n, p in items.items() if n.startswith(prefix)]
+      if not prices:
+          return None
+      return (min(prices), max(prices))
+  PRICING
+
+outputs:
+  - {path: store/pricing.py, kind: program, run: 'python3 -c ''import sys; sys.path.insert(0,"store"); from pricing import price_range; items={"apple":1.5,"apricot":3.0,"banana":0.75,"cherry":4.25,"grape":2.1,"orange":1.8}; assert price_range(items,"ap")==(1.5,3.0), price_range(items,"ap"); assert price_range(items,"b")==(0.75,0.75); assert price_range(items,"z") is None; assert price_range(items,"")==(0.75,4.25), price_range(items,""); assert price_range({},"a") is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import sys; sys.path.insert(0,"store"); from pricing import price_range; items={"apple":1.5,"apricot":3.0,"banana":0.75,"cherry":4.25,"grape":2.1,"orange":1.8}; assert price_range(items,"ap")==(1.5,3.0), price_range(items,"ap"); assert price_range(items,"b")==(0.75,0.75); assert price_range(items,"z") is None; assert price_range(items,"")==(0.75,4.25), price_range(items,""); assert price_range({},"a") is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0130
+    bundle: yarisma
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: onek-toplam

@@ -1,0 +1,147 @@
+id: gen-k-0206-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Sabah yoga seansından sonra kendimi oldukça enerjik hissediyorum, ama işe döndüğümde bir sorunla karşılaştım. Metin belgelerini bağlı liste olarak saklayan `linked_doc.py` dosyasındaki `LinkedDocument` sınıfının `word_count` metodu, kelime sayısını yanlış hesaplıyor. Şu anda boşlukları sayıp kelimeleri saymıyor; boşluk dışındaki her karakteri ayrı bir kelime gibi görüyor. Bu metodu düzeltmeni istiyorum, böylece metin belgesindeki kelime sayısını doğru hesaplasın.
+
+setup: |
+  cat > linked_doc.py <<'PY'
+  class Node:
+      def __init__(self, char):
+          self.char = char
+          self.next = None
+
+
+  class LinkedDocument:
+      """A singly linked list of characters representing a text document."""
+
+      def __init__(self, text=""):
+          self.head = None
+          self.length = 0
+          for ch in text:
+              self.append(ch)
+
+      def append(self, char):
+          """Add a character at the end of the document."""
+          new_node = Node(char)
+          if self.head is None:
+              self.head = new_node
+          else:
+              current = self.head
+              while current.next is not None:
+                  current = current.next
+              current.next = new_node
+          self.length += 1
+
+      def to_string(self):
+          """Return the full text content of the document."""
+          parts = []
+          current = self.head
+          while current is not None:
+              parts.append(current.char)
+              current = current.next
+          return "".join(parts)
+
+      def word_count(self):
+          """Return the number of whitespace-separated words in the document."""
+          text = self.to_string()
+          # BUG: counts characters instead of words
+          return len([c for c in text if c != ' '])
+
+      def insert_at(self, position, char):
+          """Insert a character at the given index (0-based)."""
+          if position < 0 or position > self.length:
+              raise IndexError("Position out of range")
+          new_node = Node(char)
+          if position == 0:
+              new_node.next = self.head
+              self.head = new_node
+          else:
+              current = self.head
+              for _ in range(position - 1):
+                  current = current.next
+              new_node.next = current.next
+              current.next = new_node
+          self.length += 1
+
+      def delete_at(self, position):
+          """Delete and return the character at the given index (0-based)."""
+          if position < 0 or position >= self.length:
+              raise IndexError("Position out of range")
+          if position == 0:
+              removed_char = self.head.char
+              self.head = self.head.next
+          else:
+              current = self.head
+              for _ in range(position - 1):
+                  current = current.next
+              removed_node = current.next
+              removed_char = removed_node.char
+              current.next = removed_node.next
+          self.length -= 1
+          return removed_char
+
+      def find(self, target):
+          """Return the index of the first occurrence of target character, or -1."""
+          current = self.head
+          index = 0
+          while current is not None:
+              if current.char == target:
+                  return index
+              current = current.next
+              index += 1
+          return -1
+  PY
+
+goal_tr: >
+  linked_doc.py dosyasındaki LinkedDocument sınıfının word_count metodunu
+  düzelt; metin belgesindeki kelime sayısını doğru hesaplamalı.
+
+reference_solution: |
+  python3 - <<'PY'
+  import re
+  with open('linked_doc.py') as f:
+      content = f.read()
+  content = content.replace(
+      "        # BUG: counts characters instead of words\n        return len([c for c in text if c != ' '])",
+      "        return len(text.split())"
+  )
+  with open('linked_doc.py', 'w') as f:
+      f.write(content)
+  PY
+
+outputs:
+  - {path: linked_doc.py, kind: program, run: 'python3 -c ''from linked_doc import LinkedDocument; d=LinkedDocument("hello world foo bar"); assert d.word_count()==4, d.word_count(); assert LinkedDocument("").word_count()==0; assert LinkedDocument("   ").word_count()==0; assert LinkedDocument("a b").word_count()==2; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from linked_doc import LinkedDocument; d=LinkedDocument("hello world foo bar"); assert d.word_count()==4, d.word_count(); assert LinkedDocument("").word_count()==0; assert LinkedDocument("   ").word_count()==0; assert LinkedDocument("a b").word_count()==2; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0206
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: bagli-liste

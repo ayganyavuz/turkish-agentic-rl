@@ -1,0 +1,167 @@
+id: gen-k-0134-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  session_trie/trie.py dosyasındaki SessionTrie sınıfının delete metodunu, verilen session_id'yi ağaçtan tamamen kaldıracak şekilde gerçekleştir. Bu metot, session_id'ye karşılık gelen tüm düğümleri ve terminal işaretini ağaçtan silmeli, böylece o session_id için find_user çağrısı None döndürmeli ve count_prefix o session_id'yi artık saymamalıdır. Metodu session_trie/trie.py dosyasında uygula.
+
+setup: |
+  mkdir -p session_trie
+  cat > session_trie/__init__.py <<'EOF'
+  EOF
+  cat > session_trie/trie.py <<'TRIE'
+  class SessionTrie:
+      def __init__(self):
+          self.root = {}
+          self.terminal = "__end__"
+
+      def insert(self, session_id, user_id):
+          node = self.root
+          for ch in session_id:
+              node = node.setdefault(ch, {})
+          node[self.terminal] = user_id
+
+      def find_user(self, session_id):
+          node = self.root
+          for ch in session_id:
+              if ch not in node:
+                  return None
+              node = node[ch]
+          return node.get(self.terminal)
+
+      def count_prefix(self, prefix):
+          node = self.root
+          for ch in prefix:
+              if ch not in node:
+                  return 0
+              node = node[ch]
+          return self._count_sessions(node)
+
+      def _count_sessions(self, node):
+          count = 0
+          if self.terminal in node:
+              count += 1
+          for key, child in node.items():
+              if key != self.terminal:
+                  count += self._count_sessions(child)
+          return count
+
+      def delete(self, session_id):
+          raise NotImplementedError
+  TRIE
+  cat > session_trie/manager.py <<'MANAGER'
+  from session_trie.trie import SessionTrie
+
+
+  class SessionManager:
+      def __init__(self):
+          self.trie = SessionTrie()
+
+      def add_session(self, session_id, user_id):
+          self.trie.insert(session_id, user_id)
+
+      def get_user(self, session_id):
+          return self.trie.find_user(session_id)
+
+      def count_active(self, prefix):
+          return self.trie.count_prefix(prefix)
+
+      def remove_session(self, session_id):
+          self.trie.delete(session_id)
+  MANAGER
+
+goal_tr: >
+  session_trie/trie.py icindeki SessionTrie sinifinin delete metodunu,
+  verilen session_id'yi agactan tamamen kaldiracak sekilde gerceklestir
+
+reference_solution: |
+  cat > session_trie/trie.py <<'TRIE'
+  class SessionTrie:
+      def __init__(self):
+          self.root = {}
+          self.terminal = "__end__"
+
+      def insert(self, session_id, user_id):
+          node = self.root
+          for ch in session_id:
+              node = node.setdefault(ch, {})
+          node[self.terminal] = user_id
+
+      def find_user(self, session_id):
+          node = self.root
+          for ch in session_id:
+              if ch not in node:
+                  return None
+              node = node[ch]
+          return node.get(self.terminal)
+
+      def count_prefix(self, prefix):
+          node = self.root
+          for ch in prefix:
+              if ch not in node:
+                  return 0
+              node = node[ch]
+          return self._count_sessions(node)
+
+      def _count_sessions(self, node):
+          count = 0
+          if self.terminal in node:
+              count += 1
+          for key, child in node.items():
+              if key != self.terminal:
+                  count += self._count_sessions(child)
+          return count
+
+      def delete(self, session_id):
+          def _delete(node, chars, depth):
+              if depth == len(chars):
+                  if self.terminal in node:
+                      del node[self.terminal]
+                      return len(node) == 0
+                  return False
+              ch = chars[depth]
+              if ch not in node:
+                  return False
+              should_delete_child = _delete(node[ch], chars, depth + 1)
+              if should_delete_child:
+                  del node[ch]
+                  return len(node) == 0
+              return False
+
+          _delete(self.root, session_id, 0)
+  TRIE
+
+outputs:
+  - {path: session_trie/trie.py, kind: program, run: 'python3 -c ''from session_trie.manager import SessionManager; m=SessionManager(); m.add_session("abc123","user1"); m.add_session("abc456","user2"); m.add_session("abd789","user3"); assert m.get_user("abc123")=="user1"; assert m.count_active("ab")==3; m.remove_session("abc123"); assert m.get_user("abc123") is None; assert m.count_active("ab")==2; assert m.count_active("abc")==1; m.remove_session("abd789"); assert m.count_active("a")==1; m.remove_session("abc456"); assert m.count_active("a")==0; assert m.count_active("")==0; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from session_trie.manager import SessionManager; m=SessionManager(); m.add_session("abc123","user1"); m.add_session("abc456","user2"); m.add_session("abd789","user3"); assert m.get_user("abc123")=="user1"; assert m.count_active("ab")==3; m.remove_session("abc123"); assert m.get_user("abc123") is None; assert m.count_active("ab")==2; assert m.count_active("abc")==1; m.remove_session("abd789"); assert m.count_active("a")==1; m.remove_session("abc456"); assert m.count_active("a")==0; assert m.count_active("")==0; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0134
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: trie

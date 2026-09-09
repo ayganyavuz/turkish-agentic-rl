@@ -1,0 +1,76 @@
+id: gen-k-0259-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  bracket_parser.py dosyasındaki check_brackets fonksiyonunu düzelt. Fonksiyon, yalnızca küçük harfleri, boşlukları ve köşeli parantezleri ([ ve ]) kabul etmeli; diğer tüm karakterleri yok saymalıdır. Bu düzeltmeyi bracket_parser.py dosyasında yap.
+
+setup: |
+  cat > bracket_parser.py <<'PY'
+  def check_brackets(text):
+      stack = []
+      pairs = {')': '(', ']': '[', '}': '{'}
+      for ch in text:
+          if ch in '([{':
+              stack.append(ch)
+          elif ch in ')]}':
+              if not stack or stack.pop() != pairs[ch]:
+                  return False
+      return len(stack) == 0
+  PY
+
+goal_tr: >
+  bracket_parser.py icindeki check_brackets fonksiyonunu, yalnizca kucuk
+  harfler, bosluklar ve kose parantezleri kabul edip diger karakterleri yok
+  sayacak sekilde duzelt
+
+reference_solution: |
+  cat > bracket_parser.py <<'PY'
+  def check_brackets(text):
+      stack = []
+      pairs = {')': '(', ']': '[', '}': '{'}
+      for ch in text:
+          if ch in '([{':
+              stack.append(ch)
+          elif ch in ')]}':
+              if not stack or stack.pop() != pairs[ch]:
+                  return False
+          elif not ch.islower() and ch != ' ':
+              return False
+      return len(stack) == 0
+  PY
+
+outputs:
+  - {path: bracket_parser.py, kind: program, run: 'python3 -c ''from bracket_parser import check_brackets as f; assert f("(abc)")==True; assert f("(a[b]c)")==True; assert f("([)]")==False; assert f("(a")==False; assert f("a)")==False; assert f("(aB)")==False; assert f("a(b)c")==True; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bracket_parser import check_brackets as f; assert f("(abc)")==True; assert f("(a[b]c)")==True; assert f("([)]")==False; assert f("(a")==False; assert f("a)")==False; assert f("(aB)")==False; assert f("a(b)c")==True; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0259
+    bundle: yarisma
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: yarisma
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yigin-kullanimi

@@ -1,0 +1,147 @@
+id: gen-k-0148-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) text_intervals.py dosyasındaki TextSplitter sınıfının merge metodunu, verilen sözlükteki tüm aralıkları (satır numaraları 1-bazlı) birleştirip başlangıca göre sıralı (start, end) listesi döndürecek şekilde gerçekleştir.
+
+  2) Birbirini örten veya bitişik olan aralıkları (end+1 == start durumu dahil) tek bir aralıkta birleştir.
+
+  3) merge metodu, intervals_dict parametresindeki tüm aralıkları tek bir listeye toplamalı ve bu listeyi başlangıç satırına göre küçükten büyüğe sıralı olarak döndürmelidir.
+
+  4) text_intervals.py dosyasını, bu merge metodunu uygulayacak şekilde güncelle.
+
+setup: |
+  cat > text_intervals.py <<'PY'
+  class TextSplitter:
+      """Splits a text into non-overlapping line intervals per rule set."""
+
+      def __init__(self, rules):
+          """
+          rules: list of (name, start_marker, end_marker)
+          Each rule finds intervals [start_marker, end_marker] inclusive.
+          """
+          self.rules = rules
+
+      def find_intervals(self, text):
+          """Return dict {name: [(start_line, end_line), ...]} 1-based lines."""
+          lines = text.splitlines()
+          result = {}
+          for name, start_marker, end_marker in self.rules:
+              intervals = []
+              i = 0
+              while i < len(lines):
+                  if lines[i].strip() == start_marker:
+                      start_line = i + 1
+                      j = i + 1
+                      while j < len(lines) and lines[j].strip() != end_marker:
+                          j += 1
+                      if j < len(lines):
+                          intervals.append((start_line, j + 1))
+                          i = j + 1
+                      else:
+                          break
+                  else:
+                      i += 1
+              result[name] = intervals
+          return result
+
+      def merge(self, intervals_dict):
+          """Merge overlapping/adjacent intervals across all rules.
+          Returns merged list of (start, end) sorted by start."""
+          raise NotImplementedError
+  PY
+
+goal_tr: >
+  text_intervals.py icindeki TextSplitter.merge metodunu, verilen sozlukteki
+  tum araliklari (satir numaralari 1-bazli) birlestirip baslangica gore
+  sirali (start, end) listesi dondurecek sekilde gerceklestir. Orten veya
+  bitisik (end+1 == start) araliklar tek aralikta birlestirilmeli.
+
+reference_solution: |
+  cat > text_intervals.py <<'PY'
+  class TextSplitter:
+      """Splits a text into non-overlapping line intervals per rule set."""
+
+      def __init__(self, rules):
+          """
+          rules: list of (name, start_marker, end_marker)
+          Each rule finds intervals [start_marker, end_marker] inclusive.
+          """
+          self.rules = rules
+
+      def find_intervals(self, text):
+          """Return dict {name: [(start_line, end_line), ...]} 1-based lines."""
+          lines = text.splitlines()
+          result = {}
+          for name, start_marker, end_marker in self.rules:
+              intervals = []
+              i = 0
+              while i < len(lines):
+                  if lines[i].strip() == start_marker:
+                      start_line = i + 1
+                      j = i + 1
+                      while j < len(lines) and lines[j].strip() != end_marker:
+                          j += 1
+                      if j < len(lines):
+                          intervals.append((start_line, j + 1))
+                          i = j + 1
+                      else:
+                          break
+                  else:
+                      i += 1
+              result[name] = intervals
+          return result
+
+      def merge(self, intervals_dict):
+          """Merge overlapping/adjacent intervals across all rules.
+          Returns merged list of (start, end) sorted by start."""
+          all_intervals = []
+          for intervals in intervals_dict.values():
+              all_intervals.extend(intervals)
+          all_intervals.sort()
+          if not all_intervals:
+              return []
+          merged = [list(all_intervals[0])]
+          for start, end in all_intervals[1:]:
+              if start <= merged[-1][1] + 1:
+                  merged[-1][1] = max(merged[-1][1], end)
+              else:
+                  merged.append([start, end])
+          return [(s, e) for s, e in merged]
+  PY
+
+outputs:
+  - {path: text_intervals.py, kind: program, run: 'python3 -c ''from text_intervals import TextSplitter; ts=TextSplitter([("a","BEGIN","END"),("b","START","STOP")]); d=ts.find_intervals("x\nBEGIN\ny\nEND\nz\nSTART\nq\nSTOP\nw"); assert ts.merge(d)==[(2,4),(6,8)], ts.merge(d); d2=ts.find_intervals("a\nBEGIN\nb\nEND\nc\nBEGIN\nd\nEND\ne"); assert ts.merge(d2)==[(2,4),(6,8)], ts.merge(d2); d3=ts.find_intervals("BEGIN\nx\nEND\nBEGIN\ny\nEND"); assert ts.merge(d3)==[(1,6)], ts.merge(d3); d4={"a":[]}; assert ts.merge(d4)==[]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from text_intervals import TextSplitter; ts=TextSplitter([("a","BEGIN","END"),("b","START","STOP")]); d=ts.find_intervals("x\nBEGIN\ny\nEND\nz\nSTART\nq\nSTOP\nw"); assert ts.merge(d)==[(2,4),(6,8)], ts.merge(d); d2=ts.find_intervals("a\nBEGIN\nb\nEND\nc\nBEGIN\nd\nEND\ne"); assert ts.merge(d2)==[(2,4),(6,8)], ts.merge(d2); d3=ts.find_intervals("BEGIN\nx\nEND\nBEGIN\ny\nEND"); assert ts.merge(d3)==[(1,6)], ts.merge(d3); d4={"a":[]}; assert ts.merge(d4)==[]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0148
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: aralik-birlestirme

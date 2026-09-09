@@ -1,0 +1,81 @@
+id: gen-k-0200-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  shop/report.py dosyasındaki total_qty fonksiyonunu düzelt; verilen sipariş kimliğinin miktarını doğru döndürsün.
+
+setup: |
+  mkdir -p shop
+  cat > shop/orders.py <<'ORDERS'
+  def parse_orders(text):
+      orders = {}
+      for line in text.strip().splitlines():
+          order_id, name, qty = line.split(',')
+          orders[order_id] = {'name': name, 'qty': int(qty)}
+      return orders
+  ORDERS
+  cat > shop/report.py <<'REPORT'
+  from shop.orders import parse_orders
+
+
+  def total_qty(text, order_id):
+      orders = parse_orders(text)
+      return orders[order_id]['qty']
+  REPORT
+  cat > data.csv <<'CSV'
+  A1,widget,3
+  B2,gadget,1
+  C3,bolt,10
+  CSV
+
+goal_tr: >
+  shop/report.py icindeki total_qty fonksiyonunu, verilen siparis kimliginin
+  miktarini dogru dondurecek bicimde duzelt
+
+reference_solution: |
+  cat > shop/report.py <<'REPORT'
+  from shop.orders import parse_orders
+
+
+  def total_qty(text, order_id):
+      orders = parse_orders(text)
+      if order_id not in orders:
+          return 0
+      return orders[order_id]['qty']
+  REPORT
+
+outputs:
+  - {path: shop/report.py, kind: program, run: 'python3 -c ''from shop.report import total_qty as f; t=open("data.csv").read(); assert f(t,"A1")==3; assert f(t,"B2")==1; assert f(t,"C3")==10; assert f(t,"X9")==0; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from shop.report import total_qty as f; t=open("data.csv").read(); assert f(t,"A1")==3; assert f(t,"B2")==1; assert f(t,"C3")==10; assert f(t,"X9")==0; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0200
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sozluk-anahtar-hatasi

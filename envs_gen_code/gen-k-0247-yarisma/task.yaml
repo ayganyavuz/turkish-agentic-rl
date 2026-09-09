@@ -1,0 +1,106 @@
+id: gen-k-0247-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün programın etkinlik yönetimi kısmını test ederken bir sorunla karşılaştım. Takvimde aynı saat dilimine denk gelen birden fazla etkinlik olduğunda, sistem sadece ilkini bulup diğerlerini görmezden geliyor. Özellikle öğleden sonraki toplantıların çakıştığı durumlarda bu ciddi bir eksiklik olarak ortaya çıktı.
+
+  Bu sorunu gidermek için `events/query.py` dosyasındaki `find_events_at` fonksiyonunu düzeltmen gerekiyor. Fonksiyon, kendisine verilen etkinlik listesinde, belirtilen zaman aralığında gerçekleşen tüm etkinliklerin adlarını içeren bir liste döndürmeli; döndürülen listede etkinliklerin sıralaması önemli değil.
+
+setup: |
+  mkdir -p events
+  cat > events/loader.py <<'LOADER'
+  def load_events(path):
+      result = []
+      with open(path) as f:
+          for line in f:
+              line = line.strip()
+              if not line:
+                  continue
+              parts = line.split('|')
+              name = parts[0].strip()
+              start = int(parts[1].strip())
+              end = int(parts[2].strip())
+              result.append((name, start, end))
+      return result
+  LOADER
+  cat > events/query.py <<'QUERY'
+  def find_events_at(events, time):
+      """Return names of events happening at given time."""
+      if not events:
+          return []
+      lo, hi = 0, len(events) - 1
+      while lo <= hi:
+          mid = (lo + hi) // 2
+          name, start, end = events[mid]
+          if start <= time < end:
+              return [name]
+          elif time < start:
+              hi = mid - 1
+          else:
+              lo = mid + 1
+      return []
+  QUERY
+  cat > events/app.py <<'APP'
+  from events.loader import load_events
+  from events.query import find_events_at
+
+  def get_events_at(path, time):
+      events = load_events(path)
+      return find_events_at(events, time)
+  APP
+  cat > schedule.txt <<'TXT'
+  Morning Run|9|10
+  Team Sync|10|11
+  Lunch Break|12|13
+  Client Call|14|15
+  Review|15|17
+  Overlap Test|15|16
+  TXT
+
+goal_tr: >
+  events/query.py icindeki find_events_at fonksiyonunu, verilen zamanda
+  gerceklesen tum etkinliklerin adlarini (siralama onemsiz) dondurecek
+  sekilde duzelt
+
+reference_solution: |
+  cat > events/query.py <<'QUERY'
+  def find_events_at(events, time):
+      """Return names of events happening at given time."""
+      return [name for name, start, end in events if start <= time < end]
+  QUERY
+
+outputs:
+  - {path: events/query.py, kind: program, run: 'python3 -c ''from events.loader import load_events; from events.query import find_events_at as f; e=load_events("schedule.txt"); r1=f(e,15); assert sorted(r1)==["Overlap Test","Review"], r1; r2=f(e,10); assert r2==["Team Sync"], r2; r3=f(e,13); assert r3==[], r3; r4=f(e,9); assert r4==["Morning Run"], r4; assert f([],5)==[]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from events.loader import load_events; from events.query import find_events_at as f; e=load_events("schedule.txt"); r1=f(e,15); assert sorted(r1)==["Overlap Test","Review"], r1; r2=f(e,10); assert r2==["Team Sync"], r2; r3=f(e,13); assert r3==[], r3; r4=f(e,9); assert r4==["Morning Run"], r4; assert f([],5)==[]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0247
+    bundle: yarisma
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: siralama-ikili-arama

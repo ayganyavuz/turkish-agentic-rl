@@ -1,0 +1,94 @@
+id: gen-k-0007-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  shop/checkout.py dosyasındaki total_bill fonksiyonunu düzelt. Bu fonksiyon, verilen ürün listesindeki tüm ürünlerin fiyatlarını toplayıp doğru toplamı döndürmelidir.
+
+  Su şartlar sağlanmalı:
+  - shop/checkout.py dosyasındaki total_bill fonksiyonu düzeltilmiş olmalı.
+  - Fonksiyon, ürün listesindeki her ürünün fiyatını toplamalı ve toplamı döndürmeli.
+  - Fonksiyon, listedeki tüm ürünleri işlemeli; ilk üründe durmamalı.
+
+setup: |
+  mkdir -p shop
+  cat > shop/loader.py <<'LOADER'
+  def load_prices(path):
+      prices = {}
+      with open(path) as f:
+          for line in f:
+              name, price = line.strip().split(',')
+              prices[name] = float(price)
+      return prices
+  LOADER
+  cat > shop/checkout.py <<'CHECKOUT'
+  from shop.loader import load_prices
+
+
+  def total_bill(prices_path, items):
+      price_map = load_prices(prices_path)
+      total = 0.0
+      for item in items:
+          if item in price_map:
+              total += price_map[item]
+              return total
+      return total
+  CHECKOUT
+  cat > prices.txt <<'TXT'
+  apple,1.5
+  banana,0.5
+  cherry,2.0
+  TXT
+
+goal_tr: >
+  shop/checkout.py icindeki total_bill fonksiyonunu, urun listesindeki tum
+  urunlerin fiyatini toplayip dogru toplami dondurecek bicimde duzelt
+
+reference_solution: |
+  cat > shop/checkout.py <<'CHECKOUT'
+  from shop.loader import load_prices
+
+
+  def total_bill(prices_path, items):
+      price_map = load_prices(prices_path)
+      total = 0.0
+      for item in items:
+          if item in price_map:
+              total += price_map[item]
+      return total
+  CHECKOUT
+
+outputs:
+  - {path: shop/checkout.py, kind: program, run: 'python3 -c ''from shop.checkout import total_bill as f; assert f("prices.txt", ["apple","banana"])==2.0, f("prices.txt", ["apple","banana"]); assert f("prices.txt", ["apple","banana","cherry"])==4.0; assert f("prices.txt", ["apple"])==1.5; assert f("prices.txt", ["grape","apple"])==1.5; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from shop.checkout import total_bill as f; assert f("prices.txt", ["apple","banana"])==2.0, f("prices.txt", ["apple","banana"]); assert f("prices.txt", ["apple","banana","cherry"])==4.0; assert f("prices.txt", ["apple"])==1.5; assert f("prices.txt", ["grape","apple"])==1.5; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0007
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: erken-donus

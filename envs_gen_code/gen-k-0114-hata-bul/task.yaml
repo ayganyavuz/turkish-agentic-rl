@@ -1,0 +1,86 @@
+id: gen-k-0114-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  transcript/calculator.py dosyasındaki average_gpa fonksiyonunu düzelt. Bu fonksiyon, verilen metindeki tüm derslerin not ortalamasını doğru şekilde hesaplamalı. Şu anda fonksiyon, ders sayısının bir eksiğine bölerek yanlış bir ortalama hesaplıyor; doğru ortalama, tüm notların toplamının ders sayısına bölünmesiyle elde edilir. transcript/calculator.py dosyasını bu hatayı düzeltecek şekilde güncelle.
+
+setup: |
+  mkdir -p transcript
+  cat > transcript/grades.py <<'GRADES'
+  def parse_grades(text):
+      grades = []
+      for line in text.strip().splitlines():
+          course, grade = line.split(',')
+          grades.append((course, float(grade)))
+      return grades
+  GRADES
+  cat > transcript/calculator.py <<'CALCULATOR'
+  from transcript.grades import parse_grades
+
+
+  def average_gpa(text):
+      grades = parse_grades(text)
+      if not grades:
+          return 0.0
+      total = sum(grade for _, grade in grades)
+      return total / (len(grades) - 1)
+  CALCULATOR
+  cat > transcript_data.txt <<'DATA'
+  Math,3.5
+  Physics,4.0
+  Chemistry,2.5
+  Biology,3.0
+  DATA
+
+goal_tr: >
+  transcript/calculator.py icindeki average_gpa fonksiyonunu, tum derslerin
+  not ortalamasini dogru hesaplayacak sekilde duzelt
+
+reference_solution: |
+  cat > transcript/calculator.py <<'CALCULATOR'
+  from transcript.grades import parse_grades
+
+
+  def average_gpa(text):
+      grades = parse_grades(text)
+      if not grades:
+          return 0.0
+      total = sum(grade for _, grade in grades)
+      return total / len(grades)
+  CALCULATOR
+
+outputs:
+  - {path: transcript/calculator.py, kind: program, run: 'python3 -c ''from transcript.calculator import average_gpa as f; t=open("transcript_data.txt").read(); assert abs(f(t)-3.25)<1e-9, f(t); assert f("Math,4.0")==4.0; assert f("")==0.0; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from transcript.calculator import average_gpa as f; t=open("transcript_data.txt").read(); assert abs(f(t)-3.25)<1e-9, f(t); assert f("Math,4.0")==4.0; assert f("")==0.0; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0114
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: off-by-one

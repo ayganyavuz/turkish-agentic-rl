@@ -1,0 +1,65 @@
+id: gen-s-0115-dogrula
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  logs dizini altındaki tüm .log dosyalarını incele ve içinde "ERROR" geçen satırların toplam sayısını bul. Bu sayıyı, yalnızca sayı olacak şekilde sonuc.txt dosyasına yaz.
+
+setup: |
+  mkdir -p logs/web logs/db logs/cache
+  cat > logs/web/access.log <<'LOG'
+  2024-01-01 10:00:00 INFO  GET /index.html 200
+  2024-01-01 10:01:00 INFO  GET /about.html 200
+  2024-01-01 10:02:00 ERROR POST /login.php 500
+  LOG
+  cat > logs/db/query.log <<'LOG'
+  2024-01-01 10:00:00 INFO  SELECT * FROM users
+  2024-01-01 10:01:00 ERROR INSERT INTO orders
+  2024-01-01 10:02:00 INFO  UPDATE products
+  LOG
+  cat > logs/cache/cache.log <<'LOG'
+  2024-01-01 10:00:00 INFO  cache hit
+  2024-01-01 10:01:00 WARN  cache miss
+  2024-01-01 10:02:00 INFO  cache hit
+  LOG
+
+goal_tr: >
+  logs dizini altindaki tum .log dosyalarinda ERROR gecen satir sayisini
+  sonuc.txt dosyasina sadece sayi olarak yaz
+
+reference_solution: |
+  find logs -name '*.log' -exec grep -c 'ERROR' {} + | tr ':' '\n' | sed -n '2~2p' | awk '{s+=$1} END {print s}' > sonuc.txt
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '2'}
+
+metadata:
+  domain: dogrula
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0115
+    bundle: metin-duzenle
+    tools:
+    - sed
+    - tr
+    konu: sunucu-loglari
+    hedef: dogrula
+    girdi: sabit-genislik
+    kaynak: dizin-agaci
+    cikti: tek-sayi
+    kesif: dosyayi-bul
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: yok
+    adim: 3
+    image: verifiable-dataset/base:latest
+    metadata: {}

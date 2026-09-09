@@ -12,6 +12,17 @@ import time
 
 MISTRAL_URL = "https://api.mistral.ai/v1"
 OPENAI_URL = "https://api.openai.com/v1"
+DEEPSEEK_URL = "https://api.deepseek.com/v1"
+
+# Uc adresinde gecen imza -> (varsayilan url, o saglayicinin anahtar adlari).
+# Anahtar adlari sirali: ilk bulunan kullanilir. DEEPSEEK_API, elle yazilmis
+# .env'lerde bu adla goruldugu icin ikinci ad olarak kabul ediliyor.
+SAGLAYICILAR = (
+    ("mistral", MISTRAL_URL, ("MISTRAL_API_KEY",)),
+    ("deepseek", DEEPSEEK_URL, ("DEEPSEEK_API_KEY", "DEEPSEEK_API")),
+)
+VARSAYILAN_ANAHTAR_SIRASI = ("OPENAI_API_KEY", "MISTRAL_API_KEY",
+                             "DEEPSEEK_API_KEY", "DEEPSEEK_API")
 
 
 def dotenv_path() -> pathlib.Path | None:
@@ -53,14 +64,17 @@ def _env(isim: str) -> tuple[str, str]:
 def resolve_base_url(base_url: str = "") -> str:
     """Uc adresini bul ve /v1 ekini garanti et.
 
-    Sirayla: acik verilen, .env'deki OPENAI_BASE_URL, yalnizca Mistral
-    anahtari varsa Mistral, yoksa OpenAI varsayilani.
+    Sirayla: acik verilen, .env'deki OPENAI_BASE_URL, OPENAI_API_KEY yokken
+    tanimli olan tek saglayicinin ucu, yoksa OpenAI varsayilani.
     """
     url = base_url or _env("OPENAI_BASE_URL")[0]
     if not url:
-        mistral_var = bool(_env("MISTRAL_API_KEY")[0])
-        openai_var = bool(_env("OPENAI_API_KEY")[0])
-        url = MISTRAL_URL if (mistral_var and not openai_var) else OPENAI_URL
+        url = OPENAI_URL
+        if not _env("OPENAI_API_KEY")[0]:
+            for _imza, saglayici_url, adlar in SAGLAYICILAR:
+                if any(_env(ad)[0] for ad in adlar):
+                    url = saglayici_url
+                    break
     url = url.rstrip("/")
     return url if url.endswith("/v1") else url + "/v1"
 
@@ -74,9 +88,13 @@ def resolve_key(explicit: str = "", base_url: str = "") -> tuple[str, str]:
     """
     if explicit:
         return explicit, "--api-key"
-    mistral_uc = "mistral" in (base_url or "").lower()
-    sira = (["MISTRAL_API_KEY", "OPENAI_API_KEY"] if mistral_uc
-            else ["OPENAI_API_KEY", "MISTRAL_API_KEY"])
+    uc = (base_url or "").lower()
+    once: list[str] = []
+    for imza, _url, adlar in SAGLAYICILAR:
+        if imza in uc:
+            once = list(adlar)
+            break
+    sira = once + [ad for ad in VARSAYILAN_ANAHTAR_SIRASI if ad not in once]
     for isim in sira:
         deger, nereden = _env(isim)
         if deger:
@@ -90,15 +108,22 @@ def resolve_model(explicit: str = "") -> str:
 
 
 class _Completions:
-    """Istekler arasinda en az `aralik` saniye birakan ince sarmalayici."""
+    """Istekleri kisitlar ve her cagriya ortak alanlari ekler.
 
-    def __init__(self, inner, aralik: float):
+    Reasoning modelleri (orn. deepseek-v4-flash) max_tokens'in tamamini
+    dusunmeye harcayip ``content``i bos dondurebiliyor; boyle bir yanit
+    hattin her asamasinda "prompt cok kisa" gibi yaniltici hatalara
+    donusuyordu. ``ek`` bu yuzden burada, tek yerde uygulaniyor.
+    """
+
+    def __init__(self, inner, aralik: float, ek: dict | None = None):
         self._inner = inner
         self._aralik = aralik
         self._son = 0.0
         # Es zamanli kosuda kisit butun is parcaciklari icin ortak olmali,
         # yoksa N parcacik N kat hizli istek atar.
         self._kilit = threading.Lock()
+        self._ek = dict(ek or {})
 
     def create(self, **kwargs):
         with self._kilit:
@@ -106,7 +131,20 @@ class _Completions:
             if bekle > 0:
                 time.sleep(bekle)
             self._son = time.monotonic()
-        return self._inner.create(**kwargs)
+        for ad, deger in self._ek.items():
+            kwargs.setdefault(ad, deger)
+        try:
+            return self._inner.create(**kwargs)
+        except Exception as e:  # noqa: BLE001
+            # Her uc bu alanlari tanimiyor (orn. yerel vLLM). Tanimayan bir
+            # sunucu yuzunden kosu comesin: alani dusur, bir daha deneme.
+            dusen = [ad for ad in self._ek if ad in str(e)]
+            if not dusen:
+                raise
+            for ad in dusen:
+                self._ek.pop(ad, None)
+                kwargs.pop(ad, None)
+            return self._inner.create(**kwargs)
 
 
 class _Chat:
@@ -115,11 +153,11 @@ class _Chat:
 
 
 class ThrottledClient:
-    """Yalnizca chat.completions.create yolunu kisitlar, gerisi aynen gecer."""
+    """Yalnizca chat.completions.create yolunu sarar, gerisi aynen gecer."""
 
-    def __init__(self, inner, aralik: float):
+    def __init__(self, inner, aralik: float, ek: dict | None = None):
         self._inner = inner
-        self.chat = _Chat(_Completions(inner.chat.completions, aralik))
+        self.chat = _Chat(_Completions(inner.chat.completions, aralik, ek))
 
     def __getattr__(self, name):
         return getattr(self._inner, name)
@@ -161,12 +199,16 @@ def preflight(base_url: str = "", api_key: str = "", model: str = "") -> tuple[b
 
 
 def make_client(base_url: str = "", api_key: str = "", istek_araligi: float = 0.0,
-                verbose: bool = True):
+                verbose: bool = True, reasoning_effort: str = ""):
     """OpenAI uyumlu istemciyi kur ve nereye baglandigini soyle.
 
     ``istek_araligi`` iki istek arasindaki en kisa sureyi saniye cinsinden
     verir. Bir episode her turda bir istek attigi icin kisitin episode
     basina degil istek basina olmasi gerekiyor.
+
+    ``reasoning_effort`` verilirse her istege eklenir; "none" reasoning
+    modellerinde dusunmeyi kapatir. Ucun tanimadigi bir alan sessizce
+    dusurulur.
     """
     from openai import OpenAI
 
@@ -178,4 +220,7 @@ def make_client(base_url: str = "", api_key: str = "", istek_araligi: float = 0.
         if kaynak == "yok":
             print("uyari: anahtar bulunamadi; kendi sunucun degilse --api-key ver")
     client = OpenAI(base_url=url, api_key=key)
-    return ThrottledClient(client, istek_araligi) if istek_araligi > 0 else client
+    ek = {"reasoning_effort": reasoning_effort} if reasoning_effort else {}
+    if istek_araligi > 0 or ek:
+        return ThrottledClient(client, istek_araligi, ek)
+    return client

@@ -1,0 +1,65 @@
+id: gen-s-0105-ayikla
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bu sabah sensör kayıtlarını düzenlerken iki listedeki ölçümleri karşılaştırmam gerekti. ilk.ini ile ikinci.ini dosyalarını karşılaştırıp yalnızca ilk.ini'de bulunan sensör ölçüm satırlarını temiz.txt dosyası olarak kaydet.
+
+setup: |
+  cat > ilk.ini <<'EOF'
+  sensor1=10
+  sensor3=30
+  sensor2=20
+  EOF
+  cat > ikinci.ini <<'EOF'
+  sensor2=20
+  sensor9=90
+  EOF
+  cat > tuzak.ini <<'EOF'
+  sensor1=10
+  EOF
+
+goal_tr: >
+  ilk.ini ile ikinci.ini dosyalarini karsilastirip yalnizca ilk.ini'de olan
+  sensor olcum satirlarini temiz.txt olarak kaydet.
+
+reference_solution: |
+  sort ilk.ini > sirali1.txt
+  sort ikinci.ini > sirali2.txt
+  comm -23 sirali1.txt sirali2.txt > ayiklanan.txt
+  mv ayiklanan.txt temiz.txt
+  rm sirali1.txt sirali2.txt
+
+outputs:
+  - {path: temiz.txt, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: temiz.txt, value: [sensor1=10, sensor3=30]}
+
+metadata:
+  domain: ayikla
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0105
+    bundle: kume-farki
+    tools:
+    - comm
+    - sort
+    konu: sensor-olcumleri
+    hedef: ayikla
+    girdi: ini
+    kaynak: iki-dosya-capraz
+    cikti: yeniden-adlandirilmis
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: bom
+    bukulme: tuzak-dosya
+    adim: 5
+    image: verifiable-dataset/base:latest
+    metadata: {}

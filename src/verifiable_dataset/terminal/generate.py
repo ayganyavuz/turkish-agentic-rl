@@ -31,7 +31,8 @@ import yaml
 from verifiable_dataset.terminal.derive import checks_yaz
 from verifiable_dataset.terminal.gates import run_gauntlet
 from verifiable_dataset.terminal.sandbox import docker_available
-from verifiable_dataset.terminal.seeds import Seed, sample, tools_of_image
+from verifiable_dataset.terminal.seeds import (Seed, sample, sample_kod,
+                                              tools_of_image)
 from verifiable_dataset.terminal.llm import make_client, preflight, resolve_model
 from verifiable_dataset.terminal.task import Task
 
@@ -108,6 +109,40 @@ grep -c 'HATA' kayitlar.log > sonuc.txt
   kind: file
 """
 
+
+
+# -- kod ailesi -------------------------------------------------------
+# Ayri bir talimat, cunku kabuk talimatinin yarisi (arac demeti, girdi
+# bicimi, kesif) burada ya anlamsiz ya da yanlis yonlendirici. Asil fark
+# dogrulamada: bir programin dogrulugu diskteki metninde degil calisinca
+# ne urettiginde, o yuzden `kind: program` + `run` zorunlu.
+
+SPEC_TALIMAT_KOD = 'Sen dogrulanabilir Python programlama gorevleri tasarlayan bir muhendissin.\nSana bir seed verilecek; buna uyan bir gorev SPEC\'i yazacaksin.\n\nYazacagin dort bolum var, baska hicbir sey yazma:\n\n### SETUP\nGorevin basladigi dunyayi kuran bash komutlari. /workspace icinde calisir.\nKaynak dosyalari burada olusturulur.\n\n### GOAL_TR\nAmacin tek cumlelik, susuz, kesin Turkce ifadesi. Hangi dosyanin\nyazilacagini/duzeltilecegini birakmadan soyler.\n\n### REFERENCE\nGorevi cozen bash komutlari. /workspace icinde calisir. Genellikle dogru\nPython dosyasini heredoc ile yazar.\n\n### OUTPUTS\n- path: <ajanin yazacagi/duzeltecegi .py dosyasi>\n  kind: program\n  run: <dogrulama komutu>\n\nKURALLAR (hepsi zorunlu):\n1. Referans cozum GERCEKTEN calismali; `run` komutu referans dunyasinda\n   exit 0 dondurmeli. Calismayan spec elenir.\n2. `run` komutu testi ICINDE tasimali (python3 -c \'...\'), testi calisma\n   dizinindeki bir dosyadan OKUMAMALI. Ajan dosya sistemini degistirerek\n   notunu yukseltememeli.\n3. `run` komutu BASARILI durumda SABIT VE BOS OLMAYAN bir metin basmali\n   (orn. sonunda print("TAMAM")). Yalnizca assert kullanip hicbir sey\n   basmayan bir test ISE YARAMAZ: assert patlayinca da stdout bos kalir,\n   yani bozuk dunya ile dogru dunya ayni ciktiyi verir ve check hicbir\n   seyi olcmez.\n4. `run` ciktisi deterministik olmali: zaman, rastgelelik, bellek adresi,\n   kume/sozluk siralamasina bagimlilik yok.\n5. Yalnizca Python 3 standart kutuphanesi. pytest, numpy KURULU DEGIL;\n   test icin `assert` ya da `unittest` kullan.\n6. Kod ve tanimlayicilar Ingilizce; yalnizca GOAL_TR Turkce yazilir.\n   Dosya adlari ve dosya icerikleri ASCII olmali.\n7. Gorev baslangicta cozulmus olmamali: `run` komutu SETUP\'tan hemen\n   sonra BASARISIZ olmali, referanstan sonra basarili.\n8. SETUP kisa tutulsun; toplam 80 satiri gecmesin.\n9. EN SIK YAPILAN HATA: SETUP\'taki kod ile REFERENCE\'taki kod ayni\n   oluyor. hata-bul gorevlerinde SETUP\'a biraktigin kod GERCEKTEN\n   YANLIS olmali ve `run` testi o yanlisligi YAKALAMALI. Spec\'i\n   yazmadan once kendine sor: bu test bozuk kodda hangi satirda\n   patlar? Cevabin yoksa hata birakmamissin demektir.\n10. `run` degeri TEK SATIR olmali -- OUTPUTS bir YAML blogu, coka\n   satirli bir komut onu bozar. Uzun testi \';\' ile tek satirda birlestir.\n11. Paket/modul adi olarak Python standart kutuphanesindeki adlari\n   KULLANMA (calendar, json, csv, time, string, types, code...).\n   Golgeleme sessiz ve teshisi zor hatalar uretir.\n12. YOLLAR GORELI olmali. `/workspace` yazma -- ne SETUP\'ta, ne\n   REFERENCE\'ta, ne `run` icinde. Gorev baska bir calisma dizininde de\n   kosabilmeli. (`python3 -c` calisma dizinini zaten sys.path\'e koyar,\n   sys.path.insert\'e gerek yok.)\n13. `run` komutu calisma dizinindeki HICBIR .py dosyasini import ederek\n   test verisi almamali (orn. `from test_data import CART` YASAK).\n   Ajan o dosyayi degistirip testi gecebilirdi. Test verisi komutun\n   kendi icinde, satir ici yazilir; yalnizca ajanin duzeltecegi/yazacagi\n   hedef modul import edilir.\n\nHEDEFE GORE SEKIL (bunlar tarif, ilke degil -- birebir uygula):\n\nhata-bul   : SETUP birbirini cagiran 2-3 modul yazar ve iclerinden BIRINDE\n             seed\'deki tipte SESSIZ bir hata birakir: kod calisir ama YANLIS\n             sonuc uretir. REFERENCE ayni dosyayi DOGRU haliyle yeniden\n             yazar. SETUP\'taki bozuk satir ile REFERENCE\'taki dogru satir\n             BIRBIRINDEN FARKLI OLMALI -- iki metni yan yana koy ve farki\n             gordugunden emin ol.\nyarisma    : SETUP girdi dosyalarini ve (cok-dosya ise) yardimci modulleri\n             yazar. SETUP hedef .py dosyasini HIC OLUSTURMAZ; ajan onu\n             sifirdan yazar. REFERENCE o dosyayi heredoc ile yazar.\nveri-yapisi: SETUP iskeleti yazar ama HER METODUN GOVDESI\n             `raise NotImplementedError` olmali -- calisan hicbir\n             gerceklestirme birakma. (cok-dosya ise iskeleti kullanan\n             modulleri de yazar.) REFERENCE dosyayi tam gerceklestirmeyle\n             yeniden yazar.\n\nHER UC HEDEFTE DE: `run` komutu SETUP\'tan hemen sonra calistirildiginda\nBASARISIZ olmali. Spec\'i yazdiktan sonra kendine sor: SETUP dunyasinda bu\nkomut neden patlar? Cevabin yoksa gorev bastan cozulmus demektir ve elenir.\n\nORNEK (seed: hedef=hata-bul, ayrinti=off-by-one, yapi=cok-dosya, konu=siparis-kayitlari):\n\n### SETUP\nmkdir -p shop\ncat > shop/orders.py <<\'ORDERS\'\ndef parse_orders(text):\n    rows = []\n    for line in text.strip().splitlines():\n        name, qty, price = line.split(\',\')\n        rows.append((name, int(qty), float(price)))\n    return rows\nORDERS\ncat > shop/report.py <<\'REPORT\'\nfrom shop.orders import parse_orders\n\n\ndef top_orders(text, k):\n    rows = parse_orders(text)\n    rows.sort(key=lambda r: r[1] * r[2], reverse=True)\n    return [r[0] for r in rows[:k - 1]]\nREPORT\ncat > data.csv <<\'CSV\'\nwidget,3,4.0\ngadget,1,50.0\nbolt,10,0.5\nCSV\n\n### GOAL_TR\nshop/report.py icindeki top_orders fonksiyonunu, en yuksek tutarli k\nsiparisin adini dogru dondurecek bicimde duzelt\n\n### REFERENCE\ncat > shop/report.py <<\'REPORT\'\nfrom shop.orders import parse_orders\n\n\ndef top_orders(text, k):\n    rows = parse_orders(text)\n    rows.sort(key=lambda r: r[1] * r[2], reverse=True)\n    return [r[0] for r in rows[:k]]\nREPORT\n\n### OUTPUTS\n- path: shop/report.py\n  kind: program\n  run: python3 -c \'from shop.report import top_orders as f; t=open("data.csv").read(); assert f(t,2)==["gadget","widget"], f(t,2); assert f(t,1)==["gadget"]; assert f(t,3)==["gadget","widget","bolt"]; print("TAMAM")\'\n'
+
+
+def seed_brief_kod(seed: Seed) -> str:
+    """Kod ailesi icin seed ozeti.
+
+    Ayrinti ekseni (hata tipi / algoritmik kalip / veri yapisi) yon
+    veriyor ama baglamiyor: ayni yonde birbirinden farkli gorevler
+    cikmasi icin ayrintiyi modelin secmesi isteniyor.
+    """
+    ayrinti = seed.metadata.get("ayrinti", "")
+    etiket = {"hata-bul": "hata tipi", "yarisma": "algoritmik kalip",
+              "veri-yapisi": "veri yapisi"}.get(seed.hedef, "ayrinti")
+    return (
+        "Yalnizca Python 3 standart kutuphanesi var (pytest, numpy YOK).\n\n"
+        "Seed:\n"
+        f"  hedef     : {seed.hedef}\n"
+        f"  {etiket:10}: {ayrinti}\n"
+        f"  konu      : {seed.konu}\n"
+        f"  yapi      : {seed.kaynak}\n"
+        f"  zorluk    : {seed.bukulme}\n"
+        f"  uslup     : {seed.uslup}\n"
+        f"  adim      : {seed.adim} (referans cozum kabaca bu kadar adim surmeli)\n\n"
+        f"'{ayrinti}' verilen yon; ayrintiyi sen sec ve alisilmis ornekten "
+        "kacin -- ayni yonde birbirinden farkli gorevler uretilecek.\n\n"
+        "Bu seed'e uyan bir SPEC yaz.")
 
 def seed_brief(seed: Seed) -> str:
     kurulu = ", ".join(tools_of_image(seed.image))
@@ -252,9 +287,10 @@ def generate_one(client, model: str, seed: Seed, out_dir: Path,
         # Es zamanli kosuda dogrudan print etmek 8 parcacigin
         # satirlarini birbirine karistiriyor; aday bitince topluca basilir.
         aday.log.append(satir)
+    kod = seed.aile == "kod"
     mesajlar = [
-        {"role": "system", "content": SPEC_TALIMAT},
-        {"role": "user", "content": seed_brief(seed)},
+        {"role": "system", "content": SPEC_TALIMAT_KOD if kod else SPEC_TALIMAT},
+        {"role": "user", "content": (seed_brief_kod if kod else seed_brief)(seed)},
     ]
     task_dir = out_dir / f"gen-{seed.id}-{seed.hedef}"
 

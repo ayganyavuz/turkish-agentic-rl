@@ -1,0 +1,89 @@
+id: gen-k-0164-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  auth/service.py dosyasındaki active_users fonksiyonunu düzeltin. Bu fonksiyon, verilen metin girdisindeki aktif kullanıcıların sayısını doğru şekilde döndürmelidir. Boş girdi için 0 döndürmeli, tekrar eden kullanıcılar ise yalnızca bir kez sayılmalıdır. Mevcut kodda bu işlevin hatalı olduğunu göz önünde bulundurarak auth/service.py dosyasını gereken düzeltmeleri yapacak şekilde güncelleyin.
+
+setup: |
+  mkdir -p auth
+  cat > auth/store.py <<'STORE'
+  def load_sessions(text):
+      sessions = {}
+      for line in text.strip().splitlines():
+          sid, user, active = line.split(',')
+          sessions[sid] = {'user': user, 'active': active == '1'}
+      return sessions
+  STORE
+  cat > auth/service.py <<'SERVICE'
+  from auth.store import load_sessions
+
+
+  def active_users(text):
+      sessions = load_sessions(text)
+      users = set()
+      for sid, data in sessions.items():
+          if data['active']:
+              users.add(data['user'])
+      return len(users) + 1
+  SERVICE
+  cat > sessions.csv <<'CSV'
+  a1,alice,1
+  b2,bob,0
+  c3,carol,1
+  d4,alice,0
+  CSV
+
+goal_tr: >
+  auth/service.py icindeki active_users fonksiyonunu, aktif kullanicilarin
+  sayisini dogru dondurecek bicimde duzelt (bos girdi icin 0, tekrar eden
+  kullanicilar bir kez sayilir)
+
+reference_solution: |
+  cat > auth/service.py <<'SERVICE'
+  from auth.store import load_sessions
+
+
+  def active_users(text):
+      sessions = load_sessions(text)
+      users = set()
+      for sid, data in sessions.items():
+          if data['active']:
+              users.add(data['user'])
+      return len(users)
+  SERVICE
+
+outputs:
+  - {path: auth/service.py, kind: program, run: 'python3 -c ''from auth.service import active_users as f; assert f("a1,alice,1\nb2,bob,0\nc3,carol,1\nd4,alice,0\n")==2, f("a1,alice,1\nb2,bob,0\nc3,carol,1\nd4,alice,0\n"); assert f("a1,alice,1\nb2,bob,1\nc3,alice,1\n")==2; assert f("")==0; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from auth.service import active_users as f; assert f("a1,alice,1\nb2,bob,0\nc3,carol,1\nd4,alice,0\n")==2, f("a1,alice,1\nb2,bob,0\nc3,carol,1\nd4,alice,0\n"); assert f("a1,alice,1\nb2,bob,1\nc3,alice,1\n")==2; assert f("")==0; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0164
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum

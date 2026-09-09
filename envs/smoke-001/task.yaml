@@ -5,10 +5,10 @@ workdir: /workspace
 max_turns: 8
 
 prompt: |
-  Bir Linux terminalindesin ve çalışma dizinin /workspace.
+  Bir Linux terminalindesin ve çalışma dizinin ..
 
   Şunları yap:
-  1) /workspace altında "cosmos" ve "yavuz" adında iki klasör oluştur.
+  1) . altında "cosmos" ve "yavuz" adında iki klasör oluştur.
   2) "cosmos" klasörünün içine "yavuz.txt" adında bir dosya oluştur ve
      içeriğinde yalnızca yavuz123 yazsın.
 
@@ -21,12 +21,12 @@ prompt: |
 # sifirdan cozer -- iki bagimsiz uygulama ayni cevaba varmiyorsa amac
 # yeterince kesin degil demektir.
 goal_tr: >
-  /workspace altinda cosmos ve yavuz dizinlerini olustur, cosmos/yavuz.txt
+  . altinda cosmos ve yavuz dizinlerini olustur, cosmos/yavuz.txt
   dosyasina yalnizca yavuz123 yaz
 
 reference_solution: |
-  mkdir -p /workspace/cosmos /workspace/yavuz
-  printf 'yavuz123' > /workspace/cosmos/yavuz.txt
+  mkdir -p cosmos yavuz
+  printf 'yavuz123' > cosmos/yavuz.txt
 
 # Referanstan farkli ama ayni derecede dogru cozumler. Turetilen check'ler
 # bunlarin hepsinde de gecmeli: gecmiyorsa check'ler bicime takiliyor,
@@ -34,11 +34,11 @@ reference_solution: |
 alt_solutions:
   - name: "echo ve install ile (sondaki newline farki)"
     script: |
-      install -d /workspace/cosmos /workspace/yavuz
-      echo yavuz123 > /workspace/cosmos/yavuz.txt
+      install -d cosmos yavuz
+      echo yavuz123 > cosmos/yavuz.txt
   - name: "dosyayi python ile yaz"
     script: |
-      cd /workspace
+      cd .
       mkdir cosmos yavuz
       python3 -c "open('cosmos/yavuz.txt','w').write('yavuz123')"
 

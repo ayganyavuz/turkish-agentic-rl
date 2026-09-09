@@ -1,0 +1,75 @@
+id: gen-s-0111-birlestir
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) Çalışma dizinindeki kargo_2024.log ve kargo_durum.log dosyalarını kargo numarasına göre birleştir.
+  2) Birleştirme işlemini gerçekleştirirken boş olan bos_dosya.log dosyasını işleme dahil etme; kargo_2024.log.tuzak adlı tuzak dosyayı kullanma.
+  3) Birleştirme sonucunu kargo_takip_2024.txt adlı dosyaya yaz.
+
+setup: |
+  cat > kargo_2024.log <<'LOG'
+  KARGO1001 ISTANBUL DEPO
+  KARGO1002 ANKARA DEPO
+  KARGO1003 IZMIR DEPO
+  KARGO1004 BURSA DEPO
+  KARGO1005 ADANA DEPO
+  LOG
+
+  cat > kargo_durum.log <<'LOG'
+  KARGO1001 YOLDA
+  KARGO1002 TESLIM
+  KARGO1003 YOLDA
+  KARGO1004 ISLEMDE
+  KARGO1005 YOLDA
+  LOG
+
+  cat > kargo_2024.log.tuzak <<'LOG'
+  KARGO9999 GECERSIZ
+  LOG
+
+  touch bos_dosya.log
+
+goal_tr: >
+  kargo_2024.log ve kargo_durum.log dosyalarini kargo numarasina gore
+  birlestirip, sonucu kargo_takip_2024.txt adli dosyaya yaz; bos_dosya.log'u
+  isleme katma ve tuzak dosyayi kullanma
+
+reference_solution: |
+  sort kargo_2024.log > /tmp/s1.log
+  sort kargo_durum.log > /tmp/s2.log
+  join /tmp/s1.log /tmp/s2.log > kargo_takip_2024.txt
+
+outputs:
+  - {path: kargo_takip_2024.txt, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: kargo_takip_2024.txt, value: [KARGO1001 ISTANBUL DEPO YOLDA, KARGO1002 ANKARA DEPO TESLIM, KARGO1003 IZMIR DEPO YOLDA, KARGO1004 BURSA DEPO ISLEMDE, KARGO1005 ADANA DEPO YOLDA]}
+
+metadata:
+  domain: birlestir
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0111
+    bundle: birlestir
+    tools:
+    - join
+    - sort
+    konu: kargo-takibi
+    hedef: birlestir
+    girdi: log-satiri
+    kaynak: iki-dosya-capraz
+    cikti: yeniden-adlandirilmis
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: bos-dosya
+    bukulme: tuzak-dosya
+    adim: 5
+    image: verifiable-dataset/base:latest
+    metadata: {}

@@ -1,0 +1,115 @@
+id: gen-k-0248-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) `events/finder.py` dosyasını sıfırdan oluştur.
+
+  2) Bu dosyada `find_common_attendees(events, date)` adında bir fonksiyon tanımla. Bu fonksiyon, `events/loader.py` içindeki `load_events` ve `events/overlap.py` içindeki `find_overlapping` fonksiyonlarını kullanmalıdır.
+
+  3) Fonksiyon, verilen tarihe denk gelen tüm etkinliklerin katılımcı kümelerinin kesişimini bulmalı ve sonucu bir küme olarak döndürmelidir.
+
+  4) Eğer o tarihte hiç etkinlik yoksa veya sadece bir etkinlik varsa, fonksiyon boş küme (`set()`) döndürmelidir.
+
+setup: |
+  mkdir -p events
+  cat > events/loader.py <<'LOADER'
+  def load_events(filename):
+      events = []
+      with open(filename) as f:
+          for line in f:
+              line = line.strip()
+              if not line:
+                  continue
+              parts = line.split('|')
+              if len(parts) != 3:
+                  continue
+              name, date, attendees = parts
+              try:
+                  attendee_set = set(attendees.split(',')) if attendees else set()
+              except Exception:
+                  continue
+              events.append({'name': name, 'date': date, 'attendees': attendee_set})
+      return events
+  LOADER
+  cat > events/overlap.py <<'OVERLAP'
+  def find_overlapping(events):
+      by_date = {}
+      for ev in events:
+          by_date.setdefault(ev['date'], []).append(ev)
+      result = []
+      for date, evs in by_date.items():
+          if len(evs) > 1:
+              result.append((date, [e['name'] for e in evs]))
+      return result
+  OVERLAP
+  cat > events_1.txt <<'DATA'
+  Conference|2024-05-10|Alice,Bob,Carol
+  Workshop|2024-05-10|Bob,David
+  Meetup|2024-05-11|Alice,Eve
+  DATA
+  cat > events_2.txt <<'DATA'
+  Seminar|2024-05-10|Frank,Grace
+  Hackathon|2024-05-12|Heidi,Ivan
+  DATA
+
+goal_tr: >
+  events/finder.py dosyasını sıfırdan oluştur: load_events ve
+  find_overlapping fonksiyonlarını kullanarak, belirli bir tarihte aynı güne
+  denk gelen etkinliklerin katılımcı kümelerinin kesişimini bulan
+  find_common_attendees(events, date) fonksiyonunu tanımla; fonksiyon o
+  tarihteki tüm etkinliklerin ortak katılımcılarını (küme olarak) döndürsün,
+  o tarihte etkinlik yoksa veya tek etkinlik varsa boş küme döndürsün.
+
+reference_solution: |
+  cat > events/finder.py <<'FINDER'
+  from events.loader import load_events
+  from events.overlap import find_overlapping
+
+
+  def find_common_attendees(events, date):
+      overlapping = find_overlapping(events)
+      for d, names in overlapping:
+          if d == date:
+              date_events = [e for e in events if e['date'] == date]
+              if len(date_events) <= 1:
+                  return set()
+              common = set.intersection(*[e['attendees'] for e in date_events])
+              return common
+      return set()
+  FINDER
+
+outputs:
+  - {path: events/finder.py, kind: program, run: 'python3 -c ''from events.loader import load_events; from events.finder import find_common_attendees as f; ev1=load_events("events_1.txt"); ev2=load_events("events_2.txt"); assert f(ev1, "2024-05-10")=={"Bob"}, f(ev1, "2024-05-10"); assert f(ev1, "2024-05-11")==set(), f(ev1, "2024-05-11"); assert f(ev2, "2024-05-10")==set(), f(ev2, "2024-05-10"); assert f(ev2, "2024-05-12")==set(), f(ev2, "2024-05-12"); assert f(ev1+ev2, "2024-05-10")==set(), f(ev1+ev2, "2024-05-10"); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from events.loader import load_events; from events.finder import find_common_attendees as f; ev1=load_events("events_1.txt"); ev2=load_events("events_2.txt"); assert f(ev1, "2024-05-10")=={"Bob"}, f(ev1, "2024-05-10"); assert f(ev1, "2024-05-11")==set(), f(ev1, "2024-05-11"); assert f(ev2, "2024-05-10")==set(), f(ev2, "2024-05-10"); assert f(ev2, "2024-05-12")==set(), f(ev2, "2024-05-12"); assert f(ev1+ev2, "2024-05-10")==set(), f(ev1+ev2, "2024-05-10"); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0248
+    bundle: yarisma
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: zor
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kume-islemleri

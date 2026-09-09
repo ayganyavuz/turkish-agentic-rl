@@ -1,0 +1,98 @@
+id: gen-k-0138-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  events/calendar.py dosyasındaki free_slots fonksiyonunu tamamla. Bu fonksiyon, verilen metni ayrıştırıp o gün içindeki toplantıları bulacak ve verilen günün başlangıç ve bitiş saatleri arasında boş zaman aralıklarını hesaplayacak. Fonksiyon şu anda NotImplementedError fırlatıyor; bunu gerçek bir hesaplamayla değiştir. events/calendar.py dosyasını düzenleyerek bu fonksiyonu, verilen gündeki toplantıların çakışan aralıklarını birleştirip, günün başlangıcından bitişine kadar olan boş zaman dilimlerini döndürecek şekilde tamamla.
+
+setup: |
+  mkdir -p events
+  cat > events/event_parser.py <<'PARSER'
+  def parse_events(text):
+      events = []
+      for line in text.strip().splitlines():
+          name, start, end = line.split('|')
+          events.append((name.strip(), int(start), int(end)))
+      return events
+  PARSER
+  cat > events/merger.py <<'MERGER'
+  def merge_ranges(intervals):
+      if not intervals:
+          return []
+      intervals.sort(key=lambda x: x[0])
+      merged = [list(intervals[0])]
+      for start, end in intervals[1:]:
+          if start <= merged[-1][1]:
+              merged[-1][1] = max(merged[-1][1], end)
+          else:
+              merged.append([start, end])
+      return merged
+  MERGER
+  cat > events/calendar.py <<'CALENDAR'
+  from events.event_parser import parse_events
+  from events.merger import merge_ranges
+
+
+  def free_slots(text, day_start, day_end):
+      raise NotImplementedError
+  CALENDAR
+
+goal_tr: >
+  events/calendar.py icindeki free_slots fonksiyonunu, verilen gun icindeki
+  bos zaman araliklarini dogru hesaplayacak sekilde tamamla (simdilik
+  NotImplementedError firlatiyor)
+
+reference_solution: |
+  cat > events/calendar.py <<'CALENDAR'
+  from events.event_parser import parse_events
+  from events.merger import merge_ranges
+
+
+  def free_slots(text, day_start, day_end):
+      events = parse_events(text)
+      busy = merge_ranges([(s, e) for _, s, e in events])
+      free = []
+      cursor = day_start
+      for start, end in busy:
+          if cursor < start:
+              free.append((cursor, start))
+          cursor = max(cursor, end)
+      if cursor < day_end:
+          free.append((cursor, day_end))
+      return free
+  CALENDAR
+
+outputs:
+  - {path: events/calendar.py, kind: program, run: 'python3 -c ''from events.calendar import free_slots as f; t="meeting|10|12\nlunch|13|14"; assert f(t,9,17)==[(9,10),(12,13),(14,17)], f(t,9,17); t2="all_day|0|24"; assert f(t2,8,20)==[], f(t2,8,20); t3="morning|8|10"; assert f(t3,0,12)==[(0,8),(10,12)], f(t3,0,12); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from events.calendar import free_slots as f; t="meeting|10|12\nlunch|13|14"; assert f(t,9,17)==[(9,10),(12,13),(14,17)], f(t,9,17); t2="all_day|0|24"; assert f(t2,8,20)==[], f(t2,8,20); t3="morning|8|10"; assert f(t3,0,12)==[(0,8),(10,12)], f(t3,0,12); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0138
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: aralik-birlestirme

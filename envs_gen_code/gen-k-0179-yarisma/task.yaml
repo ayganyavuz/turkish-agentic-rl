@@ -1,0 +1,77 @@
+id: gen-k-0179-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  product_parser.py diye bir dosya oluştur. İçinde Rapor adında bir sınıf olsun; parse metodu product_data.txt'deki ürün adlarını ve fiyatlarını sözlük olarak döndürsün, double_price metodu fiyatları ikiye katlayıp yeni fiyatları sözlük olarak döndürsün.
+
+setup: |
+  cat > product_data.txt <<'EOF'
+  sku=A1,desc=Widget Pro,price=29.99
+  sku=B2,desc=Gadget Max,price=49.50
+  sku=C3,desc=Tool Basic,price=12.75
+  EOF
+
+goal_tr: >
+  product_data.txt dosyasindaki satirlari ayrismak ve her urunun fiyatini
+  iki katina cikarip, yeni fiyatlari gosteren bir Rapor adinda bir sinif
+  iceren product_parser.py dosyasini sifirdan yaz. Rapor sinifi, parse ve
+  double_price adinda iki metoda sahip olmali: parse metodu dosya adini alip
+  urun isimlerini ve fiyatlarini sozluk olarak dondurmeli, double_price
+  metodu ise fiyatlari ikiye katlayip yeni fiyatlari sozluk olarak
+  dondurmeli.
+
+reference_solution: |
+  cat > product_parser.py <<'EOF'
+  class Rapor:
+      def parse(self, filename):
+          result = {}
+          with open(filename) as f:
+              for line in f:
+                  parts = line.strip().split(',')
+                  data = {}
+                  for part in parts:
+                      key, value = part.split('=')
+                      data[key] = value
+                  result[data['desc']] = float(data['price'])
+          return result
+
+      def double_price(self, filename):
+          prices = self.parse(filename)
+          return {name: price * 2 for name, price in prices.items()}
+  EOF
+
+outputs:
+  - {path: product_parser.py, kind: program, run: 'python3 -c ''from product_parser import Rapor; r=Rapor(); p=r.parse("product_data.txt"); assert p=={"Widget Pro":29.99,"Gadget Max":49.50,"Tool Basic":12.75}, p; d=r.double_price("product_data.txt"); assert d=={"Widget Pro":59.98,"Gadget Max":99.0,"Tool Basic":25.5}, d; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from product_parser import Rapor; r=Rapor(); p=r.parse("product_data.txt"); assert p=={"Widget Pro":29.99,"Gadget Max":49.50,"Tool Basic":12.75}, p; d=r.double_price("product_data.txt"); assert d=={"Widget Pro":59.98,"Gadget Max":99.0,"Tool Basic":25.5}, d; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0179
+    bundle: yarisma
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: yarisma
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: metin-ayristirma

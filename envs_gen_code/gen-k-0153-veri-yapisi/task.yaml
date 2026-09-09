@@ -1,0 +1,103 @@
+id: gen-k-0153-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  textdocs/words_in_order.py içindeki words_in_order fonksiyonunu, verilen metindeki kelimeleri ters sırada döndürecek şekilde düzelt.
+
+setup: |
+  mkdir -p textdocs
+  cat > textdocs/word_node.py <<'NODE'
+  class WordNode:
+      def __init__(self, word):
+          self.word = word
+          self.next = None
+  NODE
+  cat > textdocs/document.py <<'DOC'
+  from textdocs.word_node import WordNode
+
+
+  class Document:
+      def __init__(self):
+          self.head = None
+
+      def add_word(self, word):
+          new_node = WordNode(word)
+          if self.head is None:
+              self.head = new_node
+          else:
+              current = self.head
+              while current.next is not None:
+                  current = current.next
+              current.next = new_node
+
+      def get_words(self):
+          words = []
+          current = self.head
+          while current is not None:
+              words.append(current.word)
+              current = current.next
+          return words
+  DOC
+  cat > textdocs/words_in_order.py <<'ORDER'
+  from textdocs.document import Document
+
+
+  def words_in_order(text):
+      doc = Document()
+      for word in text.split():
+          doc.add_word(word)
+      return doc.get_words()
+  ORDER
+
+goal_tr: >
+  textdocs/words_in_order.py icindeki words_in_order fonksiyonunu, verilen
+  metindeki kelimeleri sondan basa dogru (ters sirada) dondurecek bicimde
+  duzelt.
+
+reference_solution: |
+  cat > textdocs/words_in_order.py <<'ORDER'
+  from textdocs.document import Document
+
+
+  def words_in_order(text):
+      doc = Document()
+      for word in reversed(text.split()):
+          doc.add_word(word)
+      return doc.get_words()
+  ORDER
+
+outputs:
+  - {path: textdocs/words_in_order.py, kind: program, run: 'python3 -c ''from textdocs.words_in_order import words_in_order as f; assert f("one two three")==["three","two","one"], f("one two three"); assert f("a b c d")==["d","c","b","a"]; assert f("solo")==["solo"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from textdocs.words_in_order import words_in_order as f; assert f("one two three")==["three","two","one"], f("one two three"); assert f("a b c d")==["d","c","b","a"]; assert f("solo")==["solo"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0153
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: bagli-liste

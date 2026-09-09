@@ -232,6 +232,9 @@ class Seed:
     bukulme: str
     adim: int
     image: str
+    # "kabuk" = klasik terminal gorevi, "kod" = Python yazma/onarma ailesi.
+    # Varsayilan eski task.yaml'lar bu alan olmadan da yuklenebilsin diye.
+    aile: str = "kabuk"
     metadata: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -297,6 +300,93 @@ def sample(rng: random.Random, index: int, max_tries: int = 60) -> Seed:
         if ok:
             return seed
     raise RuntimeError(f"{max_tries} denemede uyumlu seed cikmadi")
+
+
+# -- kod ailesi -------------------------------------------------------
+# SWE-bench'e yaklasmak icin ikinci bir seed ailesi. Kabuk ailesinin
+# eksenleri (arac demeti, crlf direnci, csv cikti bicimi) burada anlamsiz
+# kaliyor; zorlanirsa spec-writer bunalir ve kapilarda bosuna elenir.
+
+KOD_HEDEFLER = {
+    "hata-bul": 40,      # bozuk modulu onar -- SWE-bench'e en yakin olan
+    "yarisma": 30,       # girdiyi okuyup ciktiyi basan cozum yaz
+    "veri-yapisi": 30,   # veri yapisi / algoritma gerceklestir
+}
+
+# Hata tipleri cesitliligin asil tasiyicisi. Liste kapali degil: spec
+# yazarina "bu tipte, ama ayrintiyi sen sec" deniyor.
+HATA_TIPLERI = [
+    "off-by-one",                 # sinir indeksi bir kayik
+    "yanlis-karsilastirma",       # < yerine <=, == yerine is
+    "kenar-durum",                # bos girdi, tek eleman, hepsi ayni
+    "mutable-varsayilan",         # def f(x, akif=[])
+    "kapsam-hatasi",              # dis degiskeni golgeleme, kapanis tuzagi
+    "tip-karismasi",              # str/int, bolme tam sayi mi degil mi
+    "yanlis-toplama-sirasi",      # birikimli hesapta yanlis sifirlama
+    "erken-donus",                # dongu icinde return, ilk eslesmede cikma
+    "sozluk-anahtar-hatasi",      # get yerine [], varsayilan yanlis
+    "siralama-kararsizligi",      # yanlis anahtar, ters siralama
+    "yanlis-durum-sifirlama",     # sayac/biriktirici yanlis yerde sifirlaniyor
+]
+
+# Yarisma problemlerinin algoritmik kalibi.
+YARISMA_KALIPLARI = [
+    "iki-isaretci", "onek-toplam", "acgozlu", "dinamik-programlama",
+    "siralama-ikili-arama", "metin-ayristirma", "benzetim", "sayma",
+    "kume-islemleri", "yigin-kullanimi",
+]
+
+VERI_YAPILARI = [
+    "yigin", "kuyruk", "bagli-liste", "ikili-arama-agaci", "oncelik-kuyrugu",
+    "trie", "birlesim-bulma", "graf-gezinme", "lru-onbellek", "aralik-birlestirme",
+]
+
+# Kod ailesinde konu, veriye isim verir; problemin sekli hedeften gelir.
+KOD_KONULARI = [
+    "siparis-kayitlari", "ogrenci-transkripti", "depo-envanteri",
+    "banka-hareketleri", "metin-belgeleri", "sensor-serisi",
+    "yol-tarifi-agi", "takvim-etkinlikleri", "urun-fiyatlari",
+    "kullanici-oturumlari",
+]
+
+# hata-bul her zaman cok dosyali: tek dosyada "hatayi bul" gorevi
+# okumaya degil goze indirgeniyor. Digerleri %70 cok dosyali.
+KOD_YAPILARI = {"tek-dosya": 30, "cok-dosya": 70}
+
+KOD_ZORLUKLAR = {"kolay": 30, "orta": 45, "zor": 25}
+
+
+def sample_kod(rng: random.Random, index: int) -> Seed:
+    """Kod ailesinden bir seed cek.
+
+    Kabuk ailesindeki uyumluluk suzgeci burada gerekmiyor: eksenler zaten
+    hedefe gore secildigi icin anlamsiz kombinasyon uretilmiyor.
+    """
+    hedef = _pick(rng, KOD_HEDEFLER)
+    yapi = "cok-dosya" if hedef == "hata-bul" else _pick(rng, KOD_YAPILARI)
+    ayrinti = {
+        "hata-bul": lambda: rng.choice(HATA_TIPLERI),
+        "yarisma": lambda: rng.choice(YARISMA_KALIPLARI),
+        "veri-yapisi": lambda: rng.choice(VERI_YAPILARI),
+    }[hedef]()
+    return Seed(
+        id=f"k-{index:04d}",
+        bundle=hedef,
+        tools=["python3"],
+        konu=rng.choice(KOD_KONULARI),
+        hedef=hedef,
+        girdi="python",
+        kaynak=yapi,
+        cikti="program",
+        kesif=_pick(rng, KESIFLER),
+        uslup=_pick(rng, USLUPLAR),
+        direnc="yok",
+        bukulme=_pick(rng, KOD_ZORLUKLAR),   # zorluk bukulme ekseninde tasiniyor
+        adim=rng.randint(2, 5),
+        image=image_for(["python3"]),
+        aile="kod",
+        metadata={"ayrinti": ayrinti},
+    )
 
 
 def sample_many(n: int, rng_seed: int = 0) -> list[Seed]:

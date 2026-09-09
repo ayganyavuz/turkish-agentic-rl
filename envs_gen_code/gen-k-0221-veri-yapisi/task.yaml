@@ -1,0 +1,221 @@
+id: gen-k-0221-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  inventory_tree.py içindeki InventoryTree sınıfının insert metodunu düzelt; aynı SKU ile çağrıldığında miktar yeni değerle değiştirilmesin, eski miktara eklensin. Yani stok girişi mevcut kayda eklenmeli, üstüne yazılmamalı.
+
+setup: |
+  cat > inventory_tree.py <<'PY'
+  class InventoryNode:
+      def __init__(self, sku, quantity):
+          self.sku = sku
+          self.quantity = quantity
+          self.left = None
+          self.right = None
+
+
+  class InventoryTree:
+      def __init__(self):
+          self.root = None
+
+      def insert(self, sku, quantity):
+          if self.root is None:
+              self.root = InventoryNode(sku, quantity)
+              return
+          node = self.root
+          while True:
+              if sku < node.sku:
+                  if node.left is None:
+                      node.left = InventoryNode(sku, quantity)
+                      return
+                  node = node.left
+              elif sku > node.sku:
+                  if node.right is None:
+                      node.right = InventoryNode(sku, quantity)
+                      return
+                  node = node.right
+              else:
+                  node.quantity = quantity
+                  return
+
+      def search(self, sku):
+          node = self.root
+          while node is not None:
+              if sku == node.sku:
+                  return node.quantity
+              if sku < node.sku:
+                  node = node.left
+              else:
+                  node = node.right
+          return None
+
+      def update_quantity(self, sku, delta):
+          node = self.root
+          while node is not None:
+              if sku == node.sku:
+                  node.quantity += delta
+                  return True
+              if sku < node.sku:
+                  node = node.left
+              else:
+                  node = node.right
+          return False
+
+      def collect_inorder(self):
+          result = []
+          stack = []
+          node = self.root
+          while stack or node is not None:
+              if node is not None:
+                  stack.append(node)
+                  node = node.left
+              else:
+                  node = stack.pop()
+                  result.append((node.sku, node.quantity))
+                  node = node.right
+          return result
+
+      def find_min_sku(self):
+          if self.root is None:
+              return None
+          node = self.root
+          while node.left is not None:
+              node = node.left
+          return node.sku
+
+      def count_nodes(self):
+          def _count(node):
+              if node is None:
+                  return 0
+              return 1 + _count(node.left) + _count(node.right)
+          return _count(self.root)
+  PY
+
+goal_tr: >
+  inventory_tree.py icindeki InventoryTree sinifinda, ayni SKU ile insert
+  cagrildiginda miktarin YENI degerle degistirilmesi yerine ESKIYE
+  EKLENMESINI saglayacak sekilde insert metodunu duzelt. Yani stok girisi
+  mevcut kayda eklenmeli, ustune yazilmamalidir.
+
+reference_solution: |
+  cat > inventory_tree.py <<'PY'
+  class InventoryNode:
+      def __init__(self, sku, quantity):
+          self.sku = sku
+          self.quantity = quantity
+          self.left = None
+          self.right = None
+
+
+  class InventoryTree:
+      def __init__(self):
+          self.root = None
+
+      def insert(self, sku, quantity):
+          if self.root is None:
+              self.root = InventoryNode(sku, quantity)
+              return
+          node = self.root
+          while True:
+              if sku < node.sku:
+                  if node.left is None:
+                      node.left = InventoryNode(sku, quantity)
+                      return
+                  node = node.left
+              elif sku > node.sku:
+                  if node.right is None:
+                      node.right = InventoryNode(sku, quantity)
+                      return
+                  node = node.right
+              else:
+                  node.quantity += quantity
+                  return
+
+      def search(self, sku):
+          node = self.root
+          while node is not None:
+              if sku == node.sku:
+                  return node.quantity
+              if sku < node.sku:
+                  node = node.left
+              else:
+                  node = node.right
+          return None
+
+      def update_quantity(self, sku, delta):
+          node = self.root
+          while node is not None:
+              if sku == node.sku:
+                  node.quantity += delta
+                  return True
+              if sku < node.sku:
+                  node = node.left
+              else:
+                  node = node.right
+          return False
+
+      def collect_inorder(self):
+          result = []
+          stack = []
+          node = self.root
+          while stack or node is not None:
+              if node is not None:
+                  stack.append(node)
+                  node = node.left
+              else:
+                  node = stack.pop()
+                  result.append((node.sku, node.quantity))
+                  node = node.right
+          return result
+
+      def find_min_sku(self):
+          if self.root is None:
+              return None
+          node = self.root
+          while node.left is not None:
+              node = node.left
+          return node.sku
+
+      def count_nodes(self):
+          def _count(node):
+              if node is None:
+                  return 0
+              return 1 + _count(node.left) + _count(node.right)
+          return _count(self.root)
+  PY
+
+outputs:
+  - {path: inventory_tree.py, kind: program, run: 'python3 -c ''from inventory_tree import InventoryTree; t=InventoryTree(); t.insert("B002",10); t.insert("A001",5); t.insert("B002",7); t.insert("C003",3); t.insert("A001",2); assert t.search("B002")==17, t.search("B002"); assert t.search("A001")==7, t.search("A001"); assert t.search("C003")==3; assert t.count_nodes()==3, t.count_nodes(); assert t.find_min_sku()=="A001"; assert t.collect_inorder()==[("A001",7),("B002",17),("C003",3)], t.collect_inorder(); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from inventory_tree import InventoryTree; t=InventoryTree(); t.insert("B002",10); t.insert("A001",5); t.insert("B002",7); t.insert("C003",3); t.insert("A001",2); assert t.search("B002")==17, t.search("B002"); assert t.search("A001")==7, t.search("A001"); assert t.search("C003")==3; assert t.count_nodes()==3, t.count_nodes(); assert t.find_min_sku()=="A001"; assert t.collect_inorder()==[("A001",7),("B002",17),("C003",3)], t.collect_inorder(); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0221
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: ikili-arama-agaci

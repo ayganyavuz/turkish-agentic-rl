@@ -8,7 +8,7 @@ setup: |
   printf '12\n7\n45\n3\n28\n19\n' > sayilar.txt
 
 prompt: |
-  Bir Linux terminalindesin, çalışma dizinin /workspace.
+  Bir Linux terminalindesin, çalışma dizinin ..
 
   Bu dizinde her satırında bir tam sayı bulunan "sayilar.txt" dosyası var.
 

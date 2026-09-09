@@ -1,0 +1,89 @@
+id: gen-k-0145-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün uzun bir gün oldu, öğleden sonra bir sürü toplantı ve iş görüşmesi vardı. Ofiste işlerin yoğunluğundan kafam biraz karıştı, ama şimdi önümdeki işleri toparlamam gerekiyor. Etkinlik planlama aracımızdaki `events/scheduler.py` dosyasında bir eksiklik var; bu yüzden birçok etkinliği çakıştığı için kaçırabiliyoruz. Şu anki `schedule` fonksiyonu etkinlikleri başlangıç gününe göre sıralıyor ve seçiyor, ancak bu yöntem en uygun sonucu vermiyor. Lütfen bu fonksiyonu, etkinlikleri bitiş gününe göre seçerek (açgözlü aralık seçimi) mümkün olan en çok etkinliği planlayacak şekilde düzelt. Yani, `events/scheduler.py` içindeki `schedule` fonksiyonunun mantığını güncelle ki, elimizdeki tüm etkinlikler arasından en fazla sayıda etkinliği zaman çizelgesine sığdırabilelim.
+
+setup: |
+  mkdir -p events
+  cat > events/loader.py <<'LOADER'
+  def load_events(path):
+      events = []
+      with open(path) as f:
+          for line in f:
+              name, day, duration = line.strip().split(',')
+              events.append((name, int(day), int(duration)))
+      return events
+  LOADER
+  cat > events/scheduler.py <<'SCHEDULER'
+  def schedule(events):
+      events.sort(key=lambda e: e[1])  # sort by start day
+      selected = []
+      current_day = 0
+      for name, day, duration in events:
+          if day >= current_day:
+              selected.append(name)
+              current_day = day + duration
+      return selected
+  SCHEDULER
+  cat > events.txt <<'EVENTS'
+  Meeting,1,2
+  Workshop,3,1
+  Conference,2,3
+  Review,5,1
+  Demo,4,2
+  EVENTS
+
+goal_tr: >
+  events/scheduler.py icindeki schedule fonksiyonunu, etkinlikleri bitis
+  gunune gore secerek (acgozlu interval secimi) mumkun olan en cok etkinligi
+  planlayacak sekilde duzelt
+
+reference_solution: |
+  cat > events/scheduler.py <<'SCHEDULER'
+  def schedule(events):
+      events.sort(key=lambda e: e[1] + e[2])  # sort by finish day
+      selected = []
+      current_day = 0
+      for name, day, duration in events:
+          if day >= current_day:
+              selected.append(name)
+              current_day = day + duration
+      return selected
+  SCHEDULER
+
+outputs:
+  - {path: events/scheduler.py, kind: program, run: 'python3 -c ''from events.loader import load_events; from events.scheduler import schedule; ev=load_events("events.txt"); res=schedule(ev); assert res==["Meeting","Workshop","Review"], res; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from events.loader import load_events; from events.scheduler import schedule; ev=load_events("events.txt"); res=schedule(ev); assert res==["Meeting","Workshop","Review"], res; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0145
+    bundle: yarisma
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: acgozlu

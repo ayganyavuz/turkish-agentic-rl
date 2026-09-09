@@ -1,0 +1,82 @@
+id: gen-k-0217-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  sensor/analyzer.py dosyasındaki count_above fonksiyonunu, verilen eşik değerin üzerindeki öğe sayısını doğru şekilde döndürecek biçimde düzeltin. Fonksiyon, sensor/reader.py içindeki read_series fonksiyonunu kullanarak seri verilerini okumalı ve eşik değerin üzerinde kaç öğe olduğunu hesaplamalıdır. sensor/analyzer.py dosyasını bu gereksinimi karşılayacak şekilde güncelleyin.
+
+setup: |
+  mkdir -p sensor
+  cat > sensor/reader.py <<'READER'
+  def read_series(path):
+      with open(path) as f:
+          return [float(line.strip()) for line in f if line.strip()]
+  READER
+  cat > sensor/analyzer.py <<'ANALYZER'
+  from sensor.reader import read_series
+
+
+  def count_above(series_path, threshold):
+      values = read_series(series_path)
+      return sum(1 for v in values if v > threshold) - 1
+  ANALYZER
+  cat > data1.txt <<'DATA'
+  1.0
+  2.0
+  3.0
+  4.0
+  DATA
+  cat > data2.txt <<'DATA'
+  0.5
+  0.6
+  0.7
+  DATA
+
+goal_tr: >
+  sensor/analyzer.py icindeki count_above fonksiyonunu, esik degerin
+  uzerindeki oge sayisini dogru dondurecek bicimde duzelt
+
+reference_solution: |
+  cat > sensor/analyzer.py <<'ANALYZER'
+  from sensor.reader import read_series
+
+
+  def count_above(series_path, threshold):
+      values = read_series(series_path)
+      return sum(1 for v in values if v > threshold)
+  ANALYZER
+
+outputs:
+  - {path: sensor/analyzer.py, kind: program, run: 'python3 -c ''from sensor.analyzer import count_above as f; assert f("data1.txt",2.0)==2, f("data1.txt",2.0); assert f("data1.txt",0.0)==4; assert f("data2.txt",0.5)==2; assert f("data2.txt",0.8)==0; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor.analyzer import count_above as f; assert f("data1.txt",2.0)==2, f("data1.txt",2.0); assert f("data1.txt",0.0)==4; assert f("data2.txt",0.5)==2; assert f("data2.txt",0.8)==0; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0217
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum

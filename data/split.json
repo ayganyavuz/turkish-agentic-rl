@@ -1,0 +1,2059 @@
+{
+  "olusturma": "2026-09-09",
+  "tohum": 1234,
+  "oran": 0.7,
+  "kaynaklar": [
+    "envs_gen",
+    "envs_gen_code"
+  ],
+  "train": [
+    {
+      "dir": "envs_gen/gen-k-0004-yarisma",
+      "id": "gen-k-0004-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-k-0007-hata-bul",
+      "id": "gen-k-0007-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0100-hata-bul",
+      "id": "gen-k-0100-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0105-hata-bul",
+      "id": "gen-k-0105-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0114-hata-bul",
+      "id": "gen-k-0114-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0117-hata-bul",
+      "id": "gen-k-0117-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0127-veri-yapisi",
+      "id": "gen-k-0127-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0130-yarisma",
+      "id": "gen-k-0130-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0134-veri-yapisi",
+      "id": "gen-k-0134-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0138-veri-yapisi",
+      "id": "gen-k-0138-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0145-yarisma",
+      "id": "gen-k-0145-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0150-veri-yapisi",
+      "id": "gen-k-0150-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0155-hata-bul",
+      "id": "gen-k-0155-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0160-veri-yapisi",
+      "id": "gen-k-0160-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0164-hata-bul",
+      "id": "gen-k-0164-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0168-hata-bul",
+      "id": "gen-k-0168-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0172-yarisma",
+      "id": "gen-k-0172-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0179-yarisma",
+      "id": "gen-k-0179-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0180-veri-yapisi",
+      "id": "gen-k-0180-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0183-hata-bul",
+      "id": "gen-k-0183-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0186-yarisma",
+      "id": "gen-k-0186-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0189-yarisma",
+      "id": "gen-k-0189-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0190-hata-bul",
+      "id": "gen-k-0190-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0195-yarisma",
+      "id": "gen-k-0195-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0196-veri-yapisi",
+      "id": "gen-k-0196-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0198-yarisma",
+      "id": "gen-k-0198-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0200-hata-bul",
+      "id": "gen-k-0200-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0201-veri-yapisi",
+      "id": "gen-k-0201-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0203-veri-yapisi",
+      "id": "gen-k-0203-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0204-veri-yapisi",
+      "id": "gen-k-0204-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0208-veri-yapisi",
+      "id": "gen-k-0208-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0209-hata-bul",
+      "id": "gen-k-0209-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0217-hata-bul",
+      "id": "gen-k-0217-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0221-veri-yapisi",
+      "id": "gen-k-0221-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0223-yarisma",
+      "id": "gen-k-0223-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0226-hata-bul",
+      "id": "gen-k-0226-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0229-hata-bul",
+      "id": "gen-k-0229-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0230-veri-yapisi",
+      "id": "gen-k-0230-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0234-hata-bul",
+      "id": "gen-k-0234-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0235-hata-bul",
+      "id": "gen-k-0235-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0236-yarisma",
+      "id": "gen-k-0236-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0238-veri-yapisi",
+      "id": "gen-k-0238-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0240-hata-bul",
+      "id": "gen-k-0240-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0243-veri-yapisi",
+      "id": "gen-k-0243-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0247-yarisma",
+      "id": "gen-k-0247-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0248-yarisma",
+      "id": "gen-k-0248-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0249-veri-yapisi",
+      "id": "gen-k-0249-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0252-hata-bul",
+      "id": "gen-k-0252-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0253-hata-bul",
+      "id": "gen-k-0253-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0259-yarisma",
+      "id": "gen-k-0259-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0260-veri-yapisi",
+      "id": "gen-k-0260-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0264-veri-yapisi",
+      "id": "gen-k-0264-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0286-veri-yapisi",
+      "id": "gen-k-0286-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0294-veri-yapisi",
+      "id": "gen-k-0294-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0295-veri-yapisi",
+      "id": "gen-k-0295-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0296-hata-bul",
+      "id": "gen-k-0296-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0297-hata-bul",
+      "id": "gen-k-0297-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0298-veri-yapisi",
+      "id": "gen-k-0298-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0000-ayikla",
+      "id": "gen-s-0000-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0002-denetle",
+      "id": "gen-s-0002-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0003-karsilastir",
+      "id": "gen-s-0003-karsilastir",
+      "aile": "kabuk",
+      "hedef": "karsilastir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0004-ayikla",
+      "id": "gen-s-0004-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0004-grupla-say",
+      "id": "gen-s-0004-grupla-say",
+      "aile": "kabuk",
+      "hedef": "grupla-say",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0005-onar",
+      "id": "gen-s-0005-onar",
+      "aile": "kabuk",
+      "hedef": "onar",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0006-toplu-yeniden-adlandir",
+      "id": "gen-s-0006-toplu-yeniden-adlandir",
+      "aile": "kabuk",
+      "hedef": "toplu-yeniden-adlandir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0007-bol",
+      "id": "gen-s-0007-bol",
+      "aile": "kabuk",
+      "hedef": "bol",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0007-donustur",
+      "id": "gen-s-0007-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0008-donustur",
+      "id": "gen-s-0008-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0009-birlestir",
+      "id": "gen-s-0009-birlestir",
+      "aile": "kabuk",
+      "hedef": "birlestir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0009-karsilastir",
+      "id": "gen-s-0009-karsilastir",
+      "aile": "kabuk",
+      "hedef": "karsilastir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0010-ayikla",
+      "id": "gen-s-0010-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0010-denetle",
+      "id": "gen-s-0010-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0011-ayikla",
+      "id": "gen-s-0011-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0011-ozetle",
+      "id": "gen-s-0011-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0012-arsivle",
+      "id": "gen-s-0012-arsivle",
+      "aile": "kabuk",
+      "hedef": "arsivle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0014-ozetle",
+      "id": "gen-s-0014-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0017-onar",
+      "id": "gen-s-0017-onar",
+      "aile": "kabuk",
+      "hedef": "onar",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0018-donustur",
+      "id": "gen-s-0018-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0018-ozetle",
+      "id": "gen-s-0018-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0019-ayikla",
+      "id": "gen-s-0019-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0019-denetle",
+      "id": "gen-s-0019-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0020-onar",
+      "id": "gen-s-0020-onar",
+      "aile": "kabuk",
+      "hedef": "onar",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0021-donustur",
+      "id": "gen-s-0021-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0021-ozetle",
+      "id": "gen-s-0021-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0022-bol",
+      "id": "gen-s-0022-bol",
+      "aile": "kabuk",
+      "hedef": "bol",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0022-donustur",
+      "id": "gen-s-0022-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0023-denetle",
+      "id": "gen-s-0023-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0023-dogrula",
+      "id": "gen-s-0023-dogrula",
+      "aile": "kabuk",
+      "hedef": "dogrula",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0024-yeniden-duzenle",
+      "id": "gen-s-0024-yeniden-duzenle",
+      "aile": "kabuk",
+      "hedef": "yeniden-duzenle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0025-denetle",
+      "id": "gen-s-0025-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0025-dogrula",
+      "id": "gen-s-0025-dogrula",
+      "aile": "kabuk",
+      "hedef": "dogrula",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0026-yeniden-duzenle",
+      "id": "gen-s-0026-yeniden-duzenle",
+      "aile": "kabuk",
+      "hedef": "yeniden-duzenle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0027-denetle",
+      "id": "gen-s-0027-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0029-donustur",
+      "id": "gen-s-0029-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0032-birlestir",
+      "id": "gen-s-0032-birlestir",
+      "aile": "kabuk",
+      "hedef": "birlestir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0034-ozetle",
+      "id": "gen-s-0034-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0035-ayikla",
+      "id": "gen-s-0035-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0036-bol",
+      "id": "gen-s-0036-bol",
+      "aile": "kabuk",
+      "hedef": "bol",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0037-ozetle",
+      "id": "gen-s-0037-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0039-ozetle",
+      "id": "gen-s-0039-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0040-donustur",
+      "id": "gen-s-0040-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0042-birlestir",
+      "id": "gen-s-0042-birlestir",
+      "aile": "kabuk",
+      "hedef": "birlestir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0043-dogrula",
+      "id": "gen-s-0043-dogrula",
+      "aile": "kabuk",
+      "hedef": "dogrula",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0046-donustur",
+      "id": "gen-s-0046-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0047-ozetle",
+      "id": "gen-s-0047-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0049-onar",
+      "id": "gen-s-0049-onar",
+      "aile": "kabuk",
+      "hedef": "onar",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0051-donustur",
+      "id": "gen-s-0051-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0053-ayikla",
+      "id": "gen-s-0053-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0054-donustur",
+      "id": "gen-s-0054-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0055-grupla-say",
+      "id": "gen-s-0055-grupla-say",
+      "aile": "kabuk",
+      "hedef": "grupla-say",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0056-karsilastir",
+      "id": "gen-s-0056-karsilastir",
+      "aile": "kabuk",
+      "hedef": "karsilastir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0057-ozetle",
+      "id": "gen-s-0057-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0058-ozetle",
+      "id": "gen-s-0058-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0061-grupla-say",
+      "id": "gen-s-0061-grupla-say",
+      "aile": "kabuk",
+      "hedef": "grupla-say",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0061-ozetle",
+      "id": "gen-s-0061-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0064-ayikla",
+      "id": "gen-s-0064-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0064-dogrula",
+      "id": "gen-s-0064-dogrula",
+      "aile": "kabuk",
+      "hedef": "dogrula",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0065-dogrula",
+      "id": "gen-s-0065-dogrula",
+      "aile": "kabuk",
+      "hedef": "dogrula",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0065-ozetle",
+      "id": "gen-s-0065-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0066-birlestir",
+      "id": "gen-s-0066-birlestir",
+      "aile": "kabuk",
+      "hedef": "birlestir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0067-denetle",
+      "id": "gen-s-0067-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0067-sirala-sec",
+      "id": "gen-s-0067-sirala-sec",
+      "aile": "kabuk",
+      "hedef": "sirala-sec",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0068-dogrula",
+      "id": "gen-s-0068-dogrula",
+      "aile": "kabuk",
+      "hedef": "dogrula",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0068-donustur",
+      "id": "gen-s-0068-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0069-ayikla",
+      "id": "gen-s-0069-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0069-ozetle",
+      "id": "gen-s-0069-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0070-ozetle",
+      "id": "gen-s-0070-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0071-ayikla",
+      "id": "gen-s-0071-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0071-bol",
+      "id": "gen-s-0071-bol",
+      "aile": "kabuk",
+      "hedef": "bol",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0072-onar",
+      "id": "gen-s-0072-onar",
+      "aile": "kabuk",
+      "hedef": "onar",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0072-yeniden-duzenle",
+      "id": "gen-s-0072-yeniden-duzenle",
+      "aile": "kabuk",
+      "hedef": "yeniden-duzenle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0074-karsilastir",
+      "id": "gen-s-0074-karsilastir",
+      "aile": "kabuk",
+      "hedef": "karsilastir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0076-denetle",
+      "id": "gen-s-0076-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0077-ozetle",
+      "id": "gen-s-0077-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0078-yeniden-duzenle",
+      "id": "gen-s-0078-yeniden-duzenle",
+      "aile": "kabuk",
+      "hedef": "yeniden-duzenle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0080-toplu-yeniden-adlandir",
+      "id": "gen-s-0080-toplu-yeniden-adlandir",
+      "aile": "kabuk",
+      "hedef": "toplu-yeniden-adlandir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0081-karsilastir",
+      "id": "gen-s-0081-karsilastir",
+      "aile": "kabuk",
+      "hedef": "karsilastir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0081-ozetle",
+      "id": "gen-s-0081-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0082-birlestir",
+      "id": "gen-s-0082-birlestir",
+      "aile": "kabuk",
+      "hedef": "birlestir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0083-denetle",
+      "id": "gen-s-0083-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0084-ayikla",
+      "id": "gen-s-0084-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0084-donustur",
+      "id": "gen-s-0084-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0085-ayikla",
+      "id": "gen-s-0085-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0086-bol",
+      "id": "gen-s-0086-bol",
+      "aile": "kabuk",
+      "hedef": "bol",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0086-donustur",
+      "id": "gen-s-0086-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0087-yeniden-duzenle",
+      "id": "gen-s-0087-yeniden-duzenle",
+      "aile": "kabuk",
+      "hedef": "yeniden-duzenle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0088-donustur",
+      "id": "gen-s-0088-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0089-ayikla",
+      "id": "gen-s-0089-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0089-dogrula",
+      "id": "gen-s-0089-dogrula",
+      "aile": "kabuk",
+      "hedef": "dogrula",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0090-ayikla",
+      "id": "gen-s-0090-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0090-karsilastir",
+      "id": "gen-s-0090-karsilastir",
+      "aile": "kabuk",
+      "hedef": "karsilastir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0091-denetle",
+      "id": "gen-s-0091-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0091-ozetle",
+      "id": "gen-s-0091-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0092-denetle",
+      "id": "gen-s-0092-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0092-donustur",
+      "id": "gen-s-0092-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0093-onar",
+      "id": "gen-s-0093-onar",
+      "aile": "kabuk",
+      "hedef": "onar",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0094-denetle",
+      "id": "gen-s-0094-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0094-donustur",
+      "id": "gen-s-0094-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0095-ayikla",
+      "id": "gen-s-0095-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0096-yeniden-duzenle",
+      "id": "gen-s-0096-yeniden-duzenle",
+      "aile": "kabuk",
+      "hedef": "yeniden-duzenle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0098-arsivle",
+      "id": "gen-s-0098-arsivle",
+      "aile": "kabuk",
+      "hedef": "arsivle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0098-ayikla",
+      "id": "gen-s-0098-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0099-sirala-sec",
+      "id": "gen-s-0099-sirala-sec",
+      "aile": "kabuk",
+      "hedef": "sirala-sec",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0101-bol",
+      "id": "gen-s-0101-bol",
+      "aile": "kabuk",
+      "hedef": "bol",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0103-denetle",
+      "id": "gen-s-0103-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0106-denetle",
+      "id": "gen-s-0106-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0108-grupla-say",
+      "id": "gen-s-0108-grupla-say",
+      "aile": "kabuk",
+      "hedef": "grupla-say",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0109-arsivle",
+      "id": "gen-s-0109-arsivle",
+      "aile": "kabuk",
+      "hedef": "arsivle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0112-toplu-yeniden-adlandir",
+      "id": "gen-s-0112-toplu-yeniden-adlandir",
+      "aile": "kabuk",
+      "hedef": "toplu-yeniden-adlandir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0113-denetle",
+      "id": "gen-s-0113-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0115-dogrula",
+      "id": "gen-s-0115-dogrula",
+      "aile": "kabuk",
+      "hedef": "dogrula",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0116-donustur",
+      "id": "gen-s-0116-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0119-ayikla",
+      "id": "gen-s-0119-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    }
+  ],
+  "holdout": [
+    {
+      "dir": "envs_gen/gen-k-0002-veri-yapisi",
+      "id": "gen-k-0002-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0101-veri-yapisi",
+      "id": "gen-k-0101-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0104-yarisma",
+      "id": "gen-k-0104-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0106-hata-bul",
+      "id": "gen-k-0106-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0119-hata-bul",
+      "id": "gen-k-0119-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0122-hata-bul",
+      "id": "gen-k-0122-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0123-hata-bul",
+      "id": "gen-k-0123-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0142-yarisma",
+      "id": "gen-k-0142-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0148-veri-yapisi",
+      "id": "gen-k-0148-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0152-hata-bul",
+      "id": "gen-k-0152-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0153-veri-yapisi",
+      "id": "gen-k-0153-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0158-hata-bul",
+      "id": "gen-k-0158-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0163-yarisma",
+      "id": "gen-k-0163-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0170-hata-bul",
+      "id": "gen-k-0170-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0206-veri-yapisi",
+      "id": "gen-k-0206-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0207-hata-bul",
+      "id": "gen-k-0207-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0210-hata-bul",
+      "id": "gen-k-0210-hata-bul",
+      "aile": "kod",
+      "hedef": "hata-bul",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0216-veri-yapisi",
+      "id": "gen-k-0216-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0241-yarisma",
+      "id": "gen-k-0241-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0266-veri-yapisi",
+      "id": "gen-k-0266-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0270-yarisma",
+      "id": "gen-k-0270-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0273-yarisma",
+      "id": "gen-k-0273-yarisma",
+      "aile": "kod",
+      "hedef": "yarisma",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0276-veri-yapisi",
+      "id": "gen-k-0276-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0284-veri-yapisi",
+      "id": "gen-k-0284-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen_code/gen-k-0290-veri-yapisi",
+      "id": "gen-k-0290-veri-yapisi",
+      "aile": "kod",
+      "hedef": "veri-yapisi",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0000-ozetle",
+      "id": "gen-s-0000-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0001-toplu-yeniden-adlandir",
+      "id": "gen-s-0001-toplu-yeniden-adlandir",
+      "aile": "kabuk",
+      "hedef": "toplu-yeniden-adlandir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0002-yeniden-duzenle",
+      "id": "gen-s-0002-yeniden-duzenle",
+      "aile": "kabuk",
+      "hedef": "yeniden-duzenle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0003-denetle",
+      "id": "gen-s-0003-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0012-donustur",
+      "id": "gen-s-0012-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0013-denetle",
+      "id": "gen-s-0013-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0015-denetle",
+      "id": "gen-s-0015-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0015-donustur",
+      "id": "gen-s-0015-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0016-ayikla",
+      "id": "gen-s-0016-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0016-bol",
+      "id": "gen-s-0016-bol",
+      "aile": "kabuk",
+      "hedef": "bol",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0017-ozetle",
+      "id": "gen-s-0017-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0020-ayikla",
+      "id": "gen-s-0020-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0026-grupla-say",
+      "id": "gen-s-0026-grupla-say",
+      "aile": "kabuk",
+      "hedef": "grupla-say",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0028-yeniden-duzenle",
+      "id": "gen-s-0028-yeniden-duzenle",
+      "aile": "kabuk",
+      "hedef": "yeniden-duzenle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0030-bol",
+      "id": "gen-s-0030-bol",
+      "aile": "kabuk",
+      "hedef": "bol",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0031-denetle",
+      "id": "gen-s-0031-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0033-arsivle",
+      "id": "gen-s-0033-arsivle",
+      "aile": "kabuk",
+      "hedef": "arsivle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0038-toplu-yeniden-adlandir",
+      "id": "gen-s-0038-toplu-yeniden-adlandir",
+      "aile": "kabuk",
+      "hedef": "toplu-yeniden-adlandir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0041-birlestir",
+      "id": "gen-s-0041-birlestir",
+      "aile": "kabuk",
+      "hedef": "birlestir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0044-karsilastir",
+      "id": "gen-s-0044-karsilastir",
+      "aile": "kabuk",
+      "hedef": "karsilastir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0045-ayikla",
+      "id": "gen-s-0045-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0048-ozetle",
+      "id": "gen-s-0048-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0050-denetle",
+      "id": "gen-s-0050-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0052-onar",
+      "id": "gen-s-0052-onar",
+      "aile": "kabuk",
+      "hedef": "onar",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0059-donustur",
+      "id": "gen-s-0059-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0060-donustur",
+      "id": "gen-s-0060-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0066-bol",
+      "id": "gen-s-0066-bol",
+      "aile": "kabuk",
+      "hedef": "bol",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0070-donustur",
+      "id": "gen-s-0070-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0073-ayikla",
+      "id": "gen-s-0073-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0073-ozetle",
+      "id": "gen-s-0073-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0074-onar",
+      "id": "gen-s-0074-onar",
+      "aile": "kabuk",
+      "hedef": "onar",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0075-yeniden-duzenle",
+      "id": "gen-s-0075-yeniden-duzenle",
+      "aile": "kabuk",
+      "hedef": "yeniden-duzenle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0076-donustur",
+      "id": "gen-s-0076-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0077-ayikla",
+      "id": "gen-s-0077-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0078-ayikla",
+      "id": "gen-s-0078-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0079-karsilastir",
+      "id": "gen-s-0079-karsilastir",
+      "aile": "kabuk",
+      "hedef": "karsilastir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0079-ozetle",
+      "id": "gen-s-0079-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0080-denetle",
+      "id": "gen-s-0080-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0082-karsilastir",
+      "id": "gen-s-0082-karsilastir",
+      "aile": "kabuk",
+      "hedef": "karsilastir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0083-ozetle",
+      "id": "gen-s-0083-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0087-dogrula",
+      "id": "gen-s-0087-dogrula",
+      "aile": "kabuk",
+      "hedef": "dogrula",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0088-arsivle",
+      "id": "gen-s-0088-arsivle",
+      "aile": "kabuk",
+      "hedef": "arsivle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0093-ayikla",
+      "id": "gen-s-0093-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0096-dogrula",
+      "id": "gen-s-0096-dogrula",
+      "aile": "kabuk",
+      "hedef": "dogrula",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0097-donustur",
+      "id": "gen-s-0097-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0102-sirala-sec",
+      "id": "gen-s-0102-sirala-sec",
+      "aile": "kabuk",
+      "hedef": "sirala-sec",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0104-grupla-say",
+      "id": "gen-s-0104-grupla-say",
+      "aile": "kabuk",
+      "hedef": "grupla-say",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0105-ayikla",
+      "id": "gen-s-0105-ayikla",
+      "aile": "kabuk",
+      "hedef": "ayikla",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0107-onar",
+      "id": "gen-s-0107-onar",
+      "aile": "kabuk",
+      "hedef": "onar",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0110-dogrula",
+      "id": "gen-s-0110-dogrula",
+      "aile": "kabuk",
+      "hedef": "dogrula",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0111-birlestir",
+      "id": "gen-s-0111-birlestir",
+      "aile": "kabuk",
+      "hedef": "birlestir",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0114-ozetle",
+      "id": "gen-s-0114-ozetle",
+      "aile": "kabuk",
+      "hedef": "ozetle",
+      "promptlu": true,
+      "checkli": true
+    },
+    {
+      "dir": "envs_gen/gen-s-0118-denetle",
+      "id": "gen-s-0118-denetle",
+      "aile": "kabuk",
+      "hedef": "denetle",
+      "promptlu": true,
+      "checkli": true
+    }
+  ],
+  "dislanan": [
+    {
+      "dir": "envs_gen/gen-s-0001-donustur",
+      "id": "gen-s-0001-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": false,
+      "sebep": "referansi gecmiyor"
+    },
+    {
+      "dir": "envs_gen/gen-s-0059-arsivle",
+      "id": "gen-s-0059-arsivle",
+      "aile": "kabuk",
+      "hedef": "arsivle",
+      "promptlu": true,
+      "checkli": false,
+      "sebep": "referansi gecmiyor"
+    },
+    {
+      "dir": "envs_gen/gen-s-0063-bol",
+      "id": "gen-s-0063-bol",
+      "aile": "kabuk",
+      "hedef": "bol",
+      "promptlu": true,
+      "checkli": false,
+      "sebep": "referansi gecmiyor"
+    },
+    {
+      "dir": "envs_gen/gen-s-0085-donustur",
+      "id": "gen-s-0085-donustur",
+      "aile": "kabuk",
+      "hedef": "donustur",
+      "promptlu": true,
+      "checkli": true,
+      "sebep": "referansi gecmiyor"
+    }
+  ]
+}

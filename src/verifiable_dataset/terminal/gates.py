@@ -22,7 +22,8 @@ from pathlib import Path
 from verifiable_dataset.terminal.derive import derive
 from verifiable_dataset.terminal.prompts import denetle as prompt_denetle
 from verifiable_dataset.terminal.equiv import run_alt
-from verifiable_dataset.terminal.sandbox import docker_available
+from verifiable_dataset.terminal.sandbox import (bash_var, docker_available,
+                                                 yerel_kullan)
 from verifiable_dataset.terminal.seeds import tools_used, uses_tool
 from verifiable_dataset.terminal.task import Task
 
@@ -122,6 +123,14 @@ def gate_tool_conformance(task: Task, eksik_araclar: list[str]) -> GateResult:
         sorun.append(f"imajda olmayan arac cagrildi: {eksik_araclar}")
 
     seed = task.metadata.get("seed")
+    # Kod ailesinde seed araci her zaman python3, ama referans cozum onu
+    # komut konumunda cagirmaz -- dosyayi heredoc ile yazar. "Kullanilmali"
+    # kurali burada her adayi haksiz yere duserirdi; yetenek yuzeyini kod
+    # ailesinde suren sey arac degil hedefin kendisi.
+    if seed and seed.get("aile") == "kod":
+        return GateResult("arac uygunlugu", not sorun, "; ".join(sorun),
+                          skipped=not sorun)
+
     if seed:
         istenen = seed.get("tools", [])
         eksik = [t for t in istenen if not uses_tool(task.reference_solution, t)]
@@ -159,11 +168,27 @@ def gate_determinism(task: Task) -> tuple[GateResult, "object | None", list[str]
 
 
 def gate_discriminates(task: Task, rep) -> GateResult:
+    """Check'ler cozulmus dunyayi cozulmemisten ayirt edebiliyor mu.
+
+    Sayilari basmak teshis icin yetmiyordu: "B 1/1, A 1/1" goren spec
+    yazari neyi duzeltecegini anlamiyor ve ayni hatayi tekrarliyor. Iki
+    basarisizlik sekli birbirinden cok farkli, o yuzden ayri soyleniyor.
+    """
     if rep is None:
         return GateResult("ayirt etme", False, "turetme yapilamadi")
     ok = rep.ref_passed == rep.total and rep.init_passed < rep.total
-    return GateResult("ayirt etme", ok,
-                      f"B {rep.ref_passed}/{rep.total}, A {rep.init_passed}/{rep.total}")
+    sayilar = (f"referans {rep.ref_passed}/{rep.total}, "
+               f"baslangic {rep.init_passed}/{rep.total}")
+    if rep.ref_passed < rep.total:
+        aciklama = f"referans cozum kendi check'lerini gecmiyor ({sayilar})"
+    elif rep.init_passed >= rep.total:
+        aciklama = (f"gorev baslangicta zaten cozulmus ({sayilar}): SETUP "
+                    f"dunyasi check'leri geciyor. Kod gorevlerinde bunun "
+                    f"olagan sebebi SETUP'a birakilan 'hata'nin gercek bir "
+                    f"hata olmamasi ya da testin o hatayi hic yoklamamasi.")
+    else:
+        aciklama = sayilar
+    return GateResult("ayirt etme", ok, aciklama)
 
 
 def gate_output_kinds(task: Task, rep) -> GateResult:
@@ -268,15 +293,25 @@ def main() -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--task", default="")
     parser.add_argument("--all", action="store_true")
+    parser.add_argument("--sandbox", choices=["docker", "yerel"],
+                        default="docker",
+                        help="yerel = Docker'siz (Colab); izolasyon yok")
     parser.add_argument("--envs", default="envs")
     parser.add_argument("--spec-only", action="store_true",
                         help="prompt heniz yazilmamis adaylar icin prompt kapilarini atla")
     args = parser.parse_args()
 
-    ok, info = docker_available()
-    if not ok:
-        print(f"Docker daemon'a ulasilamiyor: {info}")
-        return 1
+    if args.sandbox == "yerel":
+        yerel_kullan(True)
+        ok, info = bash_var()
+        if not ok:
+            print(f"yerel sandbox icin bash gerekli: {info}")
+            return 1
+    else:
+        ok, info = docker_available()
+        if not ok:
+            print(f"Docker daemon'a ulasilamiyor: {info}")
+            return 1
 
     if args.all:
         task_dirs = sorted(p.parent for p in Path(args.envs).glob("*/task.yaml")

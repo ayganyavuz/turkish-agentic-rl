@@ -1,0 +1,103 @@
+id: gen-k-0150-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) `transcript/student.py` dosyasındaki `Student` sınıfında `total_credits` metodunu, öğrencinin kuyruğundaki tüm derslerin kredi toplamını döndürecek şekilde gerçekleştir.
+
+  2) `transcript/student.py` dosyasındaki `Student` sınıfında `next_course_code` metodunu, kuyruğun başındaki (FIFO) dersin kodunu döndürecek şekilde gerçekleştir.
+
+  3) `transcript/student.py` dosyasındaki `Student` sınıfında `remove_next_course` metodunu, kuyruğun başındaki dersi kaldıracak şekilde gerçekleştir.
+
+setup: |
+  mkdir -p transcript
+  cat > transcript/course.py <<'COURSE'
+  class Course:
+      def __init__(self, code, credits):
+          self.code = code
+          self.credits = credits
+  COURSE
+  cat > transcript/student.py <<'STUDENT'
+  from transcript.course import Course
+
+
+  class Student:
+      def __init__(self, name):
+          self.name = name
+          self.queue = []
+
+      def add_course(self, course):
+          self.queue.append(course)
+
+      def total_credits(self):
+          raise NotImplementedError
+
+      def next_course_code(self):
+          raise NotImplementedError
+
+      def remove_next_course(self):
+          raise NotImplementedError
+  STUDENT
+
+goal_tr: >
+  transcript/student.py icindeki Student sinifinda, kuyruk (FIFO)
+  semantigine uygun olarak total_credits, next_course_code ve
+  remove_next_course metodlarini gerceklestir
+
+reference_solution: |
+  cat > transcript/student.py <<'STUDENT'
+  from transcript.course import Course
+
+
+  class Student:
+      def __init__(self, name):
+          self.name = name
+          self.queue = []
+
+      def add_course(self, course):
+          self.queue.append(course)
+
+      def total_credits(self):
+          return sum(c.credits for c in self.queue)
+
+      def next_course_code(self):
+          return self.queue[0].code
+
+      def remove_next_course(self):
+          return self.queue.pop(0)
+  STUDENT
+
+outputs:
+  - {path: transcript/student.py, kind: program, run: 'python3 -c ''from transcript.student import Student; from transcript.course import Course; s=Student("a"); c1=Course("MATH101",3); c2=Course("CS202",4); s.add_course(c1); s.add_course(c2); assert s.total_credits()==7; assert s.next_course_code()=="MATH101"; s.remove_next_course(); assert s.next_course_code()=="CS202"; assert s.total_credits()==4; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from transcript.student import Student; from transcript.course import Course; s=Student("a"); c1=Course("MATH101",3); c2=Course("CS202",4); s.add_course(c1); s.add_course(c2); assert s.total_credits()==7; assert s.next_course_code()=="MATH101"; s.remove_next_course(); assert s.next_course_code()=="CS202"; assert s.total_credits()==4; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0150
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kuyruk

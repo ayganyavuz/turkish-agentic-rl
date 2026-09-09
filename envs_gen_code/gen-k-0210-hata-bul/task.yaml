@@ -1,0 +1,89 @@
+id: gen-k-0210-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  warehouse/stock.py dosyasındaki needs_reorder fonksiyonunu, yalnızca stok miktarı eşik değerin altında olduğunda True dönecek şekilde düzelt. warehouse/stock.py dosyasını güncelle.
+
+setup: |
+  mkdir -p warehouse
+  cat > warehouse/stock.py <<'STOCK'
+  def load_stock(text):
+      items = {}
+      for line in text.strip().splitlines():
+          sku, qty, threshold = line.split(',')
+          items[sku] = {'qty': int(qty), 'threshold': int(threshold)}
+      return items
+
+
+  def needs_reorder(item):
+      return item['qty'] <= item['threshold']
+  STOCK
+  cat > warehouse/manager.py <<'MANAGER'
+  from warehouse.stock import load_stock, needs_reorder
+
+
+  def reorder_list(text):
+      stock = load_stock(text)
+      reorder = [sku for sku, item in stock.items() if needs_reorder(item)]
+      return sorted(reorder)
+  MANAGER
+  cat > inventory.txt <<'TXT'
+  A001,50,100
+  B002,200,150
+  C003,30,30
+  D004,75,75
+  TXT
+
+goal_tr: >
+  warehouse/stock.py icindeki needs_reorder fonksiyonunu, yalnizca stok
+  miktari esik degerin ALTINDA oldugunda True donecek bicimde duzelt
+
+reference_solution: |
+  cat > warehouse/stock.py <<'STOCK'
+  def load_stock(text):
+      items = {}
+      for line in text.strip().splitlines():
+          sku, qty, threshold = line.split(',')
+          items[sku] = {'qty': int(qty), 'threshold': int(threshold)}
+      return items
+
+
+  def needs_reorder(item):
+      return item['qty'] < item['threshold']
+  STOCK
+
+outputs:
+  - {path: warehouse/stock.py, kind: program, run: 'python3 -c ''from warehouse.stock import needs_reorder; assert needs_reorder({"qty":50,"threshold":100})==True; assert needs_reorder({"qty":200,"threshold":150})==False; assert needs_reorder({"qty":30,"threshold":30})==False; assert needs_reorder({"qty":75,"threshold":75})==False; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from warehouse.stock import needs_reorder; assert needs_reorder({"qty":50,"threshold":100})==True; assert needs_reorder({"qty":200,"threshold":150})==False; assert needs_reorder({"qty":30,"threshold":30})==False; assert needs_reorder({"qty":75,"threshold":75})==False; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0210
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-karsilastirma

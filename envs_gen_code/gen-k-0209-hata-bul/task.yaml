@@ -1,0 +1,112 @@
+id: gen-k-0209-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  inventory/manager.py içindeki report_value fonksiyonunu düzelt: fiyat listesinde yer almayan bir ürünün fiyatını 0.0 olarak kabul etsin. inventory/stock.py dosyasındaki mevcut total_value fonksiyonu, fiyatı olmayan ürünlerde hata veriyor; bu durumu göz önünde bulundurarak düzeltmeyi yap. inventory/stock.py dosyasını değiştirmen gerekmiyor, yalnızca manager.py içindeki fonksiyonu güncelle.
+
+setup: |
+  mkdir -p inventory
+  cat > inventory/items.py <<'ITEMS'
+  def load_items(path):
+      items = {}
+      with open(path) as f:
+          for line in f:
+              sku, name, qty = line.strip().split(',')
+              items[sku] = {'name': name, 'qty': int(qty)}
+      return items
+  ITEMS
+  cat > inventory/stock.py <<'STOCK'
+  def total_value(items, prices):
+      total = 0
+      for sku, info in items.items():
+          total += info['qty'] * prices[sku]
+      return total
+  STOCK
+  cat > inventory/manager.py <<'MANAGER'
+  from inventory.items import load_items
+  from inventory.stock import total_value
+
+
+  def report_value(items_path, prices_path):
+      items = load_items(items_path)
+      prices = {}
+      with open(prices_path) as f:
+          for line in f:
+              sku, price = line.strip().split(',')
+              prices[sku] = float(price)
+      return total_value(items, prices)
+  MANAGER
+  cat > items.csv <<'CSV'
+  A1,apple,10
+  B2,banana,5
+  C3,cherry,3
+  D4,date,7
+  CSV
+  cat > prices.csv <<'CSV'
+  A1,1.5
+  B2,0.8
+  C3,2.0
+  CSV
+
+goal_tr: >
+  inventory/manager.py icindeki report_value fonksiyonunu, fiyat listesinde
+  olmayan bir urunun fiyatini 0.0 kabul edecek sekilde duzelt
+
+reference_solution: |
+  cat > inventory/manager.py <<'MANAGER'
+  from inventory.items import load_items
+  from inventory.stock import total_value
+
+
+  def report_value(items_path, prices_path):
+      items = load_items(items_path)
+      prices = {}
+      with open(prices_path) as f:
+          for line in f:
+              sku, price = line.strip().split(',')
+              prices[sku] = float(price)
+      return total_value(items, prices)
+  MANAGER
+  cat > inventory/stock.py <<'STOCK'
+  def total_value(items, prices):
+      total = 0
+      for sku, info in items.items():
+          total += info['qty'] * prices.get(sku, 0.0)
+      return total
+  STOCK
+
+outputs:
+  - {path: inventory/stock.py, kind: program, run: 'python3 -c ''from inventory.manager import report_value; v=report_value("items.csv","prices.csv"); assert v==15.0+4.0+6.0+0.0, v; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from inventory.manager import report_value; v=report_value("items.csv","prices.csv"); assert v==15.0+4.0+6.0+0.0, v; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0209
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: zor
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sozluk-anahtar-hatasi

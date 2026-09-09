@@ -1,0 +1,100 @@
+id: gen-k-0230-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  network/router.py dosyasındaki Router sınıfının find_cheapest_route metodunu, verilen graf üzerinde başlangıç ve bitiş düğümleri arasındaki en düşük maliyetli yolu düğüm listesi olarak döndürecek şekilde gerçekleştir. Bu metod, network/graph.py içindeki Graph sınıfını kullanacak ve graf üzerindeki kenarların maliyetlerini dikkate alarak en ucuz rotayı bulmalıdır.
+
+setup: |
+  mkdir -p network
+  cat > network/graph.py <<'GRAPH'
+  class Graph:
+      def __init__(self):
+          self.edges = {}
+
+      def add_edge(self, u, v, cost):
+          if u not in self.edges:
+              self.edges[u] = []
+          self.edges[u].append((v, cost))
+          if v not in self.edges:
+              self.edges[v] = []
+          self.edges[v].append((u, cost))
+
+      def neighbors(self, u):
+          return self.edges.get(u, [])
+  GRAPH
+  cat > network/router.py <<'ROUTER'
+  from network.graph import Graph
+
+  class Router:
+      def __init__(self, graph):
+          self.graph = graph
+
+      def find_cheapest_route(self, start, end):
+          raise NotImplementedError
+  ROUTER
+
+goal_tr: >
+  network/router.py icindeki Router.find_cheapest_route metodunu, verilen
+  graf uzerinde baslangic ve bitis dugumleri arasindaki en dusuk maliyetli
+  yolu (dugum listesi olarak) dondurecek sekilde gerceklestir.
+
+reference_solution: |
+  cat > network/router.py <<'ROUTER'
+  from network.graph import Graph
+
+  class Router:
+      def __init__(self, graph):
+          self.graph = graph
+
+      def find_cheapest_route(self, start, end):
+          import heapq
+          pq = [(0, start, [start])]
+          visited = set()
+          while pq:
+              cost, node, path = heapq.heappop(pq)
+              if node in visited:
+                  continue
+              visited.add(node)
+              if node == end:
+                  return path
+              for neighbor, edge_cost in self.graph.neighbors(node):
+                  if neighbor not in visited:
+                      heapq.heappush(pq, (cost + edge_cost, neighbor, path + [neighbor]))
+          return None
+  ROUTER
+
+outputs:
+  - {path: network/router.py, kind: program, run: 'python3 -c ''from network.graph import Graph; from network.router import Router; g=Graph(); g.add_edge("A","B",5); g.add_edge("B","C",2); g.add_edge("A","C",10); g.add_edge("C","D",3); r=Router(g); assert r.find_cheapest_route("A","D")==["A","B","C","D"], r.find_cheapest_route("A","D"); assert r.find_cheapest_route("A","C")==["A","B","C"], r.find_cheapest_route("A","C"); assert r.find_cheapest_route("X","Y") is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from network.graph import Graph; from network.router import Router; g=Graph(); g.add_edge("A","B",5); g.add_edge("B","C",2); g.add_edge("A","C",10); g.add_edge("C","D",3); r=Router(g); assert r.find_cheapest_route("A","D")==["A","B","C","D"], r.find_cheapest_route("A","D"); assert r.find_cheapest_route("A","C")==["A","B","C"], r.find_cheapest_route("A","C"); assert r.find_cheapest_route("X","Y") is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0230
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: graf-gezinme

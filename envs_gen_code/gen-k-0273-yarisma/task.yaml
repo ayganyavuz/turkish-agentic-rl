@@ -1,0 +1,79 @@
+id: gen-k-0273-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  sessions/analyze.py dosyasını oluştur. Bu dosyada, verilen olay listesini alan ve her kullanıcının toplam login sayısını sayan analyze_events fonksiyonu yer almalıdır. Fonksiyon, kullanıcı adlarını alfabetik sırada döndürmelidir. data.txt dosyasında örnek olaylar bulunmaktadır ve sessions/parser.py içindeki parse_events fonksiyonu olayları ayrıştırmak için kullanılabilir.
+
+setup: |
+  mkdir -p sessions
+  cat > data.txt <<'DATA'
+  alice 14:02 login
+  bob 14:05 login
+  alice 14:20 logout
+  carol 14:25 login
+  bob 14:30 logout
+  alice 14:45 login
+  DATA
+  cat > sessions/parser.py <<'PY'
+  def parse_events(text):
+      events = []
+      for line in text.strip().splitlines():
+          user, time, action = line.split()
+          events.append((user, time, action))
+      return events
+  PY
+
+goal_tr: >
+  sessions/analyze.py dosyasini, verilen olay listesinde her kullanicinin
+  toplam login sayisini sayan ve kullanici adlarini alfabetik sirada
+  donduren analyze_events fonksiyonuyla olustur
+
+reference_solution: |
+  cat > sessions/analyze.py <<'PY'
+  from sessions.parser import parse_events
+
+
+  def analyze_events(text):
+      events = parse_events(text)
+      counts = {}
+      for user, _, action in events:
+          if action == "login":
+              counts[user] = counts.get(user, 0) + 1
+      return sorted(counts.items())
+  PY
+
+outputs:
+  - {path: sessions/analyze.py, kind: program, run: 'python3 -c ''from sessions.analyze import analyze_events as f; t=open("data.txt").read(); assert f(t)==[("alice",2),("bob",1),("carol",1)], f(t); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sessions.analyze import analyze_events as f; t=open("data.txt").read(); assert f(t)==[("alice",2),("bob",1),("carol",1)], f(t); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0273
+    bundle: yarisma
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sayma

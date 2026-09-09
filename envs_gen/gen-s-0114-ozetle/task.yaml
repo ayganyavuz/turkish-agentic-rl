@@ -1,0 +1,93 @@
+id: gen-s-0114-ozetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  veri dizininde bulunan 2024-01-01.tsv, 2024-01-02.tsv ve 2024-01-03.tsv adlı üç TSV dosyasındaki verileri işle. Her dosyada şehir, sıcaklık, nem ve durum alanları bulunuyor. Her dosya için sıcaklık ve nem değerlerinin ortalamasını hesapla ve dosyadaki şehir sayısını belirle. Bu üç bilgiyi (şehir sayısı, sıcaklık ortalaması, nem ortalaması) içeren birer metin dosyası oluştur ve bu dosyaları ozetler/ dizinine yerleştir. Oluşturulacak dosyalar sırasıyla ozetler/2024-01-01.ozet, ozetler/2024-01-02.ozet ve ozetler/2024-01-03.ozet adlarını taşımalı. Ayrıca tüm bu özet dosyalarının içeriğini tek bir dosyada birleştirerek tum_ozetler.txt adıyla çalışma dizinine yaz.
+
+setup: |
+  mkdir -p veri
+  cat > veri/2024-01-01.tsv <<'EOF'
+  Istanbul	12	5	parcali
+  Ankara	8	2	gunesli
+  Izmir	15	8	parcali
+  EOF
+  cat > veri/2024-01-02.tsv <<'EOF'
+  Istanbul	10	7	yagmurlu
+  Ankara	6	1	karli
+  Izmir	14	6	gunesli
+  EOF
+  cat > veri/2024-01-03.tsv <<'EOF'
+  Istanbul	9	4	yagmurlu
+  Ankara	5	0	karli
+  Izmir	13	7	parcali
+  EOF
+
+goal_tr: >
+  veri dizinindeki her TSV dosyasinda sehir, sicaklik, nem, durum
+  alanlarindan sicaklik ve nem degerlerinin ortalamasini hesaplayip, her
+  dosya icin sehir sayisini ve bu iki ortalamayi iceren birer metin
+  dosyasini ozetler/ dizinine yaz
+
+reference_solution: |
+  mkdir -p ozetler
+  for dosya in veri/*.tsv; do
+    ad=$(basename "$dosya" .tsv)
+    satir=$(wc -l < "$dosya")
+    awk -v dosya="$dosya" -v ad="$ad" -v satir="$satir" '
+    {
+      toplam_sicaklik += $2
+      toplam_nem += $3
+    }
+    END {
+      ort_sicaklik = toplam_sicaklik / satir
+      ort_nem = toplam_nem / satir
+      printf "sehir_sayisi:%d\n", satir > ("ozetler/" ad ".ozet")
+      printf "ortalama_sicaklik:%.1f\n", ort_sicaklik >> ("ozetler/" ad ".ozet")
+      printf "ortalama_nem:%.1f\n", ort_nem >> ("ozetler/" ad ".ozet")
+    }' "$dosya"
+  done
+  find ozetler -name '*.ozet' | sort | while read -r f; do
+    echo "=== $f ==="
+    cat "$f"
+  done > tum_ozetler.txt
+
+outputs:
+  - {path: ozetler/2024-01-01.ozet, kind: file}
+  - {path: ozetler/2024-01-02.ozet, kind: file}
+  - {path: ozetler/2024-01-03.ozet, kind: file}
+  - {path: tum_ozetler.txt, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: ozetler/2024-01-01.ozet, value: ['sehir_sayisi:3', 'ortalama_sicaklik:11.7', 'ortalama_nem:5.0']}
+  - {op: file_lines_eq, path: ozetler/2024-01-02.ozet, value: ['sehir_sayisi:3', 'ortalama_sicaklik:10.0', 'ortalama_nem:4.7']}
+  - {op: file_lines_eq, path: ozetler/2024-01-03.ozet, value: ['sehir_sayisi:3', 'ortalama_sicaklik:9.0', 'ortalama_nem:3.7']}
+  - {op: file_lines_eq, path: tum_ozetler.txt, value: [=== ozetler/2024-01-01.ozet ===, 'sehir_sayisi:3', 'ortalama_sicaklik:11.7', 'ortalama_nem:5.0', === ozetler/2024-01-02.ozet ===, 'sehir_sayisi:3', 'ortalama_sicaklik:10.0', 'ortalama_nem:4.7', === ozetler/2024-01-03.ozet ===, 'sehir_sayisi:3', 'ortalama_sicaklik:9.0', 'ortalama_nem:3.7']}
+
+metadata:
+  domain: ozetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0114
+    bundle: dizin-istatistik
+    tools:
+    - wc
+    - find
+    konu: hava-durumu-kayitlari
+    hedef: ozetle
+    girdi: tsv
+    kaynak: cok-dosya
+    cikti: birden-cok-dosya
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 3
+    image: verifiable-dataset/base:latest
+    metadata: {}

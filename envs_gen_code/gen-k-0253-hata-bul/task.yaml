@@ -1,0 +1,138 @@
+id: gen-k-0253-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Günlerdir aynı rota üzerinde çalışıyorum ama bir türlü istediğim sonucu alamıyorum. Elimdeki mevcut kod, yol buluyor ama her zaman en verimli olanı seçmiyor. Bugün ofise gelirken trafikte saatlerce kaybettim, bu yüzden işleri optimize etmenin önemini bir kez daha anladım.
+
+  `roadnet/solver.py` dosyasındaki `shortest_route` fonksiyonunu, iki konum arasındaki en kısa yolu (yani toplam mesafesi en az olan yolu) döndürecek şekilde düzelt. Bu fonksiyon, verilen segment metnini, başlangıç ve bitiş konumlarını kullanarak çalışıyor; şu anki haliyle her zaman en kısa mesafeyi seçmiyor. Bu fonksiyonu öyle bir hale getir ki, döndürdüğü yol gerçekten en az toplam mesafeye sahip olsun.
+
+setup: |
+  mkdir -p roadnet
+  cat > roadnet/parser.py <<'PARSER'
+  def parse_segments(text):
+      segments = []
+      for line in text.strip().splitlines():
+          if not line.strip():
+              continue
+          loc_a, loc_b, dist = line.split(',')
+          segments.append((loc_a.strip(), loc_b.strip(), float(dist)))
+      return segments
+  PARSER
+  cat > roadnet/route.py <<'ROUTE'
+  from roadnet.parser import parse_segments
+
+
+  def build_graph(segment_text):
+      graph = {}
+      for a, b, d in parse_segments(segment_text):
+          if a not in graph:
+              graph[a] = []
+          if b not in graph:
+              graph[b] = []
+          graph[a].append((b, d))
+          graph[b].append((a, d))
+      return graph
+
+
+  def find_shortest_path(graph, start, end):
+      if start not in graph or end not in graph:
+          return None
+      visited = set()
+      queue = [(start, [start])]
+      while queue:
+          node, path = queue.pop(0)
+          if node == end:
+              return path
+          if node in visited:
+              continue
+          visited.add(node)
+          for neighbor, _ in graph[node]:
+              if neighbor not in visited:
+                  queue.append((neighbor, path + [neighbor]))
+      return None
+  ROUTE
+  cat > roadnet/solver.py <<'SOLVER'
+  from roadnet.route import build_graph, find_shortest_path
+
+
+  def shortest_route(segment_text, start, end):
+      graph = build_graph(segment_text)
+      path = find_shortest_path(graph, start, end)
+      if path is None:
+          return None
+      total = 0.0
+      for i in range(len(path) - 1):
+          a, b = path[i], path[i + 1]
+          for neighbor, dist in graph[a]:
+              if neighbor == b:
+                  total += dist
+                  break
+      return path, total
+  SOLVER
+
+goal_tr: >
+  roadnet/solver.py icindeki shortest_route fonksiyonunu, en kisa yolu (en
+  az toplam mesafe) dondurecek bicimde duzelt
+
+reference_solution: |
+  cat > roadnet/solver.py <<'SOLVER'
+  from roadnet.route import build_graph
+
+
+  def shortest_route(segment_text, start, end):
+      graph = build_graph(segment_text)
+      if start not in graph or end not in graph:
+          return None
+      best_path = None
+      best_dist = float('inf')
+      queue = [(start, [start], 0.0)]
+      while queue:
+          node, path, dist = queue.pop(0)
+          if node == end:
+              if dist < best_dist:
+                  best_dist = dist
+                  best_path = path
+              continue
+          for neighbor, d in graph[node]:
+              if neighbor not in path:
+                  queue.append((neighbor, path + [neighbor], dist + d))
+      if best_path is None:
+          return None
+      return best_path, best_dist
+  SOLVER
+
+outputs:
+  - {path: roadnet/solver.py, kind: program, run: 'python3 -c ''from roadnet.solver import shortest_route as f; t="A,B,1\nA,C,10\nB,C,1\nB,D,1\nC,D,1"; r=f(t,"A","D"); assert r is not None and r[0]==["A","B","D"] and abs(r[1]-2.0)<1e-9, r; t2="X,Y,5\nY,Z,5\nX,Z,20"; r2=f(t2,"X","Z"); assert r2 is not None and r2[0]==["X","Y","Z"] and abs(r2[1]-10.0)<1e-9, r2; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from roadnet.solver import shortest_route as f; t="A,B,1\nA,C,10\nB,C,1\nB,D,1\nC,D,1"; r=f(t,"A","D"); assert r is not None and r[0]==["A","B","D"] and abs(r[1]-2.0)<1e-9, r; t2="X,Y,5\nY,Z,5\nX,Z,20"; r2=f(t2,"X","Z"); assert r2 is not None and r2[0]==["X","Y","Z"] and abs(r2[1]-10.0)<1e-9, r2; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0253
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: mutable-varsayilan

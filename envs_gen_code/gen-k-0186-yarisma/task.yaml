@@ -1,0 +1,157 @@
+id: gen-k-0186-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  routes/network.py dosyasındaki find_quickest_route fonksiyonunu düzelt. Bu fonksiyon şu anda duraklar arasındaki bağlantı sayısını (durak sayısını) en aza indiren bir rota buluyor; ancak asıl amaç toplam seyahat süresini en aza indiren rotayı bulmak olmalı. Yol tarifi ağında her bağlantının bir süresi (dakika cinsinden) var ve sen bu süreleri dikkate alarak, başlangıç durağından hedef durağa giden ve toplam seyahat süresini en aza indiren duraklar listesini döndürmelisin. Eğer rota yoksa None döndürmeye devam et. Mevcut yapıyı ve fonksiyon imzasını koru; routes/network.py dosyasını güncelle.
+
+setup: |
+  mkdir -p routes
+  cat > routes/network.py <<'PY'
+  def parse_network(text):
+      """Parse a network description into a dict of connections.
+
+      Format: each line is 'station1-station2:minutes'
+      Example: 'A-B:5' means A connects to B in 5 minutes.
+      """
+      connections = {}
+      for line in text.strip().splitlines():
+          if not line:
+              continue
+          route, time_str = line.split(':')
+          station_a, station_b = route.split('-')
+          time = int(time_str)
+          # Store both directions
+          connections.setdefault(station_a, []).append((station_b, time))
+          connections.setdefault(station_b, []).append((station_a, time))
+      return connections
+
+
+  def find_quickest_route(network_text, start, end):
+      """Find the quickest route between two stations.
+
+      Returns a list of station names from start to end, or None if no route exists.
+      """
+      graph = parse_network(network_text)
+
+      if start not in graph or end not in graph:
+          return None
+
+      # Simple BFS for shortest path (by number of hops, not time)
+      visited = {start}
+      queue = [(start, [start])]
+
+      while queue:
+          station, path = queue.pop(0)
+          if station == end:
+              return path
+          for neighbor, _ in graph[station]:
+              if neighbor not in visited:
+                  visited.add(neighbor)
+                  queue.append((neighbor, path + [neighbor]))
+
+      return None
+  PY
+
+goal_tr: >
+  routes/network.py icindeki find_quickest_route fonksiyonunu,
+  yol tarifi aginda toplam seyahat suresini en aza indiren rotayi dondurecek
+  sekilde duzelt (BFS yerine zaman-agirlikli en kisa yol kullan)
+
+reference_solution: |
+  cat > routes/network.py <<'PY'
+  def parse_network(text):
+      """Parse a network description into a dict of connections.
+
+      Format: each line is 'station1-station2:minutes'
+      Example: 'A-B:5' means A connects to B in 5 minutes.
+      """
+      connections = {}
+      for line in text.strip().splitlines():
+          if not line:
+              continue
+          route, time_str = line.split(':')
+          station_a, station_b = route.split('-')
+          time = int(time_str)
+          # Store both directions
+          connections.setdefault(station_a, []).append((station_b, time))
+          connections.setdefault(station_b, []).append((station_a, time))
+      return connections
+
+
+  def find_quickest_route(network_text, start, end):
+      """Find the quickest route between two stations.
+
+      Returns a list of station names from start to end, or None if no route exists.
+      """
+      graph = parse_network(network_text)
+
+      if start not in graph or end not in graph:
+          return None
+
+      # Dijkstra's algorithm for minimum total travel time
+      import heapq
+      distances = {start: 0}
+      previous = {start: None}
+      pq = [(0, start)]
+
+      while pq:
+          current_dist, station = heapq.heappop(pq)
+          if station == end:
+              break
+          if current_dist > distances.get(station, float('inf')):
+              continue
+          for neighbor, travel_time in graph[station]:
+              new_dist = current_dist + travel_time
+              if new_dist < distances.get(neighbor, float('inf')):
+                  distances[neighbor] = new_dist
+                  previous[neighbor] = station
+                  heapq.heappush(pq, (new_dist, neighbor))
+
+      if end not in distances:
+          return None
+
+      # Reconstruct path
+      path = []
+      current = end
+      while current is not None:
+          path.append(current)
+          current = previous[current]
+      path.reverse()
+      return path
+  PY
+
+outputs:
+  - {path: routes/network.py, kind: program, run: 'python3 -c ''import sys; sys.path.insert(0,"."); from routes.network import find_quickest_route as f; net="A-B:1\nB-C:1\nA-C:10"; r=f(net,"A","C"); assert r==["A","B","C"], r; net2="X-Y:5\nY-Z:5\nX-Z:15"; r2=f(net2,"X","Z"); assert r2==["X","Y","Z"], r2; assert f("A-B:3","A","C") is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import sys; sys.path.insert(0,"."); from routes.network import find_quickest_route as f; net="A-B:1\nB-C:1\nA-C:10"; r=f(net,"A","C"); assert r==["A","B","C"], r; net2="X-Y:5\nY-Z:5\nX-Z:15"; r2=f(net2,"X","Z"); assert r2==["X","Y","Z"], r2; assert f("A-B:3","A","C") is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0186
+    bundle: yarisma
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: yarisma
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: metin-ayristirma

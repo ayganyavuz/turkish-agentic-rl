@@ -1,0 +1,89 @@
+id: gen-k-0234-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  warehouse/stock.py dosyasındaki total_value fonksiyonunu düzelt. Bu fonksiyon, inventory.csv dosyasından yüklenen ürünlerin her birinin miktarını, prices sözlüğündeki fiyatıyla çarparak toplam değeri hesaplamalı. Ancak şu anda prices sözlüğünde olmayan bir ürün koduyla karşılaşıldığında fonksiyon hata veriyor. Fonksiyonu, prices sözlüğünde olmayan bir ürün koduyla karşılaşıldığında o ürünü 0 fiyatla sayacak şekilde düzelt; yani eksik fiyat bilgisi olan ürünler toplam değere katkı sağlamamalı. warehouse/stock.py dosyasındaki total_value fonksiyonunu bu şekilde güncelle.
+
+setup: |
+  mkdir -p warehouse
+  cat > warehouse/inventory.py <<'INV'
+  def load_inventory(lines):
+      inv = {}
+      for line in lines:
+          code, name, qty = line.split(',')
+          inv[code] = {'name': name, 'qty': int(qty)}
+      return inv
+  INV
+  cat > warehouse/stock.py <<'STOCK'
+  from warehouse.inventory import load_inventory
+
+
+  def total_value(inv_file, prices):
+      items = load_inventory(open(inv_file).read().splitlines())
+      total = 0
+      for code in items:
+          total += items[code]['qty'] * prices[code]
+      return total
+  STOCK
+  cat > inventory.csv <<'CSV'
+  A1,bolt,10
+  B2,nut,20
+  C3,screw,30
+  CSV
+  cat > prices.json <<'JSON'
+  {"A1": 0.5, "B2": 0.2, "C3": 0.1}
+  JSON
+
+goal_tr: >
+  warehouse/stock.py icindeki total_value fonksiyonunu, prices sozlugunde
+  olmayan bir urun koduyla karsilasildiginda o urunu 0 fiyatla sayacak
+  sekilde duzelt
+
+reference_solution: |
+  cat > warehouse/stock.py <<'STOCK'
+  from warehouse.inventory import load_inventory
+
+
+  def total_value(inv_file, prices):
+      items = load_inventory(open(inv_file).read().splitlines())
+      total = 0
+      for code in items:
+          total += items[code]['qty'] * prices.get(code, 0)
+      return total
+  STOCK
+
+outputs:
+  - {path: warehouse/stock.py, kind: program, run: 'python3 -c ''import json; from warehouse.stock import total_value; assert total_value("inventory.csv", json.load(open("prices.json"))) == 12.0; assert total_value("inventory.csv", dict(A1=0.5)) == 5.0; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import json; from warehouse.stock import total_value; assert total_value("inventory.csv", json.load(open("prices.json"))) == 12.0; assert total_value("inventory.csv", dict(A1=0.5)) == 5.0; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0234
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sozluk-anahtar-hatasi

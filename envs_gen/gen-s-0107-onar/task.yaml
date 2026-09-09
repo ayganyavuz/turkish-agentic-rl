@@ -1,0 +1,113 @@
+id: gen-s-0107-onar
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  gizli dizinindeki notlar.ini dosyasında bulunan kayıtları, ogrenciler.ini dosyasındaki bilgilerle karşılaştır. Her kayıttaki hatalı soyad alanlarını, ogrenciler.ini dosyasındaki doğru soyad değerleriyle düzelt. Ardından, düzeltilmiş her kayıt için "numara ad soyad puan" biçiminde satırlar içeren duzeltilmis_notlar.txt dosyasını oluştur.
+
+setup: |
+  mkdir -p gizli
+  cat > ogrenciler.ini <<'EOF'
+  [103]
+  ad=Ahmet
+  soyad=Yilmaz
+  [107]
+  ad=Mehmet
+  soyad=Demir
+  [112]
+  ad=Zeynep
+  soyad=Kaya
+  [118]
+  ad=Can
+  soyad=Polat
+  EOF
+  cat > gizli/notlar.ini <<'EOF'
+  [O1]
+  no=103
+  ad=Ahmet
+  soyad=Bozuk
+  puan=72
+  [O2]
+  no=107
+  ad=Mehmet
+  soyad=Hatali
+  puan=85
+  [O3]
+  no=112
+  ad=Zeynep
+  soyad=Yanlis
+  puan=90
+  [O4]
+  no=118
+  ad=Can
+  soyad=Eksik
+  puan=64
+  EOF
+
+goal_tr: >
+  gizli/notlar.ini icindeki kayitlari ogrenciler.ini ile capraz kontrol
+  ederek hatali soyad alanlarini dogru degerlerle onar ve her kayit icin
+  "numara ad soyad puan" satirlarini duzeltilmis_notlar.txt dosyasina yaz.
+
+reference_solution: |
+  python3 - <<'PY' > duzeltilmis_notlar.txt
+  import configparser, os
+
+  bulunan = None
+  for kok, _, dosyalar in os.walk('.'):
+      if 'notlar.ini' in dosyalar:
+          bulunan = os.path.join(kok, 'notlar.ini')
+          break
+  if bulunan is None:
+      raise SystemExit('notlar.ini bulunamadi')
+
+  dogru = configparser.ConfigParser()
+  dogru.read('ogrenciler.ini')
+  hatali = configparser.ConfigParser()
+  hatali.read(bulunan)
+
+  for bolum in hatali.sections():
+      no = hatali.get(bolum, 'no').strip()
+      puan = hatali.get(bolum, 'puan').strip()
+      ad = dogru.get(no, 'ad').strip()
+      soyad = dogru.get(no, 'soyad').strip()
+      print(no + ' ' + ad + ' ' + soyad + ' ' + puan)
+  PY
+  python3 - <<'PY'
+  satirlar = open('duzeltilmis_notlar.txt').read().splitlines()
+  satirlar.sort(key=lambda x: int(x.split()[0]))
+  open('duzeltilmis_notlar.txt', 'w').write('\n'.join(satirlar) + '\n')
+  PY
+
+outputs:
+  - {path: duzeltilmis_notlar.txt, kind: lines}
+
+checks:
+  - {op: file_lines_eq, path: duzeltilmis_notlar.txt, value: [103 Ahmet Yilmaz 72, 107 Mehmet Demir 85, 112 Zeynep Kaya 90, 118 Can Polat 64]}
+
+metadata:
+  domain: onar
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0107
+    bundle: python-veri
+    tools:
+    - python3
+    konu: ogrenci-notlari
+    hedef: onar
+    girdi: ini
+    kaynak: iki-dosya-capraz
+    cikti: satir-listesi
+    kesif: dosyayi-bul
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: yok
+    adim: 2
+    image: verifiable-dataset/base:latest
+    metadata: {}
