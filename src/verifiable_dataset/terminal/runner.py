@@ -57,10 +57,16 @@ _TAG_RE = re.compile(r"<komut>\s*(.*?)\s*</komut>", re.DOTALL | re.IGNORECASE)
 # basit bir toplama icin bile 200 token'i asiyor.
 MAX_TOKENS = int(os.environ.get("VDS_MAX_TOKENS", "2048"))
 
-# Degerlendirmede 0 kullaniliyor: epoch'lar arasi farkin ornekleme
-# gurultusu degil model degisimi oldugunu soyleyebilmek icin cozum
-# deterministik olmali. Egitim rollout'larinda varsayilan 0.7 kaliyor.
-TEMPERATURE = float(os.environ.get("VDS_TEMPERATURE", "0.7"))
+def sicaklik() -> float:
+    """Ortamdan CAGRI aninda okunur.
+
+    Modul seviyesinde sabitlenmisti ve pipeline runner'i import ettikten
+    SONRA degiskeni set ettigi icin --sicaklik 0 hicbir zaman etki
+    etmiyordu: butun degerlendirmeler 0.7'de kostu, yani deterministik
+    sanilan olcumler rastgele orneklerdi. Ayni model iki kosuda 5/54 ve
+    13/54 verdi.
+    """
+    return float(os.environ.get("VDS_TEMPERATURE", "0.7"))
 _FENCE_RE = re.compile(r"```(?:bash|sh|shell)?\s*\n(.*?)```", re.DOTALL)
 
 
@@ -220,7 +226,7 @@ def run_model_text(task: Task, client, model: str, verbose: bool = True) -> Epis
         for turns in range(1, task.max_turns + 1):
             try:
                 response = client.chat.completions.create(
-                    model=model, messages=messages, temperature=TEMPERATURE,
+                    model=model, messages=messages, temperature=sicaklik(),
                     max_tokens=MAX_TOKENS,
                 )
             except Exception as e:  # noqa: BLE001 - surface API failures as episode errors
