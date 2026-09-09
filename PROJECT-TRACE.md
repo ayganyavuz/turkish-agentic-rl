@@ -437,3 +437,69 @@ Alinan onlemler:
 
 Colab oturumu kalici degil; bunu varsayan her sey (kurulum, cache, cikti)
 yeniden uretilebilir ya da Drive'da olmali.
+
+---
+
+## Bolum 5 — GRPO egitimi basladi (2026-09-09)
+
+### Kurulum (runtime kaybindan sonra yeniden)
+Colab runtime'i yeniden atandi ve her sey silindi. Ikinci kurulumda
+**once Drive baglandi**; egitim ciktisi ve log'u
+`MyDrive/turkish-agentic-rl/` altina yaziliyor.
+
+Calisan bilesim: `vllm 0.27.1` + `trl 1.12.0` + `torch 2.13.0+cu130` +
+`transformers 5.16.1`, `torchaudio` kaldirilmis.
+
+### Egitim yapilandirmasi
+| | |
+|---|---|
+| Model | Qwen/Qwen3.5-4B, full fine-tune, `adamw_bnb_8bit` |
+| Korpus | **173 gorev** (train split: 115 kabuk + 58 kod) |
+| G (rollout/grup) | 8 |
+| Iterasyon basina prompt | 4 → 32 episode |
+| Mikro batch | 2 (logit tensoru yuzunden), biriktirme 16 |
+| Odul | ikili |
+| Dusunme | acik |
+| KL (`beta`) | 0 |
+| lr | 1e-6 |
+| vLLM | colocate + **uyku modu**, bellek 0.45, baglam 8192 |
+
+Kabuk gorevlerinin bandi olculmemis olmasina ragmen egitime dahil edildi:
+GRPO kendini duzeltiyor -- bir grubun butun rollout'lari ayni sonucu
+verirse avantaj sifir olur ve o prompt gradyan uretmez.
+
+### Ilk 5 adim
+
+| Adim | reward | zero_std | clipped | mean_len | call_freq | entropy | sure |
+|---|---|---|---|---|---|---|---|
+| 1 | 0.344 | 0.25 | 0.59 | 1379 | 7.13 | 0.569 | 205 |
+| 2 | 0.094 | 0.75 | 0.25 | 1152 | 7.31 | 0.621 | 302 |
+| 3 | 0.125 | 0.50 | 0.41 | 1238 | 5.88 | 0.706 | 221 |
+| 4 | 0.719 | 0.75 | 0.19 | 1054 | 5.63 | 0.530 | 227 |
+| 5 | 0.063 | 0.75 | 0.44 | 1234 | 5.75 | 0.732 | 219 |
+
+**Sistem calisiyor**: odul sifir degil, grup ici varyans var, arac cagrisi
+sikligi ~6-7 (gercekten cok turlu), arac hata orani %1.8.
+
+**Odul egrisinden ogrenme okunamaz.** Adim basina yalnizca 4 prompt
+cekiliyor (173 icinden), yani odul buyuk olcude "hangi dortlu geldi"
+sorusunun cevabi. 0.34 / 0.09 / 0.13 / 0.72 / 0.06 salinimi bunun sonucu.
+Anlamli bir egim icin en az 8-10 adim gerekiyor; asil olcut held-out.
+
+Uc adimlik entropi tirmanisi (0.569 → 0.706) 4. adimda 0.530'a dondu --
+erken yorumdu, `beta` onerisi geri cekildi.
+
+Gercek trend gosteren tek metrik **kesilme orani**: 0.59 → 0.25 → 0.41 →
+0.19 ve ortalama uzunluk 1379 → 1054. Model daha derli toplu cozumler
+uretiyor olabilir.
+
+### Sure sorunu (cozulmedi)
+Adim ~235 sn, epoch 43 adim → **~2.9 saat/epoch**. 5 epoch 14.5 saat,
+Colab'in ~12 saatlik oturumuna sigmiyor. Secenekler: `--max-komut` 12→8,
+`--rollouts` 8→6, epoch sayisini dusurmek, ya da dusunmeyi kapatmak.
+Karar ertelendi; once trendi gormek gerekiyor.
+
+### Checkpoint riski
+`save_steps=20`, yani ilk checkpoint 20. adimda (~80 dk). O ana kadar
+kopma olursa is bastan baslar. Adim basina kaydetmek pratik degil:
+4B checkpoint ~8 GB ve Drive'a yazmak 8-13 dk suruyor.
