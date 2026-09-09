@@ -8,7 +8,7 @@ Her epoch su sirayla ilerliyor:
     1) SWEEP   -- o anki modelle train split'ine G=8 rollout
     2) MUFREDAT-- 1..7 cozen gorevler secilir (0/8 ve 8/8 disarida)
     3) EGITIM  -- yalnizca o listeyle 1 epoch
-    4) EVAL    -- held-out, sicaklik 0, tek rollout
+    4) EVAL    -- held-out, sweep ile ayni sekilde: N rollout, pass-rate
     5) checkpoint bir sonraki epoch'un modeli olur
 
 Mufredat neden her epoch yeniden olculuyor: bir grubun butun rollout'lari
@@ -16,6 +16,11 @@ ayni sonucu verirse GRPO'da avantaj sifir olur, yani 0/8 ve 8/8 gorevler
 gradyan uretmez. Model degistikce hangi gorevin hangi bantta oldugu da
 degisiyor -- bir kez olcup sabitlemek, birkac epoch sonra compute'un
 cogunu olu gorevlere harcamak demek.
+
+Held-out neden sweep gibi olculuyor: tek rollout'la "cozdu mu" sorusu cok
+gurultuluydu -- ayni taban model ayni 54 kabuk gorevinde bir kosuda 5,
+digerinde 13 cozdu. Bu fark, epoch'lar arasinda aradigimiz farktan buyuk.
+N rollout'un pass-rate ortalamasi ayni butceyle cok daha kararli.
 
 Sweep, egitim ve eval ayri sureclerde kosuyor: uc asama da GPU'nun
 tamamini istiyor ve ayni surecte sirayla yapmak vLLM ile egiticinin
