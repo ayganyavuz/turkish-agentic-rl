@@ -272,6 +272,10 @@ def asama_bant(client, model: str, args, durum: HatDurumu) -> None:
     olculen zorluk, egitimde gorulecek zorluk degildir.
     """
     hedef = durum.gecen or _task_dizinleri(Path(args.out))
+    hedef = _split_suzgeci(hedef, args.split, args.bolum)
+    if not hedef:
+        print("olculecek task kalmadi (split suzgeci hepsini eledi)")
+        return
     print(f"\n=== ASAMA bant  ({len(hedef)} task x {args.rollouts} rollout) ===\n")
     # Episode'lar birbirinden bagimsiz. Sirali kosmak sunucuyu bos
     # birakiyordu: 80 gorev x 8 rollout x ~5 tur = 3200 ardisik istek.
