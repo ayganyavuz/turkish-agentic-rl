@@ -51,6 +51,11 @@ Gorev:
 _RAW_TOOLCALL_RE = re.compile(r"<tool_call>|<function=|\"name\"\s*:\s*\"run_command\"")
 
 _TAG_RE = re.compile(r"<komut>\s*(.*?)\s*</komut>", re.DOTALL | re.IGNORECASE)
+
+# Dusunen modellerde 1024 yetmiyor: model daha muhakemesini bitirmeden
+# kesiliyor, komut uretemiyor ve episode bos bir turla ilerliyor. Qwen3.5
+# basit bir toplama icin bile 200 token'i asiyor.
+MAX_TOKENS = int(os.environ.get("VDS_MAX_TOKENS", "2048"))
 _FENCE_RE = re.compile(r"```(?:bash|sh|shell)?\s*\n(.*?)```", re.DOTALL)
 
 
@@ -210,7 +215,8 @@ def run_model_text(task: Task, client, model: str, verbose: bool = True) -> Epis
         for turns in range(1, task.max_turns + 1):
             try:
                 response = client.chat.completions.create(
-                    model=model, messages=messages, temperature=0.7, max_tokens=1024,
+                    model=model, messages=messages, temperature=0.7,
+                    max_tokens=MAX_TOKENS,
                 )
             except Exception as e:  # noqa: BLE001 - surface API failures as episode errors
                 error = f"model cagrisi basarisiz: {e}"

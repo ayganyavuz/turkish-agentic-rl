@@ -247,3 +247,106 @@ Yatirilan $2 yeterli.
 **163 task**, prompt'u bos olan yok, yeni 9'un dokuzu da tam gauntlet'ten gecti.
 En cok tetiklenen kapi: `arac uygunlugu` (model seed'in verdigi araci
 kullanmadan cozuyor, onarim turunda duzeliyor).
+
+---
+
+## Bolum 3 — Kod ailesi, Docker'siz sandbox, dondurulmus split (2026-09-09)
+
+### Kod ailesi -- SWE-bench'e yaklasma
+Korpus yalnizca Turkce kabuk gorevlerinden olusuyordu; olcmek istedigimiz
+ajanik kodlamaya uzakti (Bolum 1'deki B1 riski). `seeds.py`'a ikinci bir
+seed ailesi eklendi (`aile: "kod"`, varsayilan `"kabuk"` oldugu icin eski
+task.yaml'lar aynen yukleniyor):
+
+| Hedef | Pay | Ajanin isi |
+|---|---|---|
+| `hata-bul` | %40 | 2-3 modulun birinde SESSIZ hatayi bul ve duzelt (hep cok dosyali) |
+| `veri-yapisi` | %30 | Iskeleti (her metot `raise NotImplementedError`) gerceklestir |
+| `yarisma` | %30 | Hedef .py'yi sifirdan yaz (SETUP onu hic olusturmaz) |
+
+Cesitlilik eksenleri: **11 hata tipi**, 10 algoritmik kalip, 10 veri yapisi,
+zorluk (kolay/orta/zor). Talimat "bu yonde, ayrintiyi sen sec" diyor --
+cesitliligin bir kismi bilincli olarak uretici modele birakildi.
+`hata-bul` her zaman, digerleri %70 cok dosyali.
+
+**Dogrulama**: `kind: program` + `run:`. Test **task.yaml icinde satir ici**
+tasiniyor, calisma dizininden okunmuyor -- ajan dosya sistemini degistirerek
+odulunu yukseltemiyor.
+
+**Kapi degisikligi**: `arac uygunlugu` kod ailesinde atlaniyor. Referans
+cozum `python3`'u komut konumunda cagirmiyor (heredoc ile dosya yaziyor),
+kural oldugu gibi birakilsa her aday haksiz yere duserdi.
+
+**derive.py**: `run` hicbir sey basmiyorsa net uyari. Bu gercek bir acikti --
+bos stdout her dunyada esit oldugu icin check bozuk dunya ile dogruyu ayirt
+edemiyordu.
+
+### Kabul orani ve talimat turlari
+1/6 -> 2/6 -> 3/8 -> **81/200 (%40)**. Yukselten sey soyut ilke degil
+mekanik tarif oldu (ornegin "SETUP hedef dosyayi HIC olusturmaz").
+Hedef bazinda: `veri-yapisi` %57, `hata-bul` %40, `yarisma` %31.
+Kabul edilen gorev basina ~$0.009 (kabuk ailesinde ~$0.002).
+
+### Karantinadan cikan iki kusur (kod okunarak bulundu, API'ye para vermeden)
+1. **Mutlak `/workspace` yolu** -- Docker'da calisir, LocalSandbox'ta calismaz.
+   Korpusta **18 gorev** (8 elle yazilmis dahil) goreli yola cevrildi; 19
+   gorev iki modda da ayni sonucu veriyor.
+2. **Test verisi calisma dizinindeki bir `.py`'dan okunuyor**
+   (`from test_data import CART`) -- ajan o dosyayi degistirip odulu
+   kandirabilir. Korpus tarandi: **1 gorev** (`gen-k-0139`) karantinaya alindi.
+
+Ikisi icin de talimata kural eklendi (kural 12 ve 13).
+
+### `LocalSandbox` -- Colab'de Docker yok
+`sandbox.py`'a DockerSandbox ile **birebir ayni arayuze** sahip yerel
+sandbox. Dogrulanan semantik: `cd` ve `export` turlar arasi tasinmiyor
+(docker exec ile ayni), zaman asimi 124, tehlikeli komut reddi 126,
+`snapshot()` calisiyor.
+
+**Izolasyon yok** -- bu kodun basina acikca yazildi. Ucuz korumalar:
+yikici komut deseni reddi, per-komut timeout, HOME/TMPDIR kok dizinde.
+
+`checks.py`: `run_stdout_eq` imaj adi bosken host'ta kosuyor. Bu sartti --
+kod ailesinin TUM dogrulamasi bu check'ten geciyor.
+
+`task.py`: `make_sandbox()` moda gore seciyor; butun cagri noktalari
+oradan gectigi icin mod tek yerden ayarlaniyor (`sandbox.yerel_kullan`).
+`--sandbox {docker,yerel}` bayragi sweep, gates ve pipeline'a eklendi.
+`uret`/`kapi` asamalari yerel modda reddediliyor (kapilar konteyner aciyor).
+
+`pipeline.py` bant asamasi **paralellestirildi**: 80 gorev x 8 rollout x
+~5 tur = 3200 ardisik istek sunucuyu bos birakiyordu.
+
+### Referans sagligi (Docker, modelsiz)
+- kabuk: **171/175** (dusenler: gen-s-0001-donustur, gen-s-0059-arsivle,
+  gen-s-0063-bol, gen-s-0085-donustur)
+- kod: **80/80**
+
+Yerel modda (Windows/Git Bash) 154/175 -- aradaki 17 fark Git Bash'in GNU
+arac farklari. **Yerel/Docker esdegerligi Linux'ta yeniden olculmeli**;
+Windows'taki karsilastirma yaniltici.
+
+### Dondurulmus split -- `data/split.json`
+| | Gorev |
+|---|---|
+| train | **173** (kabuk 115, kod 58) |
+| held-out | **78** (kabuk 53, kod 25) |
+| dislanan | 4 (referansi gecmiyor) |
+
+`(aile, hedef)` tabakalamasi: her tabakada held-out payi %27-40, toplam %31.
+Duz rastgele bolme held-out'a orantisiz sayida `yarisma` dusurebilirdi.
+Dosya `tohum=1234` ile muhurlu, `--force` olmadan uzerine yazilmiyor --
+held-out ancak ayni kume kaldigi surece epoch'lar arasi anlam tasir.
+
+### Colab durumu (Faz 0)
+| | |
+|---|---|
+| GPU | **A100-SXM4-80GB** teyit edildi |
+| Makine | 12 CPU, 167 GB RAM, 189 GB disk, Linux 6.6 |
+| Docker | yok (beklendigi gibi) |
+| Paketler | vllm 0.29.0, trl 1.12.0, torch 2.13.0+cu130 |
+| Model | **`Qwen/Qwen3.5-4B` gercekten var** (9.3 GB, `-Base` ayri repo) |
+| LocalSandbox | Colab'de calisiyor |
+
+**Uretim Colab'e tasinmiyor** -- Docker'li lokal makinede kaliyor. Colab
+yalnizca egitim, bant olcumu ve degerlendirme icin.
