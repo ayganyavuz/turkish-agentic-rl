@@ -106,7 +106,11 @@ def main() -> int:
     ap.add_argument("--korpuslar", nargs="*", default=["envs_gen_code", "envs_gen"],
                     help="kod ve kabuk birlikte")
     ap.add_argument("--split", default="data/split.json")
-    ap.add_argument("--rollouts", type=int, default=8)
+    ap.add_argument("--rollouts", type=int, default=8,
+                    help="hem mufredat sweep'inde hem held-out olcumunde")
+    ap.add_argument("--sicaklik", type=float, default=1.0,
+                    help="sweep ve eval ayni sicaklikta olmali; egitim "
+                         "rollout'lariyla da ayni ki bant gercek zorlugu olssun")
     ap.add_argument("--prompt-batch", type=int, default=4)
     ap.add_argument("--micro-batch", type=int, default=2)
     ap.add_argument("--max-komut", type=int, default=12)
@@ -150,28 +154,41 @@ def main() -> int:
         return ciktilar
 
     def ozet(dosyalar: list[Path], baslik: str) -> None:
-        toplam = cozulen = 0
+        """Tek rollout'un 'cozdu mu'su cok gurultuluydu -- ayni model ayni
+        gorevlerde 5/54 ve 13/54 verebiliyordu. N rollout'un pass-rate
+        ortalamasi ayni butceyle cok daha kararli bir tahmin."""
+        t_gorev = 0
+        t_oran = 0.0
         for d in dosyalar:
             if not d.exists():
                 continue
-            kayitlar = [json.loads(s) for s in d.read_text(encoding="utf-8").splitlines() if s.strip()]
-            c = sum(1 for k in kayitlar if k.get("solved"))
-            print(f"    {d.name:44} {c:3}/{len(kayitlar):3}", flush=True)
-            toplam += len(kayitlar); cozulen += c
-        if toplam:
-            print(f"    {baslik}: {cozulen}/{toplam} = {cozulen/toplam*100:.1f}%", flush=True)
+            kayitlar = [json.loads(s) for s in d.read_text(encoding="utf-8").splitlines()
+                        if s.strip()]
+            if not kayitlar:
+                continue
+            oran = sum(k.get("pass_rate", 0.0) for k in kayitlar) / len(kayitlar)
+            hic = sum(1 for k in kayitlar if k.get("solved", 0) > 0)
+            print(f"    {d.name:46} pass@{kayitlar[0].get('rollouts', '?')}="
+                  f"{oran*100:5.1f}%   en az bir kez cozulen: {hic}/{len(kayitlar)}",
+                  flush=True)
+            t_gorev += len(kayitlar)
+            t_oran += oran * len(kayitlar)
+        if t_gorev:
+            print(f"    {baslik}: ortalama pass-rate = {t_oran/t_gorev*100:.1f}% "
+                  f"({t_gorev} gorev)", flush=True)
 
     model = args.taban_model
     if not args.atla_baseline:
         print("\n" + "=" * 70 + "\nEPOCH 0 -- BASELINE (held-out)\n" + "=" * 70, flush=True)
-        ozet(olc(model, "holdout", "epoch0", 1, 0.0), "baseline held-out")
+        ozet(olc(model, "holdout", "epoch0", args.rollouts, args.sicaklik),
+             "baseline held-out")
 
     for epoch in range(1, args.epoch + 1):
         print("\n" + "=" * 70 + f"\nEPOCH {epoch}\n" + "=" * 70, flush=True)
 
         # 1) mufredat olcumu -- o anki modelle, egitim bolumunde
         print(f"\n[{epoch}] SWEEP (train, G={args.rollouts})", flush=True)
-        bantlar = olc(model, "train", f"sweep{epoch}", args.rollouts, -1.0)
+        bantlar = olc(model, "train", f"sweep{epoch}", args.rollouts, args.sicaklik)
 
         liste = K / "mufredat" / f"epoch{epoch}.txt"
         n, sayac = mufredat_yaz(bantlar, liste)
@@ -200,7 +217,8 @@ def main() -> int:
 
         # 3) held-out degerlendirmesi
         print(f"\n[{epoch}] EVAL (held-out)", flush=True)
-        ozet(olc(str(cikti), "holdout", f"epoch{epoch}", 1, 0.0), f"epoch{epoch} held-out")
+        ozet(olc(str(cikti), "holdout", f"epoch{epoch}", args.rollouts, args.sicaklik),
+             f"epoch{epoch} held-out")
 
         model = str(cikti)   # sonraki epoch buradan devam eder
 
