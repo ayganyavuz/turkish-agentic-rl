@@ -1,0 +1,212 @@
+"""Epoch dongusu: her epoch basinda mufredati yeniden olc, egit, degerlendir.
+
+    python -u -m verifiable_dataset.terminal.dongu --epoch 5 \
+        --kalici /content/drive/MyDrive/turkish-agentic-rl
+
+Her epoch su sirayla ilerliyor:
+
+    1) SWEEP   -- o anki modelle train split'ine G=8 rollout
+    2) MUFREDAT-- 1..7 cozen gorevler secilir (0/8 ve 8/8 disarida)
+    3) EGITIM  -- yalnizca o listeyle 1 epoch
+    4) EVAL    -- held-out, sicaklik 0, tek rollout
+    5) checkpoint bir sonraki epoch'un modeli olur
+
+Mufredat neden her epoch yeniden olculuyor: bir grubun butun rollout'lari
+ayni sonucu verirse GRPO'da avantaj sifir olur, yani 0/8 ve 8/8 gorevler
+gradyan uretmez. Model degistikce hangi gorevin hangi bantta oldugu da
+degisiyor -- bir kez olcup sabitlemek, birkac epoch sonra compute'un
+cogunu olu gorevlere harcamak demek.
+
+Sweep, egitim ve eval ayri sureclerde kosuyor: uc asama da GPU'nun
+tamamini istiyor ve ayni surecte sirayla yapmak vLLM ile egiticinin
+bellek zirvelerini ust uste bindiriyor.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+BANT_ALT, BANT_UST = 1, 7      # 8 rollout'ta kac tanesi cozerse egitici sayilir
+
+
+def kos(cmd: str, cwd: str | None = None, env: dict | None = None) -> int:
+    print(f"  $ {cmd[:150]}", flush=True)
+    return subprocess.run(cmd, shell=True, cwd=cwd, env=env).returncode
+
+
+def vllm_baslat(model: str, log: str, baglam: int = 16384,
+                bekle: int = 1500) -> bool:
+    """Modeli 'degerlendirme' adiyla servis et; ad sabit kalsin ki
+    komut satirlari epoch'lar arasinda degismesin."""
+    subprocess.run("pkill -f 'vllm serve'", shell=True)
+    time.sleep(10)
+    subprocess.run(
+        f"nohup vllm serve {model} --served-model-name degerlendirme "
+        f"--port 8000 --max-model-len {baglam} --gpu-memory-utilization 0.85 "
+        f"--enable-prefix-caching > {log} 2>&1 &", shell=True)
+    t0 = time.time()
+    while time.time() - t0 < bekle:
+        try:
+            urllib.request.urlopen("http://localhost:8000/v1/models", timeout=3)
+            print(f"  vllm hazir ({time.time() - t0:.0f} sn)", flush=True)
+            return True
+        except Exception:  # noqa: BLE001
+            time.sleep(10)
+    print(f"  vllm ZAMAN ASIMI -- {log}", flush=True)
+    return False
+
+
+def vllm_durdur() -> None:
+    subprocess.run("pkill -f 'vllm serve'", shell=True)
+    time.sleep(10)
+
+
+def mufredat_yaz(bant_dosyalari: list[Path], hedef: Path) -> tuple[int, dict]:
+    """Bant kayitlarindan 1..7 cozen gorevleri sec ve dosyaya yaz."""
+    secilen: list[str] = []
+    sayac = {"olu-zor": 0, "olu-kolay": 0, "bant": 0}
+    for dosya in bant_dosyalari:
+        if not dosya.exists():
+            continue
+        for satir in dosya.read_text(encoding="utf-8").splitlines():
+            if not satir.strip():
+                continue
+            k = json.loads(satir)
+            cozulen = k.get("solved", 0)
+            if cozulen <= 0:
+                sayac["olu-zor"] += 1
+            elif cozulen >= k.get("rollouts", 8):
+                sayac["olu-kolay"] += 1
+            else:
+                sayac["bant"] += 1
+                secilen.append(k["task_dir"])
+    hedef.parent.mkdir(parents=True, exist_ok=True)
+    hedef.write_text("\n".join(sorted(secilen)) + "\n", encoding="utf-8")
+    return len(secilen), sayac
+
+
+def main() -> int:
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
+
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--taban-model", default="Qwen/Qwen3.5-4B",
+                    help="epoch 1'in baslangic modeli")
+    ap.add_argument("--epoch", type=int, default=5)
+    ap.add_argument("--kalici", default="/content/drive/MyDrive/turkish-agentic-rl",
+                    help="checkpoint, olcum ve loglarin yazilacagi kalici dizin")
+    ap.add_argument("--korpuslar", nargs="*", default=["envs_gen_code", "envs_gen"],
+                    help="kod ve kabuk birlikte")
+    ap.add_argument("--split", default="data/split.json")
+    ap.add_argument("--rollouts", type=int, default=8)
+    ap.add_argument("--prompt-batch", type=int, default=4)
+    ap.add_argument("--micro-batch", type=int, default=2)
+    ap.add_argument("--max-komut", type=int, default=12)
+    ap.add_argument("--max-completion", type=int, default=6144)
+    ap.add_argument("--vllm-baglam", type=int, default=16384)
+    ap.add_argument("--concurrency", type=int, default=24)
+    ap.add_argument("--lr", type=float, default=1e-6)
+    ap.add_argument("--atla-baseline", action="store_true",
+                    help="epoch 0 held-out olcumunu atla")
+    args = ap.parse_args()
+
+    repo = Path(__file__).resolve().parents[3]
+    K = Path(args.kalici)
+    (K / "olcumler").mkdir(parents=True, exist_ok=True)
+    (K / "mufredat").mkdir(parents=True, exist_ok=True)
+    ortam = dict(os.environ, PYTHONPATH=str(repo / "src"),
+                 TRL_EXPERIMENTAL_SILENCE="1",
+                 PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True")
+
+    def olc(model_yolu: str, bolum: str, etiket: str, rollouts: int,
+            sicaklik: float) -> list[Path]:
+        """Bir modeli bir split bolumunde olc; her korpus icin ayri jsonl."""
+        ciktilar = []
+        if not vllm_baslat(model_yolu, f"{K}/vllm-{etiket}.log", args.vllm_baglam):
+            return ciktilar
+        for korpus in args.korpuslar:
+            cikti = K / "olcumler" / f"{bolum}-{etiket}-{korpus}.jsonl"
+            kos(
+                "python -u -m verifiable_dataset.terminal.pipeline "
+                f"--asamalar bant --sandbox yerel --out {korpus} "
+                "--model degerlendirme --base-url http://localhost:8000/v1 "
+                f"--split {args.split} --bolum {bolum} "
+                f"--rollouts {rollouts} --sicaklik {sicaklik} "
+                f"--concurrency {args.concurrency} --protocol text "
+                '--reasoning-effort "" '
+                f"--bant-out {cikti} "
+                f"> {K}/log-{etiket}-{korpus}.txt 2>&1",
+                cwd=str(repo), env=ortam)
+            ciktilar.append(cikti)
+        vllm_durdur()
+        return ciktilar
+
+    def ozet(dosyalar: list[Path], baslik: str) -> None:
+        toplam = cozulen = 0
+        for d in dosyalar:
+            if not d.exists():
+                continue
+            kayitlar = [json.loads(s) for s in d.read_text(encoding="utf-8").splitlines() if s.strip()]
+            c = sum(1 for k in kayitlar if k.get("solved"))
+            print(f"    {d.name:44} {c:3}/{len(kayitlar):3}", flush=True)
+            toplam += len(kayitlar); cozulen += c
+        if toplam:
+            print(f"    {baslik}: {cozulen}/{toplam} = {cozulen/toplam*100:.1f}%", flush=True)
+
+    model = args.taban_model
+    if not args.atla_baseline:
+        print("\n" + "=" * 70 + "\nEPOCH 0 -- BASELINE (held-out)\n" + "=" * 70, flush=True)
+        ozet(olc(model, "holdout", "epoch0", 1, 0.0), "baseline held-out")
+
+    for epoch in range(1, args.epoch + 1):
+        print("\n" + "=" * 70 + f"\nEPOCH {epoch}\n" + "=" * 70, flush=True)
+
+        # 1) mufredat olcumu -- o anki modelle, egitim bolumunde
+        print(f"\n[{epoch}] SWEEP (train, G={args.rollouts})", flush=True)
+        bantlar = olc(model, "train", f"sweep{epoch}", args.rollouts, -1.0)
+
+        liste = K / "mufredat" / f"epoch{epoch}.txt"
+        n, sayac = mufredat_yaz(bantlar, liste)
+        print(f"\n[{epoch}] MUFREDAT: {n} gorev  "
+              f"(bant={sayac['bant']}, olu-zor={sayac['olu-zor']}, "
+              f"olu-kolay={sayac['olu-kolay']})", flush=True)
+        if n == 0:
+            print("bantta gorev kalmadi -- dongu duruyor", flush=True)
+            return 1
+
+        # 2) egitim
+        cikti = K / "ciktilar" / f"epoch{epoch}"
+        print(f"\n[{epoch}] EGITIM -> {cikti}", flush=True)
+        rc = kos(
+            "python -u -m verifiable_dataset.terminal.train_grpo "
+            f"--model {model} --gorevler {liste} --sandbox yerel "
+            f"--rollouts {args.rollouts} --prompt-batch {args.prompt_batch} "
+            f"--micro-batch {args.micro_batch} --epoch 1 --lr {args.lr} "
+            f"--max-komut {args.max_komut} --max-completion {args.max_completion} "
+            f"--vllm-baglam {args.vllm_baglam} --vllm-bellek 0.45 "
+            f"--cikti {cikti} > {K}/train-epoch{epoch}.log 2>&1",
+            cwd=str(repo), env=ortam)
+        if rc != 0 or not (cikti / "config.json").exists():
+            print(f"egitim basarisiz (rc={rc}) -- {K}/train-epoch{epoch}.log", flush=True)
+            return 1
+
+        # 3) held-out degerlendirmesi
+        print(f"\n[{epoch}] EVAL (held-out)", flush=True)
+        ozet(olc(str(cikti), "holdout", f"epoch{epoch}", 1, 0.0), f"epoch{epoch} held-out")
+
+        model = str(cikti)   # sonraki epoch buradan devam eder
+
+    print("\nDONGU BITTI", flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

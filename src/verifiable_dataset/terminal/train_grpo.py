@@ -117,14 +117,38 @@ SISTEM = (
 )
 
 
-def veri_kumesi(split_yolu: Path, bolum: str, aile: str, repo_kok: Path):
-    """split.json'dan HF Dataset kur.
+def veri_kumesi(split_yolu: Path, bolum: str, aile: str, repo_kok: Path,
+                gorev_listesi: str = ""):
+    """Egitim kumesini kur.
+
+    `gorev_listesi` verilirse split yerine o dosyadaki task dizinleri
+    kullanilir -- mufredat her epoch basinda yeniden olculdugu icin
+    egitilecek gorevler dosyadan geliyor.
 
     `task_dir` satirla birlikte reset()'e gecirilecek; TRL satirin tamamini
     forward ediyor.
     """
     from datasets import Dataset
     import yaml
+
+    if gorev_listesi:
+        yollar = [l.strip() for l in Path(gorev_listesi).read_text(encoding="utf-8").splitlines()
+                  if l.strip() and not l.startswith("#")]
+        satirlar = []
+        for yol in yollar:
+            d = Path(yol)
+            if not d.is_absolute():
+                d = repo_kok / yol
+            spec = yaml.safe_load((d / "task.yaml").read_text(encoding="utf-8"))
+            satirlar.append({
+                "prompt": [{"role": "system", "content": SISTEM},
+                           {"role": "user", "content": spec["prompt"]}],
+                "task_dir": str(d),
+                "task_id": spec.get("id", d.name),
+            })
+        if not satirlar:
+            raise SystemExit(f"{gorev_listesi} bos")
+        return Dataset.from_list(satirlar)
 
     split = json.loads(split_yolu.read_text(encoding="utf-8"))
     satirlar = []
@@ -153,7 +177,11 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--model", default="Qwen/Qwen3.5-4B")
     ap.add_argument("--split", default="data/split.json")
-    ap.add_argument("--aile", default="kod", choices=["kod", "kabuk", "hepsi"])
+    ap.add_argument("--aile", default="hepsi", choices=["kod", "kabuk", "hepsi"])
+    ap.add_argument("--gorevler", default="",
+                    help="egitilecek task dizinlerini iceren dosya (satir basina bir yol). "
+                         "Verilirse split yerine bu kullanilir -- mufredat her epoch "
+                         "basinda yeniden olculdugu icin.")
     ap.add_argument("--cikti", default="/content/ciktilar/grpo")
     ap.add_argument("--rollouts", type=int, default=8, help="G -- grup basina rollout")
     ap.add_argument("--prompt-batch", type=int, default=4,
@@ -212,8 +240,9 @@ def main() -> int:
 
     split_yolu = Path(args.split)
     repo_kok = split_yolu.resolve().parent.parent
-    egitim = veri_kumesi(split_yolu, "train", args.aile, repo_kok)
-    print(f"egitim kumesi: {len(egitim)} gorev  (aile={args.aile})")
+    egitim = veri_kumesi(split_yolu, "train", args.aile, repo_kok, args.gorevler)
+    kaynak = args.gorevler or f"split/{args.aile}"
+    print(f"egitim kumesi: {len(egitim)} gorev  (kaynak={kaynak})")
 
     cfg = GRPOConfig(
         output_dir=args.cikti,
