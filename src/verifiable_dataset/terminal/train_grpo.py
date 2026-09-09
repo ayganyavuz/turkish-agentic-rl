@@ -168,7 +168,11 @@ def main() -> int:
     ap.add_argument("--max-komut", type=int, default=12)
     ap.add_argument("--max-completion", type=int, default=2048)
     ap.add_argument("--sandbox", choices=["docker", "yerel"], default="yerel")
-    ap.add_argument("--vllm-bellek", type=float, default=0.30)
+    ap.add_argument("--vllm-bellek", type=float, default=0.45)
+    ap.add_argument("--vllm-uyku", action="store_true", default=True,
+                    help="uretim disinda vLLM bellegi biraksin (colocate'te sart)")
+    ap.add_argument("--vllm-baglam", type=int, default=8192,
+                    help="vLLM baglam siniri -- KV cache bunun kadar yer kapliyor")
     ap.add_argument("--wandb", default="", help="wandb proje adi (bos = kapali)")
     args = ap.parse_args()
 
@@ -216,6 +220,11 @@ def main() -> int:
         use_vllm=True,
         vllm_mode="colocate",
         vllm_gpu_memory_utilization=args.vllm_bellek,
+        # Colocate'te egitici (~40 GB) ile vLLM'in zirveleri ust uste
+        # binince 80 GB yetmiyor. Uyku modunda vLLM uretim disinda bellegi
+        # birakiyor, yani iki zirve ayni anda olusmuyor.
+        vllm_enable_sleep_mode=args.vllm_uyku,
+        vllm_max_model_length=args.vllm_baglam,
         logging_steps=1,
         save_steps=20,
         report_to=["wandb"] if args.wandb else [],
