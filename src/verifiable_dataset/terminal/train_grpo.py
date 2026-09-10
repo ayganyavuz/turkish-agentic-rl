@@ -479,6 +479,16 @@ def main() -> int:
         train_dataset=egitim,
         environment_factory=lambda: TerminalOrtami(max_komut=args.max_komut),
     )
+    # Bayragin ETKI ETTIGININ kaniti. transformers, model FA2'yi
+    # desteklemiyorsa sessizce sdpa'ya duser; o zaman "FA2 ile olctuk" diye
+    # kaydedilen sayi aslinda sdpa'nin sayisi olur.
+    try:
+        gercek = trainer.model.config._attn_implementation
+        print(f"attn_impl: istenen={args.attn} gercek={gercek}"
+              f"{'' if gercek == args.attn else '   <-- UYUSMUYOR'}", flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"attn_impl okunamadi: {e}", flush=True)
+
     if args.profil:
         trainer.add_callback(ProfilCallback(args.profil, args.cikti))
         print(f"profil acik: 1. adim isinma, sonraki {args.profil} adim olculecek",
