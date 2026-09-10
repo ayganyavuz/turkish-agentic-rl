@@ -265,7 +265,7 @@ def checks_for_file(rel: str, raw: bytes, override: dict | None,
 
 
 def build_checks(diff: TreeDiff, b_dirs: dict, b_files: dict,
-                 overrides: dict[str, dict],
+                 overrides: dict[str, list[dict]],
                  sandbox: DockerSandbox | None,
                  ) -> tuple[list[dict], list[str], list[str]]:
     checks: list[dict] = []
@@ -292,11 +292,16 @@ def build_checks(diff: TreeDiff, b_dirs: dict, b_files: dict,
         if not kapsamda(rel):
             atlanan += 1
             continue
-        file_checks, file_notes, file_sorunlar = checks_for_file(
-            rel, b_files[rel], overrides.get(rel), sandbox)
-        checks.extend(file_checks)
-        notes.extend(file_notes)
-        sorunlar.extend(file_sorunlar)
+        for ovr in overrides.get(rel) or [None]:
+            file_checks, file_notes, file_sorunlar = checks_for_file(
+                rel, b_files[rel], ovr, sandbox)
+            # Ayni yolun program disi bildirimleri ayni check'i uretir;
+            # tekrari atiyoruz ki "2 check" sanisi olusmasin.
+            for c in file_checks:
+                if c not in checks:
+                    checks.append(c)
+            notes.extend(file_notes)
+            sorunlar.extend(file_sorunlar)
     if atlanan:
         notes.append(f"{atlanan} ara dosya kapsam disi birakildi (outputs bildirilmis)")
 
@@ -308,7 +313,7 @@ def build_checks(diff: TreeDiff, b_dirs: dict, b_files: dict,
     for rel in overrides:
         if rel not in b_files and rel not in b_dirs:
             sorunlar.append(f"{rel}: outputs: icinde bildirilmis ama referans uretmiyor")
-        elif overrides[rel].get("kind") == "dir" and rel not in b_dirs:
+        elif any(o.get("kind") == "dir" for o in overrides[rel]) and rel not in b_dirs:
             sorunlar.append(f"{rel}: kind=dir bildirildi ama dizin degil")
 
     return checks, notes, sorunlar
@@ -342,7 +347,14 @@ def derive(task: Task) -> DeriveReport:
     if not task.reference_solution.strip():
         return DeriveReport(task.id, [], [], 0, 0, 0, "reference_solution yok")
 
-    overrides = {o["path"]: o for o in task.outputs}
+    # Ayni yola birden fazla bildirim olabiliyor: bir modulun hem
+    # duzeltilen davranisi hem bozulmamasi gereken eski davranisi ayri
+    # `run` ile olculuyor (regresyon korumasi). Yola gore sozluk bunu
+    # sessizce eziyordu -- ikinci bildirim kayboluyor, tek check
+    # turetiliyor ve zincirin ilerledigi gosterilemiyordu.
+    overrides: dict[str, list[dict]] = {}
+    for o in task.outputs:
+        overrides.setdefault(o["path"], []).append(o)
 
     with tempfile.TemporaryDirectory(prefix="vds-derive-") as tmp:
         with task.make_sandbox() as sandbox:

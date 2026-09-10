@@ -175,13 +175,16 @@ def asama_uret(client, model: str, args, durum: HatDurumu) -> None:
     rng = random.Random(args.rng)
     # Karisik ailede secim seed basina yapiliyor: iki ayri kosu yerine tek
     # kosuda uretmek, id araliklarini elle bolmek zorunda birakmiyor.
+    kmsk = args.karmasiklik or None
     if args.aile == "kod":
-        seedler = [sample_kod(rng, args.id_basla + i) for i in range(args.n)]
+        seedler = [sample_kod(rng, args.id_basla + i, kmsk) for i in range(args.n)]
     elif args.aile == "kabuk":
         seedler = [sample(rng, args.id_basla + i) for i in range(args.n)]
     else:
-        seedler = [(sample_kod if rng.random() < args.kod_orani else sample)
-                   (rng, args.id_basla + i) for i in range(args.n)]
+        seedler = [sample_kod(rng, args.id_basla + i, kmsk)
+                   if rng.random() < args.kod_orani
+                   else sample(rng, args.id_basla + i)
+                   for i in range(args.n)]
     out_dir = Path(args.out)
     adaylar = []
 
@@ -359,6 +362,11 @@ def main() -> int:
                         default="kabuk",
                         help="kabuk = terminal gorevleri, kod = Python "
                              "yazma/onarma, karisik = --kod-orani ile bolusur")
+    parser.add_argument("--karmasiklik", default="",
+                        choices=["", "duz", "orta", "derin"],
+                        help="kod ailesinde karmasikligi sabitle; bos "
+                             "birakilirsa KOD_KARMASIKLIK agirliklariyla "
+                             "ornekleniyor")
     parser.add_argument("--kod-orani", type=float, default=0.6,
                         help="--aile karisik iken kod ailesinin payi")
     parser.add_argument("--id-basla", type=int, default=0,

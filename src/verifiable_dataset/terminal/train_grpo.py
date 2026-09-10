@@ -36,7 +36,14 @@ class TerminalOrtami:
     kalmiyor.
     """
 
-    def __init__(self, max_komut: int = 12):
+    def __init__(self, max_komut: int = 12, tur_butcesi: str = "task"):
+        # Korpusta max_turns gorev basina degisiyor (8/10/12/14/16 ve
+        # cascade ailesinde daha yuksek). Duz 12 ile kosmak uzun gorevleri
+        # bitiremeden kesiyordu: gorev zoru degil, butcesi yanlisti.
+        # "task" = task.yaml ne diyorsa o; "duz" = eski davranis (yeniden
+        # uretilebilirlik icin duruyor).
+        self.varsayilan_max_komut = max_komut
+        self.tur_butcesi = tur_butcesi
         self.max_komut = max_komut
         self._sandbox = None
         self._task = None
@@ -55,6 +62,8 @@ class TerminalOrtami:
         self._son_odul = 0.0
         self._son_kismi = 0.0
         self._task = Task.load(task_dir)
+        self.max_komut = (self._task.max_turns if self.tur_butcesi == "task"
+                          else self.varsayilan_max_komut)
         self._sandbox = self._task.make_sandbox()
         self._sandbox.start()
         try:
@@ -185,8 +194,10 @@ class ProfilCallback:
     olarak yazilir.
     """
 
-    def __init__(self, adim_sayisi: int, cikti_dizini: str):
+    def __init__(self, adim_sayisi: int, cikti_dizini: str,
+                 ayrinti: bool = False):
         self.adim_sayisi = adim_sayisi
+        self.ayrinti = ayrinti
         self.cikti = Path(cikti_dizini)
         self.cikti.mkdir(parents=True, exist_ok=True)
         self._prof = None
@@ -218,9 +229,14 @@ class ProfilCallback:
         self._prof = torch.profiler.profile(
             activities=[torch.profiler.ProfilerActivity.CPU,
                         torch.profiler.ProfilerActivity.CUDA],
-            record_shapes=True,
+            # record_shapes ve profile_memory olay basina cok daha fazla veri
+            # tutuyor. Ikisi acikken iki adimlik profil host RAM'i 171 GB'a
+            # cikardi ve sureç OOM ile oldu (kart degil, CPU RAM: makinede
+            # 167 GB var). Bir adimda ~9 tur uretim + 16 mikro-gecis oldugu
+            # icin olay sayisi zaten cok; varsayilan hafif.
+            record_shapes=self.ayrinti,
             with_stack=False,
-            profile_memory=True,
+            profile_memory=self.ayrinti,
         )
         self._prof.__enter__()
         print(f"profil basladi (adim {state.global_step})", flush=True)
@@ -341,7 +357,11 @@ def main() -> int:
     ap.add_argument("--epoch", type=float, default=1.0)
     ap.add_argument("--lr", type=float, default=1e-6)
     ap.add_argument("--beta", type=float, default=0.0, help="KL katsayisi")
-    ap.add_argument("--max-komut", type=int, default=12)
+    ap.add_argument("--max-komut", type=int, default=12,
+                    help="--tur-butcesi duz iken her gorev icin komut siniri")
+    ap.add_argument("--tur-butcesi", choices=["task", "duz"], default="task",
+                    help="task = her gorevin kendi max_turns'u (varsayilan); "
+                         "duz = butun gorevlerde --max-komut")
     ap.add_argument("--max-completion", type=int, default=6144,
                     help="Bir episode'un TAMAMI (butun turlar + arac ciktilari) "
                          "bu butceye sigmali. 2048 ile episode'larin %40'i "
@@ -355,6 +375,10 @@ def main() -> int:
                          "sabit kismi (bf16'da ~17 GB) da kartta duruyor. Ustelik "
                          "daha buyuk KV cache bir yerden sonra bos duruyor -- bir "
                          "adimda 32 episode x ~10k token ~ 320k token uretiliyor.")
+    ap.add_argument("--profil-ayrinti", action="store_true",
+                    help="profilde tensor sekillerini ve bellek olaylarini da "
+                         "topla. PAHALI: iki adimlik profil host RAM'i 171 "
+                         "GB'a cikarip sureci OOM ettirdi. Once hafif profille.")
     ap.add_argument("--attn", default="sdpa",
                     choices=["sdpa", "flash_attention_2", "eager"],
                     help="attention cekirdegi. Varsayilan sdpa: flash-attn "
@@ -477,7 +501,8 @@ def main() -> int:
         model=args.model,
         args=cfg,
         train_dataset=egitim,
-        environment_factory=lambda: TerminalOrtami(max_komut=args.max_komut),
+        environment_factory=lambda: TerminalOrtami(
+            max_komut=args.max_komut, tur_butcesi=args.tur_butcesi),
     )
     # Bayragin ETKI ETTIGININ kaniti. transformers, model FA2'yi
     # desteklemiyorsa sessizce sdpa'ya duser; o zaman "FA2 ile olctuk" diye
@@ -490,7 +515,8 @@ def main() -> int:
         print(f"attn_impl okunamadi: {e}", flush=True)
 
     if args.profil:
-        trainer.add_callback(ProfilCallback(args.profil, args.cikti))
+        trainer.add_callback(ProfilCallback(args.profil, args.cikti,
+                                           args.profil_ayrinti))
         print(f"profil acik: 1. adim isinma, sonraki {args.profil} adim olculecek",
               flush=True)
 

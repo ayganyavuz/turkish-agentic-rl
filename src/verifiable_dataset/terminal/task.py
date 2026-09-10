@@ -37,6 +37,9 @@ class Task:
     split: str = "single_step"
     workdir: str = "/workspace"
     max_turns: int = 8
+    # Zincirleme gorevlerde yalnizca ilk hatayi gideren betik.
+    # Ara-durum kapisi kullaniyor; normal notlandirmada rolu yok.
+    ara_adim: str = ""
     setup: str = ""
     goal_tr: str = ""
     reference_solution: str = ""
@@ -57,6 +60,7 @@ class Task:
             split=spec.get("split", "single_step"),
             workdir=spec.get("workdir", "/workspace"),
             max_turns=spec.get("max_turns", 8),
+            ara_adim=spec.get("ara_adim", "") or "",
             setup=spec.get("setup", ""),
             goal_tr=spec.get("goal_tr", ""),
             reference_solution=spec.get("reference_solution", ""),

@@ -355,15 +355,60 @@ KOD_YAPILARI = {"tek-dosya": 30, "cok-dosya": 70}
 
 KOD_ZORLUKLAR = {"kolay": 30, "orta": 45, "zor": 25}
 
+# -- karmasiklik ekseni ----------------------------------------------
+# Zorluk (KOD_ZORLUKLAR) problemin kendisinin ne kadar cetin oldugunu
+# soyluyor; karmasiklik ise gorevin KAC ADIMA yayildigini. Ikisi ayri:
+# tek satirlik ama cok zor bir algoritma ile kolay ama uc module yayilmis
+# bir onarim farkli seyler olcuyor ve SWE-bench ikincisine benziyor.
+#
+# Ayri eksen olmasinin sebebi bant: karmasikligi artirmak gorevleri
+# OLU-zor tarafina itebilir ve cozulmeyen gorev GRPO'da gradyan uretmez,
+# sadece hesap yakar. Tek dugme oldugu icin payi kosudan kosuya
+# ayarlanabiliyor (`pipeline --karmasiklik`).
+KOD_KARMASIKLIK = {"duz": 40, "orta": 35, "derin": 25}
 
-def sample_kod(rng: random.Random, index: int) -> Seed:
+# Her seviyenin acik ettigi ozellikler. Bagimsiz bayrak yerine seviyeye
+# baglilar: dort bayragi serbest birakmak 16 kombinasyon uretir ve
+# cogunun anlami yok (orn. tek dosyada bagimli modul grafigi).
+KARMASIKLIK_OZELLIK = {
+    "duz": {
+        "zincir": 0,          # kac hata; 0 = bugunku tek hata
+        "regresyon": False,   # SETUP'ta gecen test var mi
+        "bagimli": False,     # moduller birbirine bagimli mi
+        "kesif_zor": False,   # GOAL_TR bozuk modulu soyluyor mu
+        "adim": (2, 5),
+    },
+    "orta": {
+        "zincir": 2,
+        "regresyon": True,
+        "bagimli": True,
+        "kesif_zor": False,
+        "adim": (5, 8),
+    },
+    "derin": {
+        "zincir": 3,
+        "regresyon": True,
+        "bagimli": True,
+        "kesif_zor": True,
+        "adim": (8, 11),
+    },
+}
+
+
+def sample_kod(rng: random.Random, index: int,
+               karmasiklik: str | None = None) -> Seed:
     """Kod ailesinden bir seed cek.
 
     Kabuk ailesindeki uyumluluk suzgeci burada gerekmiyor: eksenler zaten
     hedefe gore secildigi icin anlamsiz kombinasyon uretilmiyor.
     """
     hedef = _pick(rng, KOD_HEDEFLER)
-    yapi = "cok-dosya" if hedef == "hata-bul" else _pick(rng, KOD_YAPILARI)
+    kmsk = karmasiklik or _pick(rng, KOD_KARMASIKLIK)
+    ozellik = KARMASIKLIK_OZELLIK[kmsk]
+    # Cok dosya karmasikligin on kosulu: zincir de bagimli grafik de tek
+    # dosyada anlamsiz.
+    yapi = ("cok-dosya" if hedef == "hata-bul" or kmsk != "duz"
+            else _pick(rng, KOD_YAPILARI))
     ayrinti = {
         "hata-bul": lambda: rng.choice(HATA_TIPLERI),
         "yarisma": lambda: rng.choice(YARISMA_KALIPLARI),
@@ -382,10 +427,13 @@ def sample_kod(rng: random.Random, index: int) -> Seed:
         uslup=_pick(rng, USLUPLAR),
         direnc="yok",
         bukulme=_pick(rng, KOD_ZORLUKLAR),   # zorluk bukulme ekseninde tasiniyor
-        adim=rng.randint(2, 5),
+        # adim max_turns'u belirliyor (generate.py: 6 + 2*adim), yani
+        # karmasik gorev otomatik olarak daha genis tur butcesi aliyor.
+        adim=rng.randint(*ozellik["adim"]),
         image=image_for(["python3"]),
         aile="kod",
-        metadata={"ayrinti": ayrinti},
+        metadata={"ayrinti": ayrinti, "karmasiklik": kmsk, **{
+            k: v for k, v in ozellik.items() if k != "adim"}},
     )
 
 

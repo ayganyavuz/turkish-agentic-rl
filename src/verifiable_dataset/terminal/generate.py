@@ -40,7 +40,8 @@ PIPELINE_VERSION = "spec-1"
 
 # YAML yerine acik ayrac kullaniyoruz: modeller cok satirli bash'i blok
 # skalarina dogru girintilemekte sik hata yapiyor, ayraclar affedici.
-SECTION_RE = re.compile(r"^###\s+(SETUP|GOAL_TR|REFERENCE|OUTPUTS)\s*$", re.MULTILINE)
+SECTION_RE = re.compile(
+    r"^###\s+(SETUP|GOAL_TR|REFERENCE|OUTPUTS|ARA_ADIM)\s*$", re.MULTILINE)
 FENCE_RE = re.compile(r"^```[a-zA-Z]*\s*$|^```\s*$", re.MULTILINE)
 
 SPEC_TALIMAT = """\
@@ -166,6 +167,97 @@ Seed:
 Bu seed'e uyan bir SPEC yaz."""
 
 
+
+# -- karmasiklik talimatlari ------------------------------------------
+# Kabul oranini yukselten sey soyut ilke degil mekanik tarif oldu
+# (bkz. VERI-URETIMI.md, kod ailesi 1/6 -> %40). Buradaki metinler de
+# "sunu yap" diye yaziliyor, "sunu hedefle" diye degil.
+
+KARMASIKLIK_TALIMAT = {
+    "duz": "",
+    "orta": """
+KARMASIKLIK: ORTA -- bu gorev cok adimli olmali.
+
+ONCE BUNU OKU -- USTTEKI BOLUM LISTESI BU GOREV ICIN GECERSIZ.
+Bu gorevde DORT degil BES bolum yazacaksin, tam bu sirayla:
+### SETUP, ### GOAL_TR, ### REFERENCE, ### ARA_ADIM, ### OUTPUTS
+ARA_ADIM'i unutmak adayin ELENMESIDIR; en sik yapilan hata budur.
+
+14. ZINCIRLEME HATA (2 hata). SETUP birbirini cagiran modullere IKI hata
+    biraksin ve ikincisi birincisi giderilmeden GORUNMESIN: 1. hata
+    ustteki fonksiyonu erken dondurdugu/patlatti icin 2. hatanin bulundugu
+    kod yoluna hic girilmiyor olsun. Iki hata AYRI DOSYADA olsun.
+    Kendine sor: 1. hatayi duzeltince test hangi YENI mesajla dusuyor?
+    Cevabin yoksa iki bagimsiz hata yazmissin, zincir degil.
+15. ARA_ADIM bolumu ZORUNLU. Yalnizca 1. hatayi gideren bash komutlarini
+    yaz (2. dosyaya DOKUNMA). SETUP + ARA_ADIM dunyasinda `run` HALA
+    DUSMELI -- ama farkli bir sebeple.
+16. REGRESYON KORUMASI. SETUP, ZATEN DOGRU calisan ikinci bir davranis
+    da icersin ve OUTPUTS'a bunu olcen AYRI bir `run` check'i koy. Bu
+    check SETUP dunyasinda GECMELI ve referanstan sonra da GECMELI.
+    Boylece "dosyayi sil bastan yaz" kestirmesi eskiyi bozarak dusuyor.
+17. BAGIMLI MODULLER. Moduller birbirini gercekten cagirsin (A'yi B,
+    B'yi C kullansin); yan yana duran bagimsiz dosyalar yazma.
+
+OUTPUTS BU SEKILDE OLMALI -- EN AZ IKI `run` GIRDISI (birebir uygula):
+
+### OUTPUTS
+- path: pkg/report.py
+  kind: program
+  run: python3 -c 'from pkg.report import summary as f; assert f("a,1")=="a=1", f("a,1"); print("TAMAM")'
+- path: pkg/report.py
+  kind: program
+  run: python3 -c 'from pkg.report import fmt as f; assert f(2)=="2.00"; print("REGRESYON-TAMAM")'
+
+Birinci girdi zincirin sonunu olcer (SETUP dunyasinda DUSER).
+Ikinci girdi regresyon korumasidir (SETUP dunyasinda da GECER).
+TEK `run` girdisi yazarsan aday ELENIR: tek check ile ara adimin ilerleme
+saglayip saglamadigi olculemez.
+""",
+    "derin": """
+KARMASIKLIK: DERIN -- bu gorev uzun ve cok adimli olmali.
+
+ONCE BUNU OKU -- USTTEKI BOLUM LISTESI BU GOREV ICIN GECERSIZ.
+Bu gorevde DORT degil BES bolum yazacaksin, tam bu sirayla:
+### SETUP, ### GOAL_TR, ### REFERENCE, ### ARA_ADIM, ### OUTPUTS
+ARA_ADIM'i unutmak adayin ELENMESIDIR; en sik yapilan hata budur.
+
+14. ZINCIRLEME HATA (3 hata). SETUP birbirini cagiran modullere UC hata
+    biraksin; her biri bir oncekisi giderilmeden GORUNMESIN. Uc hata UC
+    AYRI DOSYADA olsun. Kendine sor: 1. hatayi duzeltince test hangi YENI
+    mesajla duser, 2.'yi duzeltince hangi mesajla? Iki cevabin da yoksa
+    bagimsiz hatalar yazmissin, zincir degil.
+15. ARA_ADIM bolumu ZORUNLU. Yalnizca 1. hatayi gideren bash komutlarini
+    yaz (diger dosyalara DOKUNMA). SETUP + ARA_ADIM dunyasinda `run`
+    HALA DUSMELI -- ama farkli bir sebeple.
+16. REGRESYON KORUMASI. SETUP, ZATEN DOGRU calisan ikinci bir davranis
+    da icersin ve OUTPUTS'a bunu olcen AYRI bir `run` check'i koy. Bu
+    check SETUP dunyasinda GECMELI ve referanstan sonra da GECMELI.
+17. BAGIMLI MODULLER. Moduller birbirini gercekten cagirsin (A'yi B,
+    B'yi C kullansin); yan yana duran bagimsiz dosyalar yazma.
+18. KESIF ZORLAMASI. GOAL_TR hangi dosyanin bozuk oldugunu SOYLEMESIN;
+    yalnizca gozlenen YANLIS DAVRANISI tarif etsin ("rapor toplamlari
+    tutmuyor" gibi). Ajan bozuk modulu testi kosturup bulmali.
+    DIKKAT: OUTPUTS yine de duzeltilecek dosyalarin yolunu vermeli --
+    kesif ajan icin zor, notlandirma icin degil.
+
+OUTPUTS BU SEKILDE OLMALI -- EN AZ IKI `run` GIRDISI (birebir uygula):
+
+### OUTPUTS
+- path: pkg/report.py
+  kind: program
+  run: python3 -c 'from pkg.report import summary as f; assert f("a,1")=="a=1", f("a,1"); print("TAMAM")'
+- path: pkg/report.py
+  kind: program
+  run: python3 -c 'from pkg.report import fmt as f; assert f(2)=="2.00"; print("REGRESYON-TAMAM")'
+
+Birinci girdi zincirin sonunu olcer (SETUP dunyasinda DUSER).
+Ikinci girdi regresyon korumasidir (SETUP dunyasinda da GECER).
+TEK `run` girdisi yazarsan aday ELENIR: tek check ile ara adimin ilerleme
+saglayip saglamadigi olculemez.
+""",
+}
+
 # -- ayristirma -------------------------------------------------------
 
 @dataclass
@@ -174,6 +266,10 @@ class Spec:
     goal_tr: str = ""
     reference_solution: str = ""
     outputs: list[dict] = field(default_factory=list)
+    # Zincirleme gorevlerde YALNIZCA ilk hatayi gideren bash blogu.
+    # Ara-durum kapisi bununla "kismi cozum hala dusuyor mu" diye bakiyor;
+    # bu blok olmadan cascade iddiasi dogrulanamaz.
+    ara_adim: str = ""
     error: str = ""
 
 
@@ -204,6 +300,7 @@ def parse_spec(text: str) -> Spec:
         goal_tr=" ".join(bolumler["GOAL_TR"].split()),
         reference_solution=bolumler["REFERENCE"],
         outputs=outputs,
+        ara_adim=bolumler.get("ARA_ADIM", ""),
     )
 
 
@@ -233,6 +330,8 @@ def write_task_yaml(task_dir: Path, seed: Seed, spec: Spec) -> Path:
     metin += "goal_tr: >\n" + "\n".join(f"  {ln}" for ln in
                                         _sar(spec.goal_tr, 74)) + "\n\n"
     metin += _blok("reference_solution", spec.reference_solution)
+    if spec.ara_adim.strip():
+        metin += _blok("ara_adim", spec.ara_adim)
     metin += "outputs:\n"
     for o in spec.outputs:
         metin += "  - " + yaml.safe_dump(o, default_flow_style=True, sort_keys=False,
@@ -289,7 +388,11 @@ def generate_one(client, model: str, seed: Seed, out_dir: Path,
         aday.log.append(satir)
     kod = seed.aile == "kod"
     mesajlar = [
-        {"role": "system", "content": SPEC_TALIMAT_KOD if kod else SPEC_TALIMAT},
+        {"role": "system",
+         "content": ((SPEC_TALIMAT_KOD
+                      + KARMASIKLIK_TALIMAT.get(
+                          seed.metadata.get("karmasiklik", "duz"), ""))
+                     if kod else SPEC_TALIMAT)},
         {"role": "user", "content": (seed_brief_kod if kod else seed_brief)(seed)},
     ]
     task_dir = out_dir / f"gen-{seed.id}-{seed.hedef}"

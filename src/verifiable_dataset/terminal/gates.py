@@ -247,6 +247,60 @@ def gate_cheap_hack(task: Task, rep) -> GateResult:
     )
 
 
+def gate_ara_durum(task: Task, rep) -> GateResult:
+    """Zincirin gercekten zincir oldugunu dogrula.
+
+    Uretici modelden "birbirine bagli 2-3 hata" istemek yetmiyor: model
+    pekala yan yana duran BAGIMSIZ hatalar yazip ayni sozu tutmus gibi
+    gorunur. Fark ajan icin buyuk -- bagimsiz hatalar paralel, zincirli
+    hatalar sirali kesif gerektirir -- ama task.yaml'a bakarak anlasilmaz.
+
+    Olcum spec'in ARA_ADIM blogunu kullaniyor: yalnizca ILK hatayi gideren
+    dunyada
+      * check'lerin HEPSI gecerse zincir yok (ilk duzeltme gorevi bitiriyor),
+      * SETUP dunyasindan DAHA FAZLA check gecmiyorsa ara adim bir sey
+        ilerletmemis (iki hata ayni check'i tutuyor ya da ARA_ADIM etkisiz).
+    Ikisi de degilse: ilerleme var ama is bitmemis -- zincir budur.
+    """
+    if rep is None or not rep.checks:
+        return GateResult("ara durum", False, "turetilen check yok")
+
+    zincir = int((task.metadata.get("seed", {}) or {})
+                 .get("metadata", {}).get("zincir", 0) or 0)
+    if not task.ara_adim.strip():
+        if zincir:
+            return GateResult("ara durum", False,
+                              f"seed zincir={zincir} istiyor ama ARA_ADIM bolumu yok")
+        return GateResult("ara durum", True, skipped=True, detail="zincirsiz gorev")
+
+    # Tek check ile ilerleme olculemez: ara adim ya hepsini gecirir ya
+    # hicbirini. Bu bir spec kusuru, zincir kusuru degil -- ayri soyle.
+    if len(rep.checks) < 2 and zincir:
+        return GateResult("ara durum", False,
+                          f"zincir={zincir} icin tek check yetmez; regresyon "
+                          f"check'i eksik (OUTPUTS'ta en az iki `run` olmali)")
+
+    # "true" = hicbir sey yapma; SETUP dunyasinin taban olcumu.
+    taban = run_alt(task, {"name": "setup", "script": "true"}, rep.checks)
+    ara = run_alt(task, {"name": "ara adim", "script": task.ara_adim}, rep.checks)
+
+    if ara.ok:
+        return GateResult("ara durum", False,
+                          f"ilk duzeltme tek basina {ara.derived_passed}/"
+                          f"{ara.derived_total} check'i geciriyor -- zincir yok, "
+                          f"tek hata var")
+    if ara.derived_passed <= taban.derived_passed:
+        return GateResult("ara durum", False,
+                          f"ara adim ilerleme saglamiyor (SETUP "
+                          f"{taban.derived_passed}/{taban.derived_total} -> ara "
+                          f"{ara.derived_passed}/{ara.derived_total}) -- hatalar "
+                          f"zincirli degil ya da ARA_ADIM etkisiz")
+    return GateResult("ara durum", True,
+                      f"SETUP {taban.derived_passed}/{taban.derived_total} -> "
+                      f"ara {ara.derived_passed}/{ara.derived_total} -> "
+                      f"referans {ara.derived_total}/{ara.derived_total}")
+
+
 def gate_equivalence(task: Task, checks: list[dict] | None) -> GateResult:
     if not task.alt_solutions:
         return GateResult("denklik", True, skipped=True, detail="alt_solutions yok")
@@ -280,6 +334,7 @@ def run_gauntlet(task: Task, spec_only: bool = False
     results.append(gate_discriminates(task, rep))
     results.append(gate_output_kinds(task, rep))
     results.append(gate_cheap_hack(task, rep))
+    results.append(gate_ara_durum(task, rep))
     results.append(gate_equivalence(task, rep.checks if rep else None))
     return results, rep
 

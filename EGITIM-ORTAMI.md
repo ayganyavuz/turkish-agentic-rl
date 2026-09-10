@@ -603,3 +603,50 @@ Qwen3_5ForCausalLM._supports_flash_attn = True
 Yani engel modelde degil, paketin CUDA 13 ile derlenememesinde. `--attn`
 bayragi yerinde duruyor; FA2'ye deger mi sorusu **profil tablosuna** birakildi
 (attention'in gercek payi olculdukten sonra derleme zahmetine girilir).
+
+---
+
+## Profil denemesi 1: profiler'in KENDISI OOM ettirdi (10 Eylul)
+
+Kosu `--profil 2` ile basladi, dogru basladi:
+```
+vLLM uyku yamasi: AKTIF
+attn_impl: istenen=sdpa gercek=sdpa
+profil acik: 1. adim isinma, sonraki 2 adim olculecek
+adim 0 (isinma):     step_time 497.6      <- 502 referansiyla tutarli
+adim 1 (profilli):   step_time 845.4      <- profiler yuku
+```
+Sonra adim 2'de oldu. **Kart degil, host RAM**:
+```
+oom-kill: constraint=CONSTRAINT_MEMCG, task=python3, pid=46097
+Memory cgroup out of memory: Killed process 46097
+anon-rss: 171184872 kB  (~171 GB; makinede 167 GB var)
+```
+
+Sebep `ProfilCallback`'in ayarlari: `record_shapes=True` ve
+`profile_memory=True`, ustelik **iki tam adim** boyunca. Bir adimda ~9 tur
+uretim + 16 mikro-gecis var, yani olay sayisi zaten cok; her olaya sekil ve
+bellek kaydi eklenince trace host RAM'de birikti. Tabloyu uretmeye sira bile
+gelmedi.
+
+Duzeltme: ikisi de varsayilan **kapali**, `--profil-ayrinti` ile aciliyor.
+Test: sahte `torch.profiler.profile` ile cagri argumanlari yakalandi
+(varsayilan `False/False`, bayrakla `True/True`).
+
+### Bu kosudan yine de kalan olcumler
+| | |
+|---|---|
+| `attn_impl` | istenen=sdpa **gercek=sdpa** (yeni log satiri calisiyor) |
+| uyku yamasi | **AKTIF** (sessizce eski davranisa dusmedi) |
+| uretim platosu | **48.7 GB** — dokumandaki 48-50 GB ile birebir |
+| loss tepesi (profilli) | 68.4 GB — profiler yuku dahil, 64.5 referansinin ustunde |
+| adim 0 | `step_time 497.6`, reward 0.594, clipped 0.031 |
+| adim 1 (profilli) | `step_time 845.4`, reward 0.656, clipped 0.125 |
+
+`step_time` 845.4 profilli oldugu icin hiz tartismasinda **kullanilamaz**.
+
+### flash-attn: cu130 tekeri yok
+`pip install flash-attn --no-build-isolation` kaynaktan derlemeye girip
+**16 saniyede** `bdist_wheel` hatasiyla dustu. Model tarafinda engel yok
+(`Qwen3_5ForCausalLM._supports_flash_attn = True`), engel paketin CUDA 13
+ile derlenememesi. `--attn` bayragi yerinde; karar profil tablosuna bagli.
