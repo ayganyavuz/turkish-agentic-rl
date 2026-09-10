@@ -815,3 +815,120 @@ kosacak.** Kosu 3'e dokunulmadi.
 ### Kosu 3 durumu
 `--mufredati-kullan` ile sweep atlandi (model degismemisti, ~40 dk kazanildi).
 2/25 adim, ~558 sn/adim, tahmini 3.5 sa. Bellek tepesi 64.5 GB, uyari yok.
+
+### Uyusmazligin asil buyugu: sweep ile egitim FARKLI PROTOKOL kullaniyor
+
+`train-epoch1.log`'daki completion tablosunda system prompt'un Ingilizce
+gorunmesi uzerine bakildi. O metin bizim degil, **Qwen3.5'in kendi chat
+template'i**; tokenizer enjekte ediyor:
+
+```
+# Tools
+You have access to the following functions:
+<tools>{"type":"function","function":{"name":"run_command",
+  "description":"Sandbox terminalinde tek bir shell komutu calistirir.",...}}</tools>
+If you choose to call a function ONLY reply in the following format...
+<IMPORTANT> Reminder: - Function calls MUST follow the specified format
+```
+
+Bizim Turkce arac aciklamamiz onun icinde duruyor ve model Turkce cevap
+veriyor -- yani cikti dilini bozmuyor. Template'i ezmek riskli: Bolum 4'te
+`--tool-call-parser hermes` Qwen3.5'in `<function=...>` bicimini tanimadigi
+icin zaten basimiz yanmisti. **Dokunulmadi.**
+
+Asil bulgu bunu ararken cikti:
+
+| | Egitim | Sweep / eval |
+|---|---|---|
+| protokol | Qwen native tool-calling (`<tool_call><function=`) | `--protocol text` (`<komut>` etiketleri) |
+| system prompt | chat template + Ingilizce iskele | bizim Turkce `TEXT_PROTOCOL_PROMPT` |
+| yanit basina token | 6144'e kadar | 2048 (`runner.py:58`) |
+| tur sayisi | duz 12 (`--max-komut`) | `task.max_turns` (8/10/12/14/16) |
+
+Yani bant olcumu modelden **bambaska bir arayuzle** cevap istiyor. Gorev
+ayni, ama modelin gordugu dunya farkli. Native tool-calling modelin
+uzerinde egitildigi bicim; metin protokolu bizim Gemma icin yazdigimiz
+yedek yol (`runner.py`'deki yoruma bakilirsa native tool calling'i olmayan
+modeller icin eklenmisti).
+
+Bu, `reward = 0.72` (32 episode'un 22-23'u cozuluyor) ile bant olcumunun
+"8'de 1-6" demesi arasindaki tutarsizligin en guclu aciklamasi -- token
+butcesi farkindan daha buyuk bir etki.
+
+**KARAR (guncellendi): sweep egitimle ayni PROTOKOLU ve ayni inference
+parametrelerini kullanacak.** Sadece sicaklik/rollout degil: protokol,
+yanit token butcesi ve tur sayisi da hizalanacak. Aksi halde mufredat,
+egitimin icinde bulundugu dunyanin zorlugunu olcmuyor.
+
+Hizalama yonu tercih gerektiriyor:
+- protokol: egitim native kullaniyor ve model onunla egitilmis -> sweep de
+  native'e gecmeli (`--protocol text` yerine arac cagrisi).
+- tur sayisi: `task.max_turns` gorev tasariminin parcasi, duz 12 degil.
+  Ama TRL'in `environment_factory`'si goreve gore parametre almiyor;
+  `TerminalOrtami`'nin `task_dir`'den kendi okumasi gerekir.
+
+### Tur limiti bagliyici degil (olculdu)
+
+78 held-out gorevinde `mean_turns / task.max_turns` dagilimi:
+
+```
+0.2 |1   0.3 |7   0.4 |16   0.5 |20   0.6 |14   0.7 |13   0.8 |5   0.9 |2
+```
+
+Hicbir gorevin ortalamasi tavana dayanmiyor; tepe 0.5'te. Yani episode'lar
+tur limitinden elenmiyor, model tur bitmeden ya cozuyor ya birakiyor.
+`--max-komut 12`'yi buyutmek muhtemelen bir sey kazandirmaz. (Uyari: bu
+ortalama uzerinden, 8 rollout'un biri tavana dayanmis olabilir; ayrica
+sweep'in butcesiyle olculdu, egitimde `tools/call_frequency` 8.8-10.1 ile
+12'ye daha yakin.)
+
+### Uyku yamasinin sonucu (kosu 4)
+
+Tur basina `sleep(level=2)` kaldirildi, adim basina bir kez uyunuyor.
+Bellek izinde dogrulandi: kurulus sonrasi sicramalar
+
+```
+kosu 3 (tur uykusu): 154 sicrama / 93 dk = 1.7/dk, 72 saniyede 6 tam dongu
+kosu 4 (tek uyku)  :   9 sicrama / 19 dk = 0.5/dk, sicramalar ~5-6 dk arayla
+```
+
+Kosu 4'teki sicramalar adim sinirlari (uyu -> uyan -> KV rampasi), tur
+degil; aralarda 5-6 dakika dumduz.
+
+| | kosu 3 | kosu 4 |
+|---|---|---|
+| step_time | 544.3 / 565.6 | **495.6 / 508.2** |
+| ortalama | 555 sn | **502 sn** |
+| bellek tepesi | 64.5 GB | 64.5 GB (degismedi, beklendigi gibi) |
+| clipped_ratio | 0.094 / 0.156 | 0.063 / 0.156 |
+
+**%9.5 kazanc.** Loss fazi adimin ~%62'si ve yama ona dokunmuyor, yani
+kazancin tamami uretimden geliyor: uretimde ~%23.
+
+Geri donus: `--tur-uykusu` bayragi eski davranisi geri getiriyor.
+
+### Loss fazinda 30 katlik acik (olculdu, aciklanmadi)
+
+Loss fazi ~314 sn. Teorik: govde fwd+bwd ~1400 TFLOP, A100'de gercekci
+150 TFLOPS ile ~10 sn. Aradaki fark 30 kat.
+
+`lm_head` + log-softmax bu isin **%6'si** (88 TFLOP), yani fuzyonlu
+cross-entropy tarzi cozumler burada hizdan cok **bellek** kazandirir --
+ve bellek su an sikismiyor (tepe 64.5, duvar 79.25). Ayrica GRPO
+cross-entropy kullanmiyor: ornekklenmis token'in log-olasiligini isteyip
+politika orani hesapliyor, yani hazir CE modulu takilamaz; liger'in
+GRPO'ya ozel chunked loss'u gerekir ve o TRL'in `_compute_loss`'unu
+devre disi birakmayi gerektirir.
+
+`selective_log_softmax`'daki Python dongusu batch satiri uzerinde donuyor
+(mikro-batch 2 -> iki iterasyon), token uzerinde degil; TRL'in yorumu
+"loop to reduce peak mem consumption" diyor, yani kasitli bir takas.
+Vektorlestirmek tepe bellegi artirir.
+
+Attention n^2 degil: Qwen3.5 hibrit (`layer_types` = linear_attention +
+full_attention), `flash-attn` kurulu degil, transformers `sdpa`'ya dusuyor
+ve o da matrisi materyalize etmiyor. Bu acigin sebebi attention degil.
+
+Kalan supheliler: gradient checkpointing'in yeniden hesabi, mikro-batch
+2'de kartin dolmamasi, ve faz atfinin (bellek izinden cikarim) yanlis
+olma ihtimali. **Siradaki dogru adim tahmin degil profiler.**
