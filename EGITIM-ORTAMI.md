@@ -29,6 +29,12 @@ cikti; her biri saatler yakti:
    `VLLM::EngineCore` alt-sureci baska adla hayatta kalip kartin 68 GB'ini
    elinde tutuyordu.
 
+> **Bu liste bes maddede kalmadi.** 10 Eylul'de bu siniftan uc hata daha
+> cikti (`--sicaklik` hicbir yere bagli degildi, `VDS_MAX_TOKENS` modul
+> seviyesinde okunuyordu, `--profil`/`--tur-uykusu` `dongu.py`'den
+> iletilmiyordu) ve profiler'in kendisi olcumu iki kez oldurdu. Tam liste:
+> dosyanin sonundaki **BUG KAYDI — 10 Eylul**.
+
 Test sekli: `kos` / `vllm_baslat` stub'lanip komut yakalanir, ya da sahte
 `GRPOConfig` ile alanlar yakalanir. Ornekler repoda calisir durumda.
 
