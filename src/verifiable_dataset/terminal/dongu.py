@@ -136,6 +136,14 @@ def main() -> int:
                          "o kosuda zaten aciktı, yani tek kalan kol bu.")
     ap.add_argument("--concurrency", type=int, default=24)
     ap.add_argument("--lr", type=float, default=1e-6)
+    ap.add_argument("--protokol", choices=["native", "text", "auto"],
+                    default="native",
+                    help="Sweep/eval'in modelle konusma bicimi. EGITIM native "
+                         "arac cagrisi kullaniyor (Qwen3.5'in chat template'i); "
+                         "metin protokolu native tool calling'i olmayan modeller "
+                         "icin yazilmis yedek yoldu. Ikisi farkli olunca bant "
+                         "olcumu, egitimin icinde bulundugu dunyanin zorlugunu "
+                         "olcmuyor.")
     ap.add_argument("--dtype", default="bfloat16",
                     choices=["bfloat16", "float32"])
     ap.add_argument("--mufredati-kullan", action="store_true",
@@ -169,7 +177,7 @@ def main() -> int:
                 "--model degerlendirme --base-url http://localhost:8000/v1 "
                 f"--split {args.split} --bolum {bolum} "
                 f"--rollouts {rollouts} --sicaklik {sicaklik} "
-                f"--concurrency {args.concurrency} --protocol text "
+                f"--concurrency {args.concurrency} --protocol {args.protokol} "
                 '--reasoning-effort "" '
                 f"--bant-out {cikti} "
                 f"> {K}/log-{etiket}-{korpus}.txt 2>&1",
