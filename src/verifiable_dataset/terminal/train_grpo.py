@@ -168,6 +168,76 @@ def veri_kumesi(split_yolu: Path, bolum: str, aile: str, repo_kok: Path,
     return Dataset.from_list(satirlar)
 
 
+def episode_boyu_uyanik_tut() -> bool:
+    """vLLM'i tur basina degil, adim basina uyut.
+
+    TRL'in cok turlu dongusu `_tool_call_loop` icinde her tur icin
+    `vllm_generation.generate()` cagiriyor ve o fonksiyon sonunda
+    `llm.sleep(level=2)` var. Level 2 KV cache'i ATIYOR, yani prefix cache
+    turlar arasinda yasayamiyor: 9 turun her biri o ana kadarki butun
+    konusmayi sifirdan prefill ediyor ve maliyet tur sayisinin karesiyle
+    buyuyor. Bellek izinde adim basina 10-14 uyku/uyanma salinimi olarak
+    gorunuyordu (21.7 <-> 59.9 GB).
+
+    Bu yama `_generate`'i sarmaliyor: tur dongusu boyunca uyku kapali,
+    dongu bitince bir kez `sleep(level=2)`. Boylece adim sinirlarindaki
+    davranis aynen korunuyor -- loss fazinda vLLM yine uykuda, yani
+    olculen 64.5 GB'lik tepe degismiyor.
+
+    Sarmalamadan ONCE agirliklar uyandiriliyor: level 2 agirliklari da
+    attigi icin, uyku bayragi kapaliyken `sync_weights` serbest birakilmis
+    bellege `load_weights` yapardi (TRL'in kendi yorumu bunun bazi
+    backend'lerde coktugunu soyluyor).
+
+    Yamanin tuttugunu dondurur; tutmazsa egitim yine kosar, sadece eski
+    davranisla.
+    """
+    try:
+        from trl import GRPOTrainer
+    except Exception:
+        return False
+    if not hasattr(GRPOTrainer, "_generate"):
+        return False
+    if getattr(GRPOTrainer, "_uyku_yamasi", False):
+        return True
+
+    _asil_generate = GRPOTrainer._generate
+
+    def _generate_tek_uyku(self, prompts):
+        gen = getattr(self, "vllm_generation", None)
+        if gen is None or not getattr(gen, "enable_sleep_mode", False):
+            return _asil_generate(self, prompts)
+
+        llm = getattr(gen, "llm", None)
+        if llm is None:
+            return _asil_generate(self, prompts)
+
+        # 1) agirliklari ve KV'yi geri getir (level 2 ikisini de atmisti)
+        try:
+            if getattr(gen, "_llm_weights_sleeping", False):
+                llm.wake_up(tags=["weights"])
+                gen._llm_weights_sleeping = False
+            llm.wake_up(tags=["kv_cache"])
+        except Exception:
+            return _asil_generate(self, prompts)
+
+        # 2) tur dongusu boyunca uyutma
+        gen.enable_sleep_mode = False
+        try:
+            return _asil_generate(self, prompts)
+        finally:
+            gen.enable_sleep_mode = True
+            try:
+                llm.sleep(level=2)
+                gen._llm_weights_sleeping = True
+            except Exception:
+                pass
+
+    GRPOTrainer._generate = _generate_tek_uyku
+    GRPOTrainer._uyku_yamasi = True
+    return True
+
+
 def main() -> int:
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
@@ -211,6 +281,12 @@ def main() -> int:
                     choices=["bfloat16", "float32"],
                     help="model agirliklarinin dtype'i. TRL'nin varsayilani "
                          "float32 ve bu 4B model icin ~20 GB fazladan yer demek.")
+    ap.add_argument("--tek-uyku", action="store_true", default=True,
+                    help="vLLM'i tur basina degil adim basina uyut; tur "
+                         "basina sleep(level=2) KV cache'i atip her turda "
+                         "bastan prefill'e zorluyor")
+    ap.add_argument("--tur-uykusu", dest="tek_uyku", action="store_false",
+                    help="TRL'in varsayilan davranisi (her tur uyu/uyan)")
     ap.add_argument("--liger", action="store_true", default=True,
                     help="liger fuzyonlu cekirdekler (qwen3_5 destekleniyor)")
     ap.add_argument("--liger-kapali", dest="liger", action="store_false")
@@ -299,6 +375,11 @@ def main() -> int:
         report_to=["wandb"] if args.wandb else [],
         log_completions=True,
     )
+
+    if args.tek_uyku:
+        tuttu = episode_boyu_uyanik_tut()
+        print(f"vLLM uyku yamasi: {'AKTIF' if tuttu else 'TUTMADI (eski davranis)'}",
+              flush=True)
 
     trainer = GRPOTrainer(
         model=args.model,
