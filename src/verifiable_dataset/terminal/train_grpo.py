@@ -201,7 +201,19 @@ def main() -> int:
                          "korelasyon(odul, kesilme) = -0.51. Yani sinir bir "
                          "butce degil ortuk bir uzunluk cezasi haline geliyordu.")
     ap.add_argument("--sandbox", choices=["docker", "yerel"], default="yerel")
-    ap.add_argument("--vllm-bellek", type=float, default=0.45)
+    ap.add_argument("--vllm-bellek", type=float, default=0.50,
+                    help="Colocate'te vLLM'e ayrilan kart orani. Kisit uyku "
+                         "fazinda degil URETIM fazinda: vLLM uyanikken egiticinin "
+                         "sabit kismi (bf16'da ~17 GB) da kartta duruyor. Ustelik "
+                         "daha buyuk KV cache bir yerden sonra bos duruyor -- bir "
+                         "adimda 32 episode x ~10k token ~ 320k token uretiliyor.")
+    ap.add_argument("--dtype", default="bfloat16",
+                    choices=["bfloat16", "float32"],
+                    help="model agirliklarinin dtype'i. TRL'nin varsayilani "
+                         "float32 ve bu 4B model icin ~20 GB fazladan yer demek.")
+    ap.add_argument("--liger", action="store_true", default=True,
+                    help="liger fuzyonlu cekirdekler (qwen3_5 destekleniyor)")
+    ap.add_argument("--liger-kapali", dest="liger", action="store_false")
     ap.add_argument("--vllm-uyku", action="store_true", default=True,
                     help="uretim disinda vLLM bellegi biraksin (colocate'te sart)")
     ap.add_argument("--vllm-baglam", type=int, default=16384,
@@ -259,7 +271,20 @@ def main() -> int:
         temperature=1.0,
         max_completion_length=args.max_completion,
         bf16=True,
+        # TRL, model_init_kwargs'ta dtype verilmezse modeli FLOAT32 yukluyor
+        # (from_pretrained'den farkli; grpo_trainer.py docstring'i soyluyor).
+        # bf16=True yalnizca autocast, yani hesabi bf16 yapiyor ama agirliklar
+        # fp32 kaliyordu. Olculdu: agirlik platosu 17.3 GB = 4.66e9 x 4 bayt.
+        # bf16'ya gecince agirlik ve gradyan yariya iniyor, logits de fp32
+        # yerine bf16 uretiliyor -- selective_log_softmax'in fp32 dalindaki
+        # satir basina 5.68 GiB'lik logsumexp geçicisi de yariya iniyor.
+        model_init_kwargs={"dtype": args.dtype},
         gradient_checkpointing=True,
+        # RMSNorm/SwiGLU/RoPE'u fuzyonlu cekirdeklerle degistiriyor; aktivasyon
+        # tepesini dusuruyor. Not: GRPO logits'i kendi hesapladigi icin liger'in
+        # fuzyonlu linear-cross-entropy'si BU yolda devreye girmiyor -- yani
+        # logits tensorunu ortadan kaldirmiyor, sadece aktivasyondan kazandiriyor.
+        use_liger_kernel=args.liger,
         optim="adamw_bnb_8bit",       # 4B full FT + vLLM ayni karta ancak boyle sigar
         use_vllm=True,
         vllm_mode="colocate",

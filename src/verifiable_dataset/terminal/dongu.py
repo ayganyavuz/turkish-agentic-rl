@@ -128,7 +128,7 @@ def main() -> int:
     ap.add_argument("--max-komut", type=int, default=12)
     ap.add_argument("--max-completion", type=int, default=6144)
     ap.add_argument("--vllm-baglam", type=int, default=16384)
-    ap.add_argument("--vllm-bellek", type=float, default=0.30,
+    ap.add_argument("--vllm-bellek", type=float, default=0.50,
                     help="Colocate'te vLLM'e ayrilan kart orani. 0.45 ile "
                          "max-completion 6144'te ilk optimizer adiminda OOM "
                          "olduk: selective_log_softmax'in logits tensoru "
@@ -136,6 +136,8 @@ def main() -> int:
                          "o kosuda zaten aciktı, yani tek kalan kol bu.")
     ap.add_argument("--concurrency", type=int, default=24)
     ap.add_argument("--lr", type=float, default=1e-6)
+    ap.add_argument("--dtype", default="bfloat16",
+                    choices=["bfloat16", "float32"])
     ap.add_argument("--mufredati-kullan", action="store_true",
                     help="ilk epoch'ta sweep'i atla, diskteki "
                          "mufredat/epochN.txt'yi kullan. Yalnizca model o "
@@ -242,6 +244,7 @@ def main() -> int:
             f"--micro-batch {args.micro_batch} --epoch 1 --lr {args.lr} "
             f"--max-komut {args.max_komut} --max-completion {args.max_completion} "
             f"--vllm-baglam {args.vllm_baglam} --vllm-bellek {args.vllm_bellek} "
+            f"--dtype {args.dtype} "
             f"--cikti {cikti} > {K}/train-epoch{epoch}.log 2>&1",
             cwd=str(repo), env=ortam)
         if rc != 0 or not (cikti / "config.json").exists():
