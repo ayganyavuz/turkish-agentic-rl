@@ -650,3 +650,38 @@ Test: sahte `torch.profiler.profile` ile cagri argumanlari yakalandi
 **16 saniyede** `bdist_wheel` hatasiyla dustu. Model tarafinda engel yok
 (`Qwen3_5ForCausalLM._supports_flash_attn = True`), engel paketin CUDA 13
 ile derlenememesi. `--attn` bayragi yerinde; karar profil tablosuna bagli.
+
+---
+
+## Faz olcumu artik cikarim degil (10 Eylul)
+
+"Uretim ~%38 / loss ~%62" ayrimi bugune kadar **bellek izinden cikarimdi**.
+Hangi hizlandirmanin degdigi tamamen bu ayrima bagli oldugu icin bu, uzerine
+oneri kurulacak bir sayi degildi.
+
+`_generate` uyku yamasi icin zaten sarmalaniyordu; disina bir kronometre
+kondu (`uretim_suresini_olc` + `FazCallback`). Uretim **dogrudan** olculuyor,
+adim suresinin kalani loss. Profiler gerekmiyor, maliyeti yok, her adimda
+basiliyor:
+```
+faz[adim N]: toplam X sn = uretim Y (A%) + loss Z (B%)
+```
+Kosulsuz acik -- yama tutmazsa sessizce devre disi kaliyor.
+
+Test: sahte `trl.GRPOTrainer` ile 0.30 sn "uretim" + 0.20 sn "loss" →
+`60% / 40%` basildi; ikinci adimda sayacin sifirlandigi ve yamanin iki kez
+uygulanmadigi dogrulandi.
+
+### Hizlandirma kaldiraclari (kanit seviyeleriyle)
+| Kaldirac | Beklenen | Kanit | Bedel |
+|---|---|---|---|
+| dusunme modunu kapatmak | ~2x | **olculdu**: istek basina ~530 ek cikis token | kalite; olcumden sonra bilincli acilmisti |
+| `--max-komut` dusurmek | uretim dogrusal kisalir | egitimde `call_frequency` **9.5-9.9 / 12** (tavana yakin) | cozulemeyen gorev → odul duser |
+| boru hatti (async GRPO) | adim = `max(uretim, loss)` | TRL `experimental/async_grpo` | off-policy'ye gecmek |
+| mikro-batch 4 | ~%6-15 | olculdu | duvara pay 14.75 → ~7 GB |
+| H100 / 4xH100 | ~1.5-1.8x / ~3.7x | tahmin | donanim |
+
+**Onemli:** egitimde tur sayisi 12'nin 9.5-9.9'unu tuketiyor. Turlar seri
+kostugu icin uretim maliyeti dogrudan tur sayisiyla artiyor. Held-out
+olcumunde tepe 0.5'teydi ama o **sweep'in butcesiyle** olculmustu (2048
+token, metin protokolu); egitimde durum farkli.

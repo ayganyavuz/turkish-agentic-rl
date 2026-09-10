@@ -21,6 +21,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 # Colab'de Docker yok; sandbox modunu her seyden once sec.
@@ -256,6 +257,65 @@ class ProfilCallback:
             print("profil bitti -- egitim durduruluyor", flush=True)
 
     # TrainerCallback arayuzunun kullanmadigimiz kancalari
+    def __getattr__(self, ad):
+        if ad.startswith("on_"):
+            return lambda *a, **k: None
+        raise AttributeError(ad)
+
+
+# Adim suresinin fazlara dagilimi. "uretim %38 / loss %62" ayrimi bugune kadar
+# BELLEK IZINDEN CIKARIMDI, olcum degil -- ve hangi hizlandirmanin degdigi
+# tamamen buna bagli. `_generate` zaten sarmalanıyor; icine kronometre koyunca
+# uretim DOGRUDAN olculuyor, kalan loss oluyor.
+_FAZ = {"uretim": 0.0}
+
+
+def uretim_suresini_olc() -> bool:
+    """`_generate`'i sarmalayip adim basina uretim suresini biriktir.
+
+    Uyku yamasindan SONRA uygulanmali: o da `_generate`'i sarmaliyor, bu
+    disdan sarinca sarmalayicinin tamami (uyandirma + tur dongusu + uyutma)
+    uretim sayilir. Adim suresinin geri kalani loss fazidir.
+    """
+    try:
+        from trl import GRPOTrainer
+    except Exception:
+        return False
+    if not hasattr(GRPOTrainer, "_generate"):
+        return False
+    if getattr(GRPOTrainer, "_faz_yamasi", False):
+        return True
+
+    _asil = GRPOTrainer._generate
+
+    def _generate_olculen(self, prompts):
+        t0 = time.perf_counter()
+        try:
+            return _asil(self, prompts)
+        finally:
+            _FAZ["uretim"] += time.perf_counter() - t0
+
+    GRPOTrainer._generate = _generate_olculen
+    GRPOTrainer._faz_yamasi = True
+    return True
+
+
+class FazCallback:
+    """Her adimda uretim/loss ayrimini bas."""
+
+    def on_step_begin(self, args, state, control, **kw):
+        self._t0 = time.perf_counter()
+        _FAZ["uretim"] = 0.0
+
+    def on_step_end(self, args, state, control, **kw):
+        toplam = time.perf_counter() - getattr(self, "_t0", time.perf_counter())
+        uretim = _FAZ["uretim"]
+        loss = toplam - uretim
+        if toplam > 0:
+            print(f"faz[adim {state.global_step}]: toplam {toplam:.1f} sn = "
+                  f"uretim {uretim:.1f} ({uretim/toplam*100:.0f}%) + "
+                  f"loss {loss:.1f} ({loss/toplam*100:.0f}%)", flush=True)
+
     def __getattr__(self, ad):
         if ad.startswith("on_"):
             return lambda *a, **k: None
@@ -513,6 +573,11 @@ def main() -> int:
               f"{'' if gercek == args.attn else '   <-- UYUSMUYOR'}", flush=True)
     except Exception as e:  # noqa: BLE001
         print(f"attn_impl okunamadi: {e}", flush=True)
+
+    if uretim_suresini_olc():
+        trainer.add_callback(FazCallback())
+        print("faz olcumu acik: her adimda uretim/loss ayrimi basilacak",
+              flush=True)
 
     if args.profil:
         trainer.add_callback(ProfilCallback(args.profil, args.cikti,
