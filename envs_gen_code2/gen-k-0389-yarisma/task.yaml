@@ -1,0 +1,108 @@
+id: gen-k-0389-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  /workspace dizininde events.txt dosyasındaki etkinlikleri okuyup çakışmaları çözen bir simulate.py dosyası oluştur. events.txt içinde her satırda "SS:DD-SS:DD ad" biçiminde bir etkinlik var. Aynı dakikaya birden fazla etkinlik denk geldiğinde, çakışmayı gün içinde en erken başlayan etkinliğe öncelik vererek çöz. Hayatta kalan etkinlikleri başlangıç saatine göre sıralı olarak, her satırda bir etkinlik olacak şekilde "SS:DD-SS:DD ad" biçimiyle ekrana yaz.
+
+setup: |
+  cat > events.txt <<'EVENTS'
+  09:00-10:30 standup
+  10:00-11:00 design-review
+  11:15-12:00 lunch-sync
+  13:00-14:00 deep-work
+  13:30-15:00 interview
+  15:30-16:00 retro
+  EVENTS
+
+goal_tr: >
+  events.txt dosyasindaki "SS:DD-SS:DD ad" bicimli etkinlikleri okuyup, ayni
+  dakikaya birden fazla etkinlik denk geldiginde cakismalari gun icinde en
+  erken baslayan etkinlige oncelik vererek cozen ve hayatta kalan
+  etkinlikleri baslangic saatine gore sirali olarak "SS:DD-SS:DD ad"
+  bicimiyle ekrana yazan simulate.py dosyasini yaz.
+
+reference_solution: |
+  cat > simulate.py <<'PY'
+  import sys
+
+
+  def to_minutes(hhmm):
+      h, m = hhmm.split(':')
+      return int(h) * 60 + int(m)
+
+
+  def to_clock(minutes):
+      return "%02d:%02d" % (minutes // 60, minutes % 60)
+
+
+  def parse_events(path):
+      events = []
+      with open(path) as fh:
+          for line in fh:
+              line = line.strip()
+              if not line:
+                  continue
+              span, name = line.split(' ', 1)
+              start, end = span.split('-')
+              events.append((to_minutes(start), to_minutes(end), name))
+      return events
+
+
+  def resolve(events):
+      events = sorted(events, key=lambda e: (e[0], e[1]))
+      kept = []
+      busy_until = None
+      for start, end, name in events:
+          if busy_until is not None and start < busy_until:
+              continue
+          kept.append((start, end, name))
+          busy_until = end
+      return kept
+
+
+  def main():
+      events = parse_events('events.txt')
+      for start, end, name in resolve(events):
+          print("%s-%s %s" % (to_clock(start), to_clock(end), name))
+
+
+  if __name__ == '__main__':
+      main()
+  PY
+  python3 simulate.py
+
+outputs:
+  - {path: simulate.py, kind: program, run: 'python3 -c ''import subprocess; out=subprocess.run(["python3","simulate.py"],capture_output=True,text=True); lines=out.stdout.strip().splitlines(); assert lines==["09:00-10:30 standup","11:15-12:00 lunch-sync","13:00-14:00 deep-work","15:30-16:00 retro"], lines; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import subprocess; out=subprocess.run(["python3","simulate.py"],capture_output=True,text=True); lines=out.stdout.strip().splitlines(); assert lines==["09:00-10:30 standup","11:15-12:00 lunch-sync","13:00-14:00 deep-work","15:30-16:00 retro"], lines; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0389
+    bundle: yarisma
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: yarisma
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: benzetim

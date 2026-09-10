@@ -1,0 +1,151 @@
+id: gen-k-1024-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  fleet/core/audit.py içindeki find_overdue ve lookup_overdue fonksiyonlarını düzelt: mileage >= limit olan araçlar sınırda sayılsın, bilinmeyen id'de lookup_overdue None dönsün.
+
+setup: |
+  mkdir -p fleet/core
+  cat > fleet/core/registry.py <<'REG'
+  class FleetError(Exception):
+      pass
+
+
+  class UnknownVehicleError(FleetError):
+      pass
+
+
+  class VehicleRegistry:
+      def __init__(self):
+          self._by_id = {}
+
+      def add(self, vehicle):
+          self._by_id[vehicle["id"]] = vehicle
+
+      def get(self, vid):
+          if vid not in self._by_id:
+              raise UnknownVehicleError(vid)
+          return self._by_id[vid]
+
+      def all(self):
+          return list(self._by_id.values())
+  REG
+  cat > fleet/core/audit.py <<'AUDIT'
+  from fleet.core.registry import FleetError, UnknownVehicleError
+
+
+  def find_overdue(registry, limit):
+      overdue = []
+      for v in registry.all():
+          if v["mileage"] > limit:
+              overdue.append(v["id"])
+      return overdue
+
+
+  def lookup_overdue(registry, limit, vid):
+      try:
+          v = registry.get(vid)
+      except UnknownVehicleError:
+          return None
+      if v["mileage"] > limit:
+          return v["id"]
+      return None
+  AUDIT
+  cat > fleet/report.py <<'REPORT'
+  from fleet.core.audit import find_overdue, lookup_overdue
+  from fleet.core.registry import VehicleRegistry
+
+
+  def build_report(vehicles, limit):
+      reg = VehicleRegistry()
+      for v in vehicles:
+          reg.add(v)
+      overdue = find_overdue(reg, limit)
+      return {"count": len(overdue), "ids": overdue}
+
+
+  def probe(vehicles, limit, vid):
+      reg = VehicleRegistry()
+      for v in vehicles:
+          reg.add(v)
+      return lookup_overdue(reg, limit, vid)
+  REPORT
+  cat > vehicles.json <<'JSON'
+  [
+    {"id": "V1", "mileage": 120000},
+    {"id": "V2", "mileage": 40000},
+    {"id": "V3", "mileage": 95000}
+  ]
+  JSON
+
+goal_tr: >
+  fleet/core/audit.py icindeki find_overdue ve lookup_overdue
+  fonksiyonlarini, limit sinirindaki araclari (mileage >= limit) ve
+  bilinmeyen id'yi dogru ele alacak bicimde duzelt.
+
+reference_solution: |
+  cat > fleet/core/audit.py <<'AUDIT'
+  from fleet.core.registry import FleetError, UnknownVehicleError
+
+
+  def find_overdue(registry, limit):
+      overdue = []
+      for v in registry.all():
+          if v["mileage"] >= limit:
+              overdue.append(v["id"])
+      return overdue
+
+
+  def lookup_overdue(registry, limit, vid):
+      try:
+          v = registry.get(vid)
+      except UnknownVehicleError:
+          return None
+      if v["mileage"] >= limit:
+          return v["id"]
+      return None
+  AUDIT
+
+outputs:
+  - {path: fleet/core/audit.py, kind: program, run: 'python3 -c ''import json; from fleet.report import build_report as f, probe as p; d=json.load(open("vehicles.json")); r=f(d,95000); assert r=={"count":2,"ids":["V1","V3"]}, r; r2=f(d,200000); assert r2=={"count":0,"ids":[]}, r2; r3=f(d,40000); assert r3=={"count":3,"ids":["V1","V2","V3"]}, r3; assert p(d,95000,"V3")=="V3", p(d,95000,"V3"); assert p(d,95000,"V2") is None; assert p(d,95000,"VX") is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import json; from fleet.report import build_report as f, probe as p; d=json.load(open("vehicles.json")); r=f(d,95000); assert r=={"count":2,"ids":["V1","V3"]}, r; r2=f(d,200000); assert r2=={"count":0,"ids":[]}, r2; r3=f(d,40000); assert r3=={"count":3,"ids":["V1","V2","V3"]}, r3; assert p(d,95000,"V3")=="V3", p(d,95000,"V3"); assert p(d,95000,"V2") is None; assert p(d,95000,"VX") is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1024
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: arac-filosu
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kapsam-hatasi
+      karmasiklik: duz
+      kalip: istisna-hiyerarsisi
+      akis: ic-ice-yapi
+      topoloji: paket-alt-paket
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

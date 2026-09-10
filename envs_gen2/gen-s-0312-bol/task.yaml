@@ -1,0 +1,107 @@
+id: gen-s-0312-bol
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  girdi/kargolar.tsv dosyasındaki kayıtları, girdi/agirliklar.tsv içinde karşılığı olmayan satırları eleyecek şekilde işle; kalan kayıtları sehir alanına göre girdi/alt dizini altında her şehir için şehir adıyla bir dizine ayır ve her şehri kendi kargo_id, musteri, durum ve gram alanlarını içeren bir tsv dosyası olarak yaz. Her şehir dizininin içine o şehirdeki kayıt sayısını yalnızca sayı olarak tutan sayi.txt dosyasını koy ve tüm çıktıyı gzip ile cikti.tar.gz arşivine paketle.
+
+setup: |
+  mkdir -p girdi
+  cat > girdi/kargolar.tsv <<'TSV'
+  kargo_id	musteri	sehir	durum
+  K001	Ayse	Ankara	yolda
+  K002	Mehmet	Izmir	teslim
+  K003	Zeynep	Ankara	yolda
+  K004	Ali	Bursa	iptal
+  K005	Fatma	Izmir	teslim
+  K006	Can	Ankara	teslim
+  K007	Ece	Bursa	yolda
+  TSV
+  cat > girdi/agirliklar.tsv <<'TSV'
+  kargo_id	gram
+  K001	1500
+  K002	200
+  K003	3400
+  K004	900
+  K005	1200
+  K006	2500
+  K007	1750
+  K008	800
+  TSV
+
+goal_tr: >
+  girdi/kargolar.tsv ile girdi/kargolar.tsv'de olmayan girdi/agirliklar.tsv
+  satirlarini eleyip, kalan kayitlari sehir alanina gore girdi/altinda sehir
+  adiyla bir dizine, her sehri kendi kargo_id, musteri, durum ve gram
+  alanlarini iceren bir tsv dosyasi olarak yaz; her sehir dizininin icine o
+  sehirdeki kayit sayisini sadece sayi olarak tutan sayi.txt koy ve tum
+  ciktiyi gzip ile cikti.tar.gz arsivine paketle
+
+reference_solution: |
+  mkdir -p is
+  join -t "$(printf '\t')" -1 1 -2 1 <(sort -t "$(printf '\t')" -k1,1 girdi/kargolar.tsv) <(sort -t "$(printf '\t')" -k1,1 girdi/agirliklar.tsv) > is/birlesik.tsv
+  awk -F '\t' 'NR>1 { d="girdi/alt/" $3; system("mkdir -p " d); print $1 "\t" $2 "\t" $4 "\t" $5 > (d "/kayitlar.tsv") }' is/birlesik.tsv
+  for d in girdi/alt/*/; do n=$(awk 'END{print NR}' "$d/kayitlar.tsv"); printf '%s\n' "$n" > "$d/sayi.txt"; done
+  tar -czf cikti.tar.gz -C girdi alt
+  gzip -t cikti.tar.gz
+
+outputs:
+  - {path: cikti.tar.gz, kind: file}
+  - {path: girdi/alt, kind: dir}
+
+checks:
+  - {op: dir_entries_eq, path: girdi/alt, value: [Ankara, Bursa, Izmir, sehir]}
+  - {op: run_stdout_eq, cmd: tar -tzf cikti.tar.gz | sort, value: 'alt/
+
+    alt/Ankara/
+
+    alt/Ankara/kayitlar.tsv
+
+    alt/Ankara/sayi.txt
+
+    alt/Bursa/
+
+    alt/Bursa/kayitlar.tsv
+
+    alt/Bursa/sayi.txt
+
+    alt/Izmir/
+
+    alt/Izmir/kayitlar.tsv
+
+    alt/Izmir/sayi.txt
+
+    alt/sehir/
+
+    alt/sehir/kayitlar.tsv
+
+    alt/sehir/sayi.txt'}
+
+metadata:
+  domain: bol
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0312
+    bundle: arsiv
+    tools:
+    - tar
+    - gzip
+    konu: kargo-takibi
+    hedef: bol
+    girdi: tsv
+    kaynak: iki-dosya-capraz
+    cikti: dizin-yapisi
+    kesif: veriye-bak
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

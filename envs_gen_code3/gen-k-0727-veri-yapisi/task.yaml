@@ -1,0 +1,184 @@
+id: gen-k-0727-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 20
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  bank/ledger.py içindeki Ledger sınıfında settle ve pending metodlarını gerçekleştir. settle işlemleri (fee, varış) öncelik sırasına göre uygulayıp her işlemden sonraki bakiyeyi (txn_id, balance) listesi olarak döndürsün, pending ise kuyrukta bekleyen işlem sayısını versin.
+
+setup: |
+  mkdir -p bank
+  cat > bank/events.py <<'EVENTS'
+  import heapq
+
+
+  class EventQueue:
+      """Min-heap keyed by (priority, seq). Lower priority value pops first."""
+
+      def __init__(self):
+          self._heap = []
+          self._seq = 0
+
+      def push(self, priority, payload):
+          heapq.heappush(self._heap, (priority, self._seq, payload))
+          self._seq += 1
+
+      def pop(self):
+          priority, seq, payload = heapq.heappop(self._heap)
+          return priority, payload
+
+      def __len__(self):
+          return len(self._heap)
+  EVENTS
+  cat > bank/ledger.py <<'LEDGER'
+  from bank.events import EventQueue
+
+
+  class Ledger:
+      """Applies transactions in ascending (fee, arrival) priority order.
+
+      A transaction is (txn_id, amount, fee). Transactions with the same fee
+      are applied in arrival order. Returns the running balance after each
+      applied transaction as a list of (txn_id, balance).
+      """
+
+      def __init__(self):
+          self._queue = EventQueue()
+          self._next_arrival = 0
+
+      def submit(self, txn_id, amount, fee):
+          self._queue.push(fee, (self._next_arrival, txn_id, amount))
+          self._next_arrival += 1
+
+      def settle(self):
+          raise NotImplementedError
+
+      def pending(self):
+          raise NotImplementedError
+  LEDGER
+  cat > bank/statement.py <<'STATEMENT'
+  from bank.ledger import Ledger
+
+
+  def build_statement(transactions):
+      """transactions: list of (txn_id, amount, fee) in arrival order.
+
+      Returns list of (txn_id, balance) after settling all transactions.
+      """
+      ledger = Ledger()
+      for txn_id, amount, fee in transactions:
+          ledger.submit(txn_id, amount, fee)
+      return ledger.settle()
+  STATEMENT
+  cat > bank/__init__.py <<'INIT'
+  INIT
+
+goal_tr: >
+  bank/ledger.py icindeki Ledger sinifinda settle ve pending metodlarini
+  gerceklestir; settle islemleri (fee, varis) oncelik sirasina gore
+  uygulayip her islemden sonraki bakiyeyi (txn_id, balance) listesi olarak
+  dondursun, pending ise kuyrukta bekleyen islem sayisini versin.
+
+reference_solution: |
+  cat > bank/ledger.py <<'LEDGER'
+  from bank.events import EventQueue
+
+
+  class Ledger:
+      """Applies transactions in ascending (fee, arrival) priority order.
+
+      A transaction is (txn_id, amount, fee). Transactions with the same fee
+      are applied in arrival order. Returns the running balance after each
+      applied transaction as a list of (txn_id, balance).
+      """
+
+      def __init__(self):
+          self._queue = EventQueue()
+          self._next_arrival = 0
+
+      def submit(self, txn_id, amount, fee):
+          self._queue.push(fee, (self._next_arrival, txn_id, amount))
+          self._next_arrival += 1
+
+      def settle(self):
+          balance = 0
+          result = []
+          while len(self._queue) > 0:
+              fee, payload = self._queue.pop()
+              arrival, txn_id, amount = payload
+              balance += amount
+              result.append((txn_id, balance))
+          return result
+
+      def pending(self):
+          return len(self._queue)
+  LEDGER
+
+ara_adim: |
+  cat > bank/ledger.py <<'LEDGER'
+  from bank.events import EventQueue
+
+
+  class Ledger:
+      """Applies transactions in ascending (fee, arrival) priority order.
+
+      A transaction is (txn_id, amount, fee). Transactions with the same fee
+      are applied in arrival order. Returns the running balance after each
+      applied transaction as a list of (txn_id, balance).
+      """
+
+      def __init__(self):
+          self._queue = EventQueue()
+          self._next_arrival = 0
+
+      def submit(self, txn_id, amount, fee):
+          self._queue.push(fee, (self._next_arrival, txn_id, amount))
+          self._next_arrival += 1
+
+      def settle(self):
+          raise NotImplementedError
+
+      def pending(self):
+          return len(self._queue)
+  LEDGER
+
+outputs:
+  - {path: bank/ledger.py, kind: program, run: 'python3 -c ''from bank.statement import build_statement as f; t=[("a",10,2),("b",5,0),("c",7,2),("d",1,1)]; r=f(t); assert r==[("b",5),("d",6),("a",16),("c",23)], r; print("TAMAM")'''}
+  - {path: bank/ledger.py, kind: program, run: 'python3 -c ''from bank.ledger import Ledger; L=Ledger(); L.submit("x",3,1); L.submit("y",4,0); assert L.pending()==2, L.pending(); print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bank.statement import build_statement as f; t=[("a",10,2),("b",5,0),("c",7,2),("d",1,1)]; r=f(t); assert r==[("b",5),("d",6),("a",16),("c",23)], r; print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bank.ledger import Ledger; L=Ledger(); L.submit("x",3,1); L.submit("y",4,0); assert L.pending()==2, L.pending(); print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0727
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: banka-hareketleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: zor
+    adim: 7
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: oncelik-kuyrugu
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

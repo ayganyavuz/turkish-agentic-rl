@@ -1,0 +1,156 @@
+id: gen-k-1143-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  records/transcript.py içindeki first_course_wins fonksiyonu şu an her öğrenci için görülen son notu tutuyor; bunu, MergedStream üzerinden gezerken her öğrenci için ilk görülen notu koruyacak ve öğrencilerin ilk görülme sırasını bozmayacak şekilde düzelt.
+
+setup: |
+  mkdir -p records
+  cat > records/loader.py <<'LOADER'
+  def read_rows(path):
+      rows = []
+      with open(path, encoding="utf-8") as fh:
+          for line in fh:
+              line = line.strip()
+              if not line:
+                  continue
+              name, course, grade = line.split(";")
+              rows.append((name, course, int(grade)))
+      return rows
+  LOADER
+  cat > records/pairs.py <<'PAIRS'
+  from records.loader import read_rows
+
+
+  class GradeStream:
+      """Iterator over (name, grade) pairs in file order."""
+
+      def __init__(self, path):
+          self._rows = read_rows(path)
+          self._i = 0
+
+      def __iter__(self):
+          return self
+
+      def __next__(self):
+          if self._i >= len(self._rows):
+              raise StopIteration
+          name, course, grade = self._rows[self._i]
+          self._i += 1
+          return (name, grade)
+  PAIRS
+  cat > records/stream.py <<'STREAM'
+  from records.pairs import GradeStream
+
+
+  class MergedStream:
+      """Iterator that chains GradeStream objects for several paths."""
+
+      def __init__(self, paths):
+          self._paths = list(paths)
+          self._pi = 0
+          self._current = None
+
+      def __iter__(self):
+          return self
+
+      def __next__(self):
+          while True:
+              if self._current is None:
+                  if self._pi >= len(self._paths):
+                      raise StopIteration
+                  self._current = GradeStream(self._paths[self._pi])
+                  self._pi += 1
+              try:
+                  return next(self._current)
+              except StopIteration:
+                  self._current = None
+  STREAM
+  cat > records/transcript.py <<'TRANSCRIPT'
+  from records.stream import MergedStream
+
+
+  def first_course_wins(paths):
+      """Return a list of (name, grade) keeping only the FIRST grade seen
+      for each name, preserving first-seen order."""
+      seen = {}
+      for name, grade in MergedStream(paths):
+          seen[name] = grade
+      return list(seen.items())
+  TRANSCRIPT
+  cat > records/fall.txt <<'FALL'
+  ada;math;70
+  bora;math;55
+  ada;physics;90
+  FALL
+  cat > records/spring.txt <<'SPRING'
+  bora;physics;85
+  cem;math;60
+  ada;math;100
+  SPRING
+
+goal_tr: >
+  records/transcript.py icindeki first_course_wins fonksiyonunu,
+  MergedStream uzerinden gezerken her ogrenci icin ilk gorulen notu koruyup
+  ilk gorulme sirasini bozmayacak sekilde duzelt.
+
+reference_solution: |
+  cat > records/transcript.py <<'TRANSCRIPT'
+  from records.stream import MergedStream
+
+
+  def first_course_wins(paths):
+      """Return a list of (name, grade) keeping only the FIRST grade seen
+      for each name, preserving first-seen order."""
+      seen = {}
+      order = []
+      for name, grade in MergedStream(paths):
+          if name not in seen:
+              seen[name] = grade
+              order.append(name)
+      return [(name, seen[name]) for name in order]
+  TRANSCRIPT
+
+outputs:
+  - {path: records/transcript.py, kind: program, run: 'python3 -c ''from records.transcript import first_course_wins as f; r=f(["records/fall.txt","records/spring.txt"]); assert r==[("ada",70),("bora",55),("cem",60)], r; r2=f(["records/spring.txt","records/fall.txt"]); assert r2==[("bora",85),("cem",60),("ada",100)], r2; r3=f(["records/fall.txt"]); assert r3==[("ada",70),("bora",55)], r3; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from records.transcript import first_course_wins as f; r=f(["records/fall.txt","records/spring.txt"]); assert r==[("ada",70),("bora",55),("cem",60)], r; r2=f(["records/spring.txt","records/fall.txt"]); assert r2==[("bora",85),("cem",60),("ada",100)], r2; r3=f(["records/fall.txt"]); assert r3==[("ada",70),("bora",55)], r3; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1143
+    bundle: yarisma
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: iki-isaretci
+      karmasiklik: duz
+      kalip: iterator-protokolu
+      akis: cok-dosya-birlestirme
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

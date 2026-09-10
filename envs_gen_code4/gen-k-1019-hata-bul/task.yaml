@@ -1,0 +1,125 @@
+id: gen-k-1019-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  exam/report.py içindeki passing fonksiyonu, eşik değere tam eşit olanları da geçmiş saysın; average aynı kalsın.
+
+setup: |
+  mkdir -p exam
+  cat > exam/loader.py <<'LOADER'
+  class ScoreFile:
+      def __init__(self, path):
+          self.path = path
+          self._fh = None
+
+      def __enter__(self):
+          self._fh = open(self.path, "r", encoding="ascii")
+          return self
+
+      def __exit__(self, exc_type, exc, tb):
+          if self._fh is not None:
+              self._fh.close()
+              self._fh = None
+          return False
+
+      def rows(self):
+          out = []
+          for line in self._fh:
+              line = line.strip()
+              if not line:
+                  continue
+              name, score = line.split(",")
+              out.append((name, int(score)))
+          return out
+  LOADER
+  cat > exam/report.py <<'REPORT'
+  from exam.loader import ScoreFile
+
+
+  def average(path):
+      with ScoreFile(path) as sf:
+          rows = sf.rows()
+      total = 0
+      for _, score in rows:
+          total += score
+      return total / len(rows)
+
+
+  def passing(path, threshold):
+      with ScoreFile(path) as sf:
+          rows = sf.rows()
+      return [name for name, score in rows if score > threshold]
+  REPORT
+  cat > scores.txt <<'DATA'
+  ada,90
+  bora,55
+  cem,70
+  DATA
+
+goal_tr: >
+  exam/report.py icindeki passing fonksiyonunu, esik degere TAM ESIT olan
+  ogrencileri de gecmis sayacak sekilde duzelt; average degismesin.
+
+reference_solution: |
+  cat > exam/report.py <<'REPORT'
+  from exam.loader import ScoreFile
+
+
+  def average(path):
+      with ScoreFile(path) as sf:
+          rows = sf.rows()
+      total = 0
+      for _, score in rows:
+          total += score
+      return total / len(rows)
+
+
+  def passing(path, threshold):
+      with ScoreFile(path) as sf:
+          rows = sf.rows()
+      return [name for name, score in rows if score >= threshold]
+  REPORT
+
+outputs:
+  - {path: exam/report.py, kind: program, run: 'python3 -c ''from exam.report import average as a, passing as p; assert a("scores.txt")==215/3, a("scores.txt"); assert p("scores.txt",70)==["ada","cem"], p("scores.txt",70); assert p("scores.txt",55)==["ada","bora","cem"], p("scores.txt",55); assert p("scores.txt",91)==[], p("scores.txt",91); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from exam.report import average as a, passing as p; assert a("scores.txt")==215/3, a("scores.txt"); assert p("scores.txt",70)==["ada","cem"], p("scores.txt",70); assert p("scores.txt",55)==["ada","bora","cem"], p("scores.txt",55); assert p("scores.txt",91)==[], p("scores.txt",91); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1019
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: sinav-sonuclari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum
+      karmasiklik: duz
+      kalip: context-manager
+      akis: dosya-okuma
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

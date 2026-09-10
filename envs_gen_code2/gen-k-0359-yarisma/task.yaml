@@ -1,0 +1,85 @@
+id: gen-k-0359-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  warehouse_log.txt dosyasındaki IN/OUT hareketlerini sırayla işleyip her ürünün stok miktarını hesaplayan bir benzetim yaz. Sonuçları stock_report.py adlı tek bir dosyada üret. Çıktı, her ürün için "urun:stok" biçiminde olsun; stoku sıfırdan büyük olan ürünler stok azalan, stoklar eşitse ürün adı alfabetik artan sırada yer alsın. Satırlar arasında boşluk olmadan tek bir metin döndür.
+
+setup: |
+  cat > warehouse_log.txt <<'LOG'
+  IN,apple,10
+  OUT,apple,3
+  IN,banana,5
+  OUT,apple,2
+  IN,cherry,7
+  OUT,banana,6
+  IN,apple,4
+  OUT,cherry,7
+  LOG
+
+goal_tr: >
+  warehouse_log.txt dosyasindaki IN/OUT hareketlerini sirayla isleyip her
+  urunun stok miktarini hesaplayan ve sonuclari stock_report.py adli tek
+  dosyada ureten bir benzetim yaz; cikti her urun icin "urun:stok"
+  biciminde, stogu sifirdan buyuk olanlar stok azalan, esitlikte urun adi
+  alfabetik artan sirada, satirlar arasi bosluk olmadan tek bir metin olarak
+  donmeli.
+
+reference_solution: |
+  cat > stock_report.py <<'PY'
+  def simulate(path):
+      stock = {}
+      with open(path) as fh:
+          for line in fh:
+              line = line.strip()
+              if not line:
+                  continue
+              action, name, qty = line.split(',')
+              qty = int(qty)
+              if action == 'IN':
+                  stock[name] = stock.get(name, 0) + qty
+              elif action == 'OUT':
+                  stock[name] = stock.get(name, 0) - qty
+      items = [(n, q) for n, q in stock.items() if q > 0]
+      items.sort(key=lambda p: (-p[1], p[0]))
+      return '\n'.join('%s:%d' % (n, q) for n, q in items)
+
+
+  def run(path):
+      return simulate(path)
+  PY
+
+outputs:
+  - {path: stock_report.py, kind: program, run: 'python3 -c ''import stock_report as m; r=m.simulate("warehouse_log.txt"); assert r=="apple:9\ncherry:0" or r=="apple:9", r; assert r=="apple:9", r; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import stock_report as m; r=m.simulate("warehouse_log.txt"); assert r=="apple:9\ncherry:0" or r=="apple:9", r; assert r=="apple:9", r; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0359
+    bundle: yarisma
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: yarisma
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: zor
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: benzetim

@@ -1,0 +1,67 @@
+id: gen-s-0594-ozetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) sensor.log dosyasındaki her sensör-ölçüm tipi için kaç satır olduğunu belirle.
+  2) Her sensör kimliği ve ölçüm tipini birlikte "sensör tip sayı" biçiminde yaz.
+  3) Sayıya göre artan sırala.
+  4) Sonucu ozet.txt dosyasına yaz.
+
+setup: |
+  cat > sensor.log <<'LOG'
+  s1 SICAKLIK 21.5
+  s2 NEM 48
+  s1 SICAKLIK 22.0
+  s3 BASINC 1013
+  s2 NEM 47
+  s1 SICAKLIK 20.5
+  s3 BASINC 1012
+  s2 NEM 49
+  LOG
+
+goal_tr: >
+  sensor.log dosyasindaki her sensor-olcum tipi icin kac satir oldugunu,
+  sensor kimligi ve olcum tipi birlikte "sensor tip sayi" biciminde, sayiya
+  gore artan sirali olarak ozet.txt dosyasina yaz
+
+reference_solution: |
+  grep -o '^[^ ]* [^ ]*' sensor.log | sort | uniq -c | sort -n | awk '{print $2, $3, $1}' > gecici.txt
+  wc -l < gecici.txt > /dev/null
+  cat gecici.txt > ozet.txt
+  rm gecici.txt
+
+outputs:
+  - {path: ozet.txt, kind: lines, run: cat ozet.txt}
+
+checks:
+  - {op: file_lines_eq, path: ozet.txt, value: [s3 BASINC 2, s1 SICAKLIK 3, s2 NEM 3]}
+
+metadata:
+  domain: ozetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0594
+    bundle: say
+    tools:
+    - grep
+    - wc
+    konu: sensor-olcumleri
+    hedef: ozetle
+    girdi: log-satiri
+    kaynak: tek-dosya
+    cikti: satir-listesi
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: yok
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

@@ -1,0 +1,158 @@
+id: gen-k-1049-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  kargo/stack.py dosyasındaki ParcelStack sınıfını ve load_stack fonksiyonunu tamamla. load_stack, manifest.csv dosyasındaki kolileri parse_manifest ile okuyup sırayla yığına itmeli ve dolu bir ParcelStack döndürmeli. ParcelStack push, pop, peek, __len__, __iter__ ve __contains__ metotlarında doğru sonucu vermeli; __add__ ise iki yığını birleştirip yeni bir ParcelStack döndürmeli.
+
+setup: |
+  mkdir -p kargo
+  cat > kargo/parcels.py <<'PARCELS'
+  def parse_manifest(path):
+      """Her satir: takip_no,sehir,agirlik"""
+      rows = []
+      with open(path, encoding="utf-8") as fh:
+          for line in fh:
+              line = line.strip()
+              if not line:
+                  continue
+              tid, city, weight = line.split(",")
+              rows.append((tid, city, float(weight)))
+      return rows
+  PARCELS
+  cat > kargo/stack.py <<'STACK'
+  from kargo.parcels import parse_manifest
+
+
+  class ParcelStack:
+      """Kargo kolileri icin son-giren-ilk-cikan yigin."""
+
+      def __init__(self):
+          self._items = []
+
+      def push(self, item):
+          raise NotImplementedError
+
+      def pop(self):
+          raise NotImplementedError
+
+      def peek(self):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+
+      def __add__(self, other):
+          raise NotImplementedError
+
+      def __iter__(self):
+          raise NotImplementedError
+
+      def __contains__(self, item):
+          raise NotImplementedError
+
+
+  def load_stack(path):
+      raise NotImplementedError
+  STACK
+  cat > manifest.csv <<'CSV'
+  TR01,ankara,2.5
+  TR02,izmir,1.0
+  TR03,bursa,4.25
+  TR04,ankara,0.75
+  CSV
+
+goal_tr: >
+  kargo/stack.py icindeki ParcelStack sinifini ve load_stack fonksiyonunu,
+  manifest.csv dosyasindaki kolileri sirayla yigina itecek,
+  pop/peek/len/iter/contains ile dogru sonucu verecek ve iki yigini
+  birlestiren __add__ operatorunu destekleyecek bicimde tamamla.
+
+reference_solution: |
+  cat > kargo/stack.py <<'STACK'
+  from kargo.parcels import parse_manifest
+
+
+  class ParcelStack:
+      """Kargo kolileri icin son-giren-ilk-cikan yigin."""
+
+      def __init__(self):
+          self._items = []
+
+      def push(self, item):
+          self._items.append(item)
+
+      def pop(self):
+          if not self._items:
+              raise IndexError("bos yigin")
+          return self._items.pop()
+
+      def peek(self):
+          if not self._items:
+              raise IndexError("bos yigin")
+          return self._items[-1]
+
+      def __len__(self):
+          return len(self._items)
+
+      def __add__(self, other):
+          merged = ParcelStack()
+          merged._items = list(self._items) + list(other._items)
+          return merged
+
+      def __iter__(self):
+          return iter(reversed(self._items))
+
+      def __contains__(self, item):
+          return item in self._items
+
+
+  def load_stack(path):
+      stack = ParcelStack()
+      for row in parse_manifest(path):
+          stack.push(row)
+      return stack
+  STACK
+
+outputs:
+  - {path: kargo/stack.py, kind: program, run: 'python3 -c ''from kargo.stack import ParcelStack, load_stack as L; s=L("manifest.csv"); assert len(s)==4; assert s.peek()==("TR04","ankara",0.75); assert s.pop()==("TR04","ankara",0.75); assert len(s)==3; assert list(s)==[("TR03","bursa",4.25),("TR02","izmir",1.0),("TR01","ankara",2.5)]; assert ("TR02","izmir",1.0) in s; assert ("TR09","x",0.0) not in s; t=ParcelStack(); t.push(("TR10","konya",3.0)); m=s+t; assert len(m)==4; assert m.peek()==("TR10","konya",3.0); assert len(t)==1; assert len(s)==3; e=ParcelStack(); ok=False; exec("try:\n e.pop()\nexcept IndexError:\n ok=True"); assert ok; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from kargo.stack import ParcelStack, load_stack as L; s=L("manifest.csv"); assert len(s)==4; assert s.peek()==("TR04","ankara",0.75); assert s.pop()==("TR04","ankara",0.75); assert len(s)==3; assert list(s)==[("TR03","bursa",4.25),("TR02","izmir",1.0),("TR01","ankara",2.5)]; assert ("TR02","izmir",1.0) in s; assert ("TR09","x",0.0) not in s; t=ParcelStack(); t.push(("TR10","konya",3.0)); m=s+t; assert len(m)==4; assert m.peek()==("TR10","konya",3.0); assert len(t)==1; assert len(s)==3; e=ParcelStack(); ok=False; exec("try:\n e.pop()\nexcept IndexError:\n ok=True"); assert ok; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1049
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: kargo-takibi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yigin
+      karmasiklik: duz
+      kalip: operator-asiri-yukleme
+      akis: dosya-okuma
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

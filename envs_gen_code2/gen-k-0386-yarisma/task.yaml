@@ -1,0 +1,124 @@
+id: gen-k-0386-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depot/parser.py dosyasındaki parse_moves fonksiyonunu düzeltmen gerekiyor. Şu anki hali, her satırdaki isteğe bağlı birim etiketini yanlış okuyor; oysa birim etiketi '@' işaretinden sonra gelen alanda yer alıyor ve boşluksuz tek bir etiket olarak veriliyor. Fonksiyon hareketleri doğru şekilde ayrıştırmalı; öyle ki depot/inventory.py içindeki net_stock doğru stok değerlerini döndürebilsin. depot/parser.py dışındaki dosyaları değiştirmene gerek yok, sadece bu dosyayı ele al.
+
+setup: |
+  mkdir -p depot
+  cat > depot/parser.py <<'PARSER'
+  def parse_moves(text):
+      """Parse a warehouse movement log.
+
+      Each non-empty line has the form:
+          <op> <item> <qty>[ @ <unit>]
+      where op is IN or OUT, qty is an integer, and the optional
+      trailing field after '@' is a unit label (no spaces).
+
+      Returns a list of dicts with keys: op, item, qty, unit.
+      """
+      moves = []
+      for raw in text.splitlines():
+          line = raw.strip()
+          if not line or line.startswith('#'):
+              continue
+          parts = line.split()
+          op = parts[0]
+          item = parts[1]
+          qty = int(parts[2])
+          unit = ''
+          if len(parts) > 3:
+              unit = parts[3]
+          moves.append({'op': op, 'item': item, 'qty': qty, 'unit': unit})
+      return moves
+  PARSER
+  cat > depot/inventory.py <<'INV'
+  from depot.parser import parse_moves
+
+
+  def net_stock(text):
+      """Return a dict mapping item -> net quantity (IN minus OUT)."""
+      totals = {}
+      for m in parse_moves(text):
+          sign = 1 if m['op'] == 'IN' else -1
+          totals[m['item']] = totals.get(m['item'], 0) + sign * m['qty']
+      return totals
+  INV
+  cat > log.txt <<'LOG'
+  # warehouse log
+  IN bolt 10 @ box
+  OUT bolt 3 @ box
+  IN nut 5
+  OUT nut 2
+  IN bolt 4
+  LOG
+
+goal_tr: >
+  depot/parser.py icindeki parse_moves fonksiyonunu, her satirdaki istege
+  bagli birim etiketini '@' isaretinden sonra gelen alandan (bosluksuz tek
+  etiket) dogru okuyacak ve hareketleri dogru ayristiracak bicimde duzelt;
+  boylece depot/inventory.py icindeki net_stock dogru stok degerlerini
+  dondursun.
+
+reference_solution: |
+  cat > depot/parser.py <<'PARSER'
+  def parse_moves(text):
+      """Parse a warehouse movement log.
+
+      Each non-empty line has the form:
+          <op> <item> <qty>[ @ <unit>]
+      where op is IN or OUT, qty is an integer, and the optional
+      trailing field after '@' is a unit label (no spaces).
+
+      Returns a list of dicts with keys: op, item, qty, unit.
+      """
+      moves = []
+      for raw in text.splitlines():
+          line = raw.strip()
+          if not line or line.startswith('#'):
+              continue
+          head, _, tail = line.partition('@')
+          parts = head.split()
+          op = parts[0]
+          item = parts[1]
+          qty = int(parts[2])
+          unit = tail.strip()
+          moves.append({'op': op, 'item': item, 'qty': qty, 'unit': unit})
+      return moves
+  PARSER
+
+outputs:
+  - {path: depot/parser.py, kind: program, run: 'python3 -c ''from depot.inventory import net_stock as s; t=open("log.txt").read(); assert s(t)=={"bolt":11,"nut":3}, s(t); from depot.parser import parse_moves as p; m=p(t); assert m[0]=={"op":"IN","item":"bolt","qty":10,"unit":"box"}, m[0]; assert m[2]=={"op":"IN","item":"nut","qty":5,"unit":""}, m[2]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depot.inventory import net_stock as s; t=open("log.txt").read(); assert s(t)=={"bolt":11,"nut":3}, s(t); from depot.parser import parse_moves as p; m=p(t); assert m[0]=={"op":"IN","item":"bolt","qty":10,"unit":"box"}, m[0]; assert m[2]=={"op":"IN","item":"nut","qty":5,"unit":""}, m[2]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0386
+    bundle: yarisma
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: metin-ayristirma

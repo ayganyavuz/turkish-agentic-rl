@@ -1,0 +1,134 @@
+id: gen-k-0881-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 22
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depo/rapor.py içindeki total_units fonksiyonu tüm satırlardaki miktarların toplamını doğru döndürsün, low_stock ise eşik değerine eşit miktarları da listeye katsın. Sadece bu iki fonksiyonu düzelt.
+
+setup: |
+  mkdir -p depo
+  cat > depo/kayit.py <<'KAYIT'
+  def parse_items(text):
+      rows = []
+      for line in text.strip().splitlines():
+          sku, qty = line.split(':')
+          rows.append((sku.strip(), int(qty)))
+      return rows
+  KAYIT
+  cat > depo/rapor.py <<'RAPOR'
+  from depo.kayit import parse_items
+
+
+  def total_units(text):
+      rows = parse_items(text)
+      total = 0
+      for sku, qty in rows:
+          total += qty
+          return total
+      return total
+
+
+  def low_stock(text, threshold):
+      rows = parse_items(text)
+      result = []
+      for sku, qty in rows:
+          if qty < threshold:
+              result.append(sku)
+      return result
+  RAPOR
+  cat > envanter.txt <<'ENV'
+  A1:5
+  B2:20
+  C3:3
+  ENV
+
+goal_tr: >
+  depo/rapor.py icindeki total_units fonksiyonunu tum satirlardaki
+  miktarlarin toplamini dogru dondurecek, low_stock fonksiyonunu ise esik
+  degerine esit miktarlari da dahil edecek bicimde duzelt.
+
+reference_solution: |
+  cat > depo/rapor.py <<'RAPOR'
+  from depo.kayit import parse_items
+
+
+  def total_units(text):
+      rows = parse_items(text)
+      total = 0
+      for sku, qty in rows:
+          total += qty
+      return total
+
+
+  def low_stock(text, threshold):
+      rows = parse_items(text)
+      result = []
+      for sku, qty in rows:
+          if qty <= threshold:
+              result.append(sku)
+      return result
+  RAPOR
+
+ara_adim: |
+  cat > depo/rapor.py <<'RAPOR'
+  from depo.kayit import parse_items
+
+
+  def total_units(text):
+      rows = parse_items(text)
+      total = 0
+      for sku, qty in rows:
+          total += qty
+      return total
+
+
+  def low_stock(text, threshold):
+      rows = parse_items(text)
+      result = []
+      for sku, qty in rows:
+          if qty < threshold:
+              result.append(sku)
+      return result
+  RAPOR
+
+outputs:
+  - {path: depo/rapor.py, kind: program, run: 'python3 -c ''from depo.rapor import total_units as f; t=open("envanter.txt").read(); assert f(t)==28, f(t); print("TAMAM")'''}
+  - {path: depo/rapor.py, kind: program, run: 'python3 -c ''from depo.rapor import low_stock as f; t=open("envanter.txt").read(); assert f(t,5)==["A1","C3"], f(t,5); print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.rapor import total_units as f; t=open("envanter.txt").read(); assert f(t)==28, f(t); print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.rapor import low_stock as f; t=open("envanter.txt").read(); assert f(t,5)==["A1","C3"], f(t,5); print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0881
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 8
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: erken-donus
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

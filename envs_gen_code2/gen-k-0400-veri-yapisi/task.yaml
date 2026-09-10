@@ -1,0 +1,112 @@
+id: gen-k-0400-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Belge indeksleyicim son zamanlarda aynı belgeleri tekrar tekrar diskten okuyup duruyor ve bu yüzden gecikme artmaya başladı; küçük bir önbellek katmanı ekleyip bu yükü azaltmayı düşünüyorum. Bugün de zaten el yordamıyla hangi belgelerin daha sık kullanıldığını not almaya çalışırken işin ne kadar dağınık gittiğini fark ettim, bu yüzden temiz bir sınıf yazıp düzeni oturtmak istiyorum.
+
+  Çalışma dizinindeki doc_lru.py dosyasında bulunan DocCache sınıfını, sabit kapasiteli bir LRU önbellek olacak şekilde tamamla. Sınıf, belge kimliğiyle anahtarlanan belgeleri tutsun. get metodu verilen anahtar önbellekte varsa değerini döndürsün ve o anahtarı en yeni kullanılan yapsın, anahtar yoksa None döndürsün. put metodu yeni bir anahtarı eklesin, anahtar zaten varsa değerini güncelleyip o anahtarı en yeni kullanılan yapsın; kapasite aşıldığında ise en eski kullanılan anahtarı önbellekten atsın. keys metodu ise önbellekteki anahtarları kullanım sırasına göre, en eski kullanılan önce gelecek biçimde döndürsün.
+
+setup: |
+  cat > doc_lru.py <<'PY'
+  """Skeleton for a tiny LRU cache over text documents."""
+
+
+  class DocCache:
+      """Fixed-capacity LRU cache keyed by document id."""
+
+      def __init__(self, capacity):
+          raise NotImplementedError
+
+      def get(self, key):
+          raise NotImplementedError
+
+      def put(self, key, text):
+          raise NotImplementedError
+
+      def keys(self):
+          raise NotImplementedError
+  PY
+
+goal_tr: >
+  doc_lru.py icindeki DocCache sinifini, en son kullanilan belgeleri tutan
+  sabit kapasiteli bir LRU onbellek olacak sekilde gerceklestir: get var
+  olan anahtarin degerini dondurup onu en yeni yapmali, yoksa None
+  dondurmeli; put yeni anahtari eklemeli, var olani guncelleyip en yeni
+  yapmali ve kapasite asildiginda en eski kullanilan anahtari atmalidir;
+  keys ise kullanim sirasini en eski once olacak sekilde dondurmelidir.
+
+reference_solution: |
+  cat > doc_lru.py <<'PY'
+  """A tiny LRU cache over text documents."""
+
+
+  class DocCache:
+      """Fixed-capacity LRU cache keyed by document id."""
+
+      def __init__(self, capacity):
+          if capacity < 1:
+              raise ValueError("capacity must be at least 1")
+          self.capacity = capacity
+          self._store = {}
+          self._order = []
+
+      def _touch(self, key):
+          self._order.remove(key)
+          self._order.append(key)
+
+      def get(self, key):
+          if key not in self._store:
+              return None
+          self._touch(key)
+          return self._store[key]
+
+      def put(self, key, text):
+          if key in self._store:
+              self._store[key] = text
+              self._touch(key)
+              return
+          if len(self._store) >= self.capacity:
+              oldest = self._order.pop(0)
+              del self._store[oldest]
+          self._store[key] = text
+          self._order.append(key)
+
+      def keys(self):
+          return list(self._order)
+  PY
+
+outputs:
+  - {path: doc_lru.py, kind: program, run: 'python3 -c ''import doc_lru; c=doc_lru.DocCache(2); assert c.keys()==[]; assert c.get("a") is None; c.put("a","A"); c.put("b","B"); assert c.keys()==["a","b"]; assert c.get("a")=="A"; assert c.keys()==["b","a"]; c.put("c","C"); assert c.get("b") is None; assert c.keys()==["a","c"]; c.put("a","A2"); assert c.get("a")=="A2"; assert c.keys()==["c","a"]; c.put("d","D"); assert c.get("c") is None; assert c.keys()==["a","d"]; d=doc_lru.DocCache(1); d.put("x","X"); d.put("y","Y"); assert d.keys()==["y"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import doc_lru; c=doc_lru.DocCache(2); assert c.keys()==[]; assert c.get("a") is None; c.put("a","A"); c.put("b","B"); assert c.keys()==["a","b"]; assert c.get("a")=="A"; assert c.keys()==["b","a"]; c.put("c","C"); assert c.get("b") is None; assert c.keys()==["a","c"]; c.put("a","A2"); assert c.get("a")=="A2"; assert c.keys()==["c","a"]; c.put("d","D"); assert c.get("c") is None; assert c.keys()==["a","d"]; d=doc_lru.DocCache(1); d.put("x","X"); d.put("y","Y"); assert d.keys()==["y"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0400
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: lru-onbellek

@@ -1,0 +1,61 @@
+id: gen-s-0592-ayikla
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  /workspace altında adında boşluk geçen tek bir TSV dosyası var; onu bul. O dosyada ikinci sütunu "Car" olan satırların sayısını hesapla ve bu sayıyı /workspace içindeki sonuc.txt dosyasına yaz. sonuc.txt içinde yalnızca sayı olsun, başka hiçbir şey bulunmasın.
+
+setup: |
+  mkdir -p /workspace
+  cat > "vardiya listesi.tsv" <<'TSV'
+  personel	gun	vardiya
+  ali	Pzt	gunduz
+  ayse	Pzt	gece
+  ali	Sal	gunduz
+  ayse	Sal	gece
+  ali	Car	gunduz
+  TSV
+
+goal_tr: >
+  /workspace altinda adi bosluk iceren tek TSV dosyasini bulup, o dosyada
+  ikinci sutunu "Car" olan satirlarin sayisini sonuc.txt dosyasina sadece
+  sayi olarak yaz.
+
+reference_solution: |
+  f=$(find /workspace -maxdepth 1 -type f -name '*.tsv')
+  cut -f2 "$f" | rev | cut -c1-3 | rev | grep -c '^Car$' > sonuc.txt
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '1'}
+
+metadata:
+  domain: ayikla
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0592
+    bundle: ters-cevir
+    tools:
+    - rev
+    - cut
+    konu: personel-vardiyalari
+    hedef: ayikla
+    girdi: tsv
+    kaynak: tek-dosya
+    cikti: tek-sayi
+    kesif: dosyayi-bul
+    uslup: duz-hedef
+    direnc: bosluklu-ad
+    bukulme: yok
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

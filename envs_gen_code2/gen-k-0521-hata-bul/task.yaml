@@ -1,0 +1,118 @@
+id: gen-k-0521-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Sprint planlamasında oturum yönetimi işi bu hafta bana kaldı; dün akşam geç saatlere kadar auth tarafındaki eski kodları okuyup notlar çıkardım, bugün de asıl düzeltmeye geçiyorum. Ekip olarak sınır durumlarında tuhaf davranışlar gördüğümüz için önce en kritik parçayı ele almak istiyorum.
+
+  auth/session.py dosyasındaki is_valid fonksiyonu şu an yanlış bir sınır kuralı uyguluyor; now değeri expires_at değerine eşit olduğunda oturumu hâlâ geçerli sayıyor. Bunu, now değeri expires_at değerine eşit veya ondan büyük olduğunda oturumu geçersiz sayacak şekilde düzeltmeni istiyorum. Sadece bu davranış değişsin, dosyadaki diğer fonksiyonların imzaları ve mantığı olduğu gibi kalsın.
+
+setup: |
+  mkdir -p auth
+  cat > auth/store.py <<'STORE'
+  SESSIONS = {}
+
+
+  def put(token, user_id, expires_at):
+      SESSIONS[token] = (user_id, expires_at)
+
+
+  def get(token):
+      return SESSIONS.get(token)
+  STORE
+  cat > auth/session.py <<'SESSION'
+  from auth.store import put, get
+
+
+  def start(token, user_id, now, ttl):
+      put(token, user_id, now + ttl)
+
+
+  def is_valid(token, now):
+      entry = get(token)
+      if entry is None:
+          return False
+      _, expires_at = entry
+      return now <= expires_at
+
+
+  def active_users(tokens, now):
+      ids = []
+      for token in tokens:
+          entry = get(token)
+          if entry is None:
+              continue
+          user_id, _ = entry
+          if is_valid(token, now):
+              ids.append(user_id)
+      return ids
+  SESSION
+
+goal_tr: >
+  auth/session.py icindeki is_valid fonksiyonunu, now degeri expires_at
+  degerine esit veya ondan buyuk oldugunda oturumu gecersiz sayacak bicimde
+  duzelt.
+
+reference_solution: |
+  cat > auth/session.py <<'SESSION'
+  from auth.store import put, get
+
+
+  def start(token, user_id, now, ttl):
+      put(token, user_id, now + ttl)
+
+
+  def is_valid(token, now):
+      entry = get(token)
+      if entry is None:
+          return False
+      _, expires_at = entry
+      return now < expires_at
+
+
+  def active_users(tokens, now):
+      ids = []
+      for token in tokens:
+          entry = get(token)
+          if entry is None:
+              continue
+          user_id, _ = entry
+          if is_valid(token, now):
+              ids.append(user_id)
+      return ids
+  SESSION
+
+outputs:
+  - {path: auth/session.py, kind: program, run: 'python3 -c ''import auth.session as s; s.start("t1","alice",0,10); s.start("t2","bob",0,10); s.start("t3","carol",5,10); r=[]; r.append(s.is_valid("t1",9)); r.append(s.is_valid("t1",10)); r.append(s.is_valid("t1",11)); r.append(s.is_valid("t3",14)); r.append(s.is_valid("t3",15)); r.append(s.is_valid("nope",0)); r.append(s.active_users(["t1","t2","t3"],10)); r.append(s.active_users(["t1","t2","t3"],9)); r.append(s.active_users(["t1","t3","zzz"],15)); print(r)'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import auth.session as s; s.start("t1","alice",0,10); s.start("t2","bob",0,10); s.start("t3","carol",5,10); r=[]; r.append(s.is_valid("t1",9)); r.append(s.is_valid("t1",10)); r.append(s.is_valid("t1",11)); r.append(s.is_valid("t3",14)); r.append(s.is_valid("t3",15)); r.append(s.is_valid("nope",0)); r.append(s.active_users(["t1","t2","t3"],10)); r.append(s.active_users(["t1","t2","t3"],9)); r.append(s.active_users(["t1","t3","zzz"],15)); print(r)''', value: '[True, False, False, True, False, False, [''carol''], [''alice'', ''bob'', ''carol''], []]'}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0521
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: tip-karismasi

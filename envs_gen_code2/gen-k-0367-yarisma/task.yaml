@@ -1,0 +1,92 @@
+id: gen-k-0367-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  docs/simulate.py dosyasını oluştur. Bu dosyada, docs.store.DocStore sınıfını kullanarak data.txt dosyasındaki her satırı sırasıyla "d0", "d1", "d2" kimlikleriyle ekleyen ve ardından bir sorguyu simüle eden `simulate(path, query)` fonksiyonu yer alsın. Fonksiyon, sorgu tokenlarının her biri için o tokeni içeren doküman kimliklerini sıralı bir liste halinde döndürsün; örneğin query="beta gamma" için sonuç [["d0","d1"],["d0","d1","d2"]] olsun.
+
+setup: |
+  mkdir -p docs
+  cat > docs/tokens.py <<'PY'
+  def tokenize(text):
+      return [w.strip(".,!?;:").lower() for w in text.split()]
+  PY
+  cat > docs/store.py <<'PY'
+  from docs.tokens import tokenize
+
+
+  class DocStore:
+      def __init__(self):
+          self.docs = {}
+
+      def add(self, doc_id, text):
+          self.docs[doc_id] = tokenize(text)
+  PY
+  cat > data.txt <<'TXT'
+  alpha beta gamma
+  beta gamma delta
+  gamma delta epsilon
+  TXT
+
+goal_tr: >
+  docs/simulate.py dosyasini yaz: docs.store.DocStore ile data.txt icindeki
+  her satiri "d0", "d1", "d2" kimlikleriyle sirayla ekleyen, ardindan bir
+  sorgu simule eden `simulate(path, query)` fonksiyonu; fonksiyon sorgu
+  tokenlarinin her biri icin o tokeni iceren dokuman kimliklerini sirali bir
+  liste halinde dondursun (ornek: query="beta gamma" icin
+  [["d0","d1"],["d0","d1","d2"]]).
+
+reference_solution: |
+  cat > docs/simulate.py <<'PY'
+  from docs.store import DocStore
+
+
+  def simulate(path, query):
+      store = DocStore()
+      with open(path) as fh:
+          for i, line in enumerate(fh):
+              line = line.strip()
+              if line:
+                  store.add("d%d" % i, line)
+      tokens = query.lower().split()
+      result = []
+      for tok in tokens:
+          hits = [doc_id for doc_id, words in store.docs.items() if tok in words]
+          result.append(sorted(hits))
+      return result
+  PY
+
+outputs:
+  - {path: docs/simulate.py, kind: program, run: 'python3 -c ''from docs.simulate import simulate as s; assert s("data.txt","beta gamma")==[["d0","d1"],["d0","d1","d2"]], s("data.txt","beta gamma"); assert s("data.txt","delta")==[["d1","d2"]]; assert s("data.txt","alpha epsilon")==[["d0"],["d2"]]; assert s("data.txt","zzz")==[[]]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from docs.simulate import simulate as s; assert s("data.txt","beta gamma")==[["d0","d1"],["d0","d1","d2"]], s("data.txt","beta gamma"); assert s("data.txt","delta")==[["d1","d2"]]; assert s("data.txt","alpha epsilon")==[["d0"],["d2"]]; assert s("data.txt","zzz")==[[]]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0367
+    bundle: yarisma
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: benzetim

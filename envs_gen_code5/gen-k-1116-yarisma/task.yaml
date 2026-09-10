@@ -1,0 +1,106 @@
+id: gen-k-1116-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) docs/catalog.py dosyasını oluştur.
+
+  2) Bu dosyada, load_lines ile okunan sıralı kelime listesini saran bir Catalog sınıfı tanımla.
+
+  3) Catalog sınıfında, ikili arama yapan find(word) metodu olsun; kelime listede varsa indeksini, yoksa -1 döndürsün.
+
+  4) find(word) metodunu @with_lookup dekoratörü ile işaretle.
+
+setup: |
+  mkdir -p docs data
+  cat > docs/loader.py <<'LOADER'
+  def load_lines(path):
+      with open(path, encoding="utf-8") as fh:
+          return [ln.strip() for ln in fh if ln.strip()]
+  LOADER
+  cat > data/words.txt <<'WORDS'
+  elma
+  armut
+  kiraz
+  muz
+  nar
+  uzum
+  WORDS
+
+goal_tr: >
+  docs/catalog.py dosyasini yaz: load_lines ile okunan sirali kelime
+  listesini saran ve `@with_lookup` dekoratoru ile ikili arama yapan bir
+  `Catalog` sinifi tanimla; `find(word)` kelime varsa indexini yoksa -1
+  dondursun.
+
+reference_solution: |
+  cat > docs/catalog.py <<'CATALOG'
+  from docs.loader import load_lines
+
+
+  def with_lookup(method):
+      def wrapper(self, word):
+          lo, hi = 0, len(self.words) - 1
+          while lo <= hi:
+              mid = (lo + hi) // 2
+              if self.words[mid] == word:
+                  return mid
+              if self.words[mid] < word:
+                  lo = mid + 1
+              else:
+                  hi = mid - 1
+          return method(self, word)
+      return wrapper
+
+
+  class Catalog:
+      def __init__(self, path):
+          self.words = load_lines(path)
+
+      @with_lookup
+      def find(self, word):
+          return -1
+  CATALOG
+
+outputs:
+  - {path: docs/catalog.py, kind: program, run: python3 -c 'from docs.catalog import Catalog; c=Catalog("data/words.txt"); assert c.find("elma")==0; assert c.find("nar")==4; assert c.find("uzum")==5; assert c.find("kiraz")==2; assert c.find("yok")==-1; assert c.find("zzz")==-1; print("TAMAM")'}
+
+checks:
+  - {op: run_stdout_eq, cmd: python3 -c 'from docs.catalog import Catalog; c=Catalog("data/words.txt"); assert c.find("elma")==0; assert c.find("nar")==4; assert c.find("uzum")==5; assert c.find("kiraz")==2; assert c.find("yok")==-1; assert c.find("zzz")==-1; print("TAMAM")', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1116
+    bundle: yarisma
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: siralama-ikili-arama
+      karmasiklik: duz
+      kalip: dekorator
+      akis: dosya-okuma
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

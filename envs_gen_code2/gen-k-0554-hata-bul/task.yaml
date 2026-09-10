@@ -1,0 +1,123 @@
+id: gen-k-0554-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün banka mutabakatı işleriyle uğraşıyordum; bir süredir hesap hareketlerini özetleyen küçük bir araç üzerinde çalışıyoruz ve müşteri tarafında bazı hesapların hiç işlem görmemiş olması can sıkıcı bir durum yaratıyor. Geçenlerde yeni açılmış ama henüz hiç para yatırıp çekmemiş bir hesabı sorguladığımızda araç beklenmedik bir hata verdi, halbuki böyle bir hesabın bakiyesi gayet tabii sıfır olmalı. Bu yüzden bugünkü işim bu davranışı düzeltmek.
+
+  bank/summary.py dosyasındaki net_balance fonksiyonunu, hiç hareketi olmayan bir hesap sorulduğunda hata vermek yerine 0.0 döndürecek biçimde düzeltmeni istiyorum. Sadece bu fonksiyonun davranışı değişsin, dosyadaki diğer kısımlar aynı kalsın.
+
+setup: |
+  mkdir -p bank
+  cat > bank/ledger.py <<'LEDGER'
+  def parse_transactions(text):
+      rows = []
+      for line in text.strip().splitlines():
+          account, kind, amount = line.split(';')
+          rows.append({'account': account, 'kind': kind, 'amount': float(amount)})
+      return rows
+
+
+  def index_by_account(rows):
+      index = {}
+      for row in rows:
+          index.setdefault(row['account'], []).append(row)
+      return index
+  LEDGER
+  cat > bank/summary.py <<'SUMMARY'
+  from bank.ledger import parse_transactions, index_by_account
+
+
+  def net_balance(text, account):
+      rows = parse_transactions(text)
+      index = index_by_account(rows)
+      total = 0.0
+      for row in index[account]:
+          if row['kind'] == 'deposit':
+              total += row['amount']
+          else:
+              total -= row['amount']
+      return round(total, 2)
+
+
+  def statement(text, account):
+      rows = parse_transactions(text)
+      lines = []
+      for row in rows:
+          if row['account'] == account:
+              lines.append('%s %s %.2f' % (row['kind'], row['account'], row['amount']))
+      return lines
+  SUMMARY
+  cat > transactions.txt <<'TXT'
+  alice;deposit;100.00
+  bob;deposit;50.00
+  alice;withdraw;30.00
+  carol;deposit;10.00
+  alice;deposit;5.50
+  TXT
+
+goal_tr: >
+  bank/summary.py icindeki net_balance fonksiyonunu, hic hareketi olmayan
+  bir hesap soruldugunda KeyError vermek yerine 0.0 dondurecek bicimde
+  duzelt.
+
+reference_solution: |
+  cat > bank/summary.py <<'SUMMARY'
+  from bank.ledger import parse_transactions, index_by_account
+
+
+  def net_balance(text, account):
+      rows = parse_transactions(text)
+      index = index_by_account(rows)
+      total = 0.0
+      for row in index.get(account, []):
+          if row['kind'] == 'deposit':
+              total += row['amount']
+          else:
+              total -= row['amount']
+      return round(total, 2)
+
+
+  def statement(text, account):
+      rows = parse_transactions(text)
+      lines = []
+      for row in rows:
+          if row['account'] == account:
+              lines.append('%s %s %.2f' % (row['kind'], row['account'], row['amount']))
+      return lines
+  SUMMARY
+
+outputs:
+  - {path: bank/summary.py, kind: program, run: 'python3 -c ''from bank.summary import net_balance as f; t=open("transactions.txt").read(); assert f(t,"alice")==75.5, f(t,"alice"); assert f(t,"bob")==50.0; assert f(t,"dave")==0.0; assert f(t,"carol")==10.0; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bank.summary import net_balance as f; t=open("transactions.txt").read(); assert f(t,"alice")==75.5, f(t,"alice"); assert f(t,"bob")==50.0; assert f(t,"dave")==0.0; assert f(t,"carol")==10.0; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0554
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: banka-hareketleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sozluk-anahtar-hatasi

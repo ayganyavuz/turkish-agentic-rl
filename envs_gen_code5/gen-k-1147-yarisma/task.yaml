@@ -1,0 +1,122 @@
+id: gen-k-1147-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) depot/ledger.py dosyasını oluştur.
+
+  2) Bu dosyada, depot/parse.py içindeki parse_log ile okunan hareketlerden her SKU için önek-toplam (kümülatif net stok) serisini hesaplayan prefix_series(text) fonksiyonunu tanımla.
+
+  3) prefix_series, her SKU'nun hareket sırasındaki ara stok değerlerini ve o SKU'nun en yüksek stok değerini döndürsün; sonuç {sku: {"running": [...], "peak": int}} biçiminde olsun.
+
+  4) Sonuçta her SKU'nun anahtarları, logda ilk görülme sırasına göre gelsin.
+
+setup: |
+  mkdir -p depot
+  cat > depot/__init__.py <<'INIT'
+  INIT
+  cat > depot/records.py <<'RECORDS'
+  from dataclasses import dataclass
+
+
+  @dataclass(frozen=True)
+  class Movement:
+      sku: str
+      delta: int
+
+      def __post_init__(self):
+          if not self.sku:
+              raise ValueError("sku bos olamaz")
+          if self.delta == 0:
+              raise ValueError("delta sifir olamaz")
+  RECORDS
+  cat > depot/parse.py <<'PARSE'
+  from depot.records import Movement
+
+
+  def parse_log(text):
+      movements = []
+      for line in text.strip().splitlines():
+          sku, delta = line.split()
+          movements.append(Movement(sku, int(delta)))
+      return movements
+  PARSE
+  cat > log.txt <<'LOG'
+  A +5
+  B +3
+  A -2
+  C +7
+  LOG
+
+goal_tr: >
+  depot/ledger.py dosyasini yaz: parse_log ile okunan hareketlerden her SKU
+  icin onek-toplam (kumulatif net stok) serisini hesaplayan, her SKU'nun
+  hareket sirasindaki ara stok degerlerini ve en yuksek stok degerini
+  donduren prefix_series(text) fonksiyonunu tanimla; sonuc {sku: {"running":
+  [...], "peak": int}} biciminde olsun ve her SKU'nun anahtarlari logda ilk
+  gorulme sirasina gore gelsin.
+
+reference_solution: |
+  cat > depot/ledger.py <<'LEDGER'
+  from depot.parse import parse_log
+
+
+  def prefix_series(text):
+      movements = parse_log(text)
+      running = {}
+      order = []
+      for mv in movements:
+          if mv.sku not in running:
+              running[mv.sku] = []
+              order.append(mv.sku)
+          last = running[mv.sku][-1] if running[mv.sku] else 0
+          running[mv.sku].append(last + mv.delta)
+      result = {}
+      for sku in order:
+          series = running[sku]
+          result[sku] = {"running": series, "peak": max(series)}
+      return result
+  LEDGER
+
+outputs:
+  - {path: depot/ledger.py, kind: program, run: 'python3 -c ''from depot.ledger import prefix_series as f; t=open("log.txt").read(); r=f(t); assert list(r.keys())==["A","B","C"], list(r.keys()); assert r["A"]=={"running":[5,3],"peak":5}, r["A"]; assert r["B"]=={"running":[3],"peak":3}, r["B"]; assert r["C"]=={"running":[7],"peak":7}, r["C"]; r2=f("X +1\nX +1\nX -5\n"); assert r2["X"]=={"running":[1,2,-3],"peak":2}, r2["X"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depot.ledger import prefix_series as f; t=open("log.txt").read(); r=f(t); assert list(r.keys())==["A","B","C"], list(r.keys()); assert r["A"]=={"running":[5,3],"peak":5}, r["A"]; assert r["B"]=={"running":[3],"peak":3}, r["B"]; assert r["C"]=={"running":[7],"peak":7}, r["C"]; r2=f("X +1\nX +1\nX -5\n"); assert r2["X"]=={"running":[1,2,-3],"peak":2}, r2["X"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1147
+    bundle: yarisma
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: onek-toplam
+      karmasiklik: duz
+      kalip: dataclass-dogrulama
+      akis: bellek-ici
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

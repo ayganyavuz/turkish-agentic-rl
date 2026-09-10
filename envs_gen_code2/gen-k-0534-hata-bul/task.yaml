@@ -1,0 +1,142 @@
+id: gen-k-0534-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depo/pipeline.py dosyasındaki BatchAccumulator sınıfını düzelt. Şu an process_batches çağrıldığında partiler arasında biriken toplamlar kayboluyor; öyle ki dönen sözlük tüm siparişlerin kalem bazında tutar toplamını içermiyor. Sınıfı, process_batches çağrıldığında partiler arası biriken toplamlar kaybolmayacak ve dönen sözlük tüm siparişlerin kalem bazında tutar toplamını içerecek şekilde düzelt.
+
+setup: |
+  mkdir -p depo
+  cat > depo/orders.py <<'ORDERS'
+  def parse_orders(text):
+      rows = []
+      for line in text.strip().splitlines():
+          order_id, item, qty, price = line.split(',')
+          rows.append((order_id, item, int(qty), float(price)))
+      return rows
+  ORDERS
+  cat > depo/pipeline.py <<'PIPE'
+  from depo.orders import parse_orders
+
+
+  class BatchAccumulator:
+      def __init__(self, batch_size):
+          self.batch_size = batch_size
+          self._batch = []
+          self._totals = {}
+          self._closed = False
+
+      def add(self, order_id, item, qty, price):
+          if self._closed:
+              raise RuntimeError("batch closed")
+          self._batch.append(order_id)
+          self._totals[item] = self._totals.get(item, 0) + qty * price
+          if len(self._batch) >= self.batch_size:
+              self._flush()
+
+      def _flush(self):
+          self._totals = {}
+
+      def close(self):
+          self._closed = True
+          self._flush()
+
+      def totals(self):
+          return dict(self._totals)
+
+
+  def process_batches(text, batch_size):
+      acc = BatchAccumulator(batch_size)
+      for order_id, item, qty, price in parse_orders(text):
+          acc.add(order_id, item, qty, price)
+      acc.close()
+      return acc.totals()
+  PIPE
+  cat > orders.csv <<'CSV'
+  o1,widget,3,4.0
+  o2,gadget,1,50.0
+  o3,widget,2,4.0
+  o4,bolt,10,0.5
+  o5,gadget,2,50.0
+  o6,widget,1,4.0
+  CSV
+
+goal_tr: >
+  depo/pipeline.py icindeki BatchAccumulator sinifini, process_batches
+  cagrildiginda partiler arasi biriken toplamlarin kaybolmamasi ve donen
+  sozlugun tum siparislerin kalem bazinda tutar toplamini icermesi icin
+  duzelt.
+
+reference_solution: |
+  cat > depo/pipeline.py <<'PIPE'
+  from depo.orders import parse_orders
+
+
+  class BatchAccumulator:
+      def __init__(self, batch_size):
+          self.batch_size = batch_size
+          self._batch = []
+          self._totals = {}
+          self._closed = False
+
+      def add(self, order_id, item, qty, price):
+          if self._closed:
+              raise RuntimeError("batch closed")
+          self._batch.append(order_id)
+          self._totals[item] = self._totals.get(item, 0) + qty * price
+          if len(self._batch) >= self.batch_size:
+              self._flush()
+
+      def _flush(self):
+          self._batch = []
+
+      def close(self):
+          self._closed = True
+          self._flush()
+
+      def totals(self):
+          return dict(self._totals)
+
+
+  def process_batches(text, batch_size):
+      acc = BatchAccumulator(batch_size)
+      for order_id, item, qty, price in parse_orders(text):
+          acc.add(order_id, item, qty, price)
+      acc.close()
+      return acc.totals()
+  PIPE
+
+outputs:
+  - {path: depo/pipeline.py, kind: program, run: 'python3 -c ''from depo.pipeline import BatchAccumulator, process_batches; t=open("orders.csv").read(); r=f(t,2) if False else process_batches(t,2); assert r=={"widget":24.0,"gadget":150.0,"bolt":5.0}, r; a=process_batches(t,1); assert a=={"widget":24.0,"gadget":150.0,"bolt":5.0}, a; b=process_batches(t,6); assert b=={"widget":24.0,"gadget":150.0,"bolt":5.0}, b; acc=BatchAccumulator(3); acc.add("o1","widget",3,4.0); acc.add("o2","gadget",1,50.0); acc.add("o3","widget",2,4.0); acc.add("o4","bolt",10,0.5); acc.close(); assert acc.totals()=={"widget":20.0,"gadget":50.0,"bolt":5.0}, acc.totals(); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.pipeline import BatchAccumulator, process_batches; t=open("orders.csv").read(); r=f(t,2) if False else process_batches(t,2); assert r=={"widget":24.0,"gadget":150.0,"bolt":5.0}, r; a=process_batches(t,1); assert a=={"widget":24.0,"gadget":150.0,"bolt":5.0}, a; b=process_batches(t,6); assert b=={"widget":24.0,"gadget":150.0,"bolt":5.0}, b; acc=BatchAccumulator(3); acc.add("o1","widget",3,4.0); acc.add("o2","gadget",1,50.0); acc.add("o3","widget",2,4.0); acc.add("o4","bolt",10,0.5); acc.close(); assert acc.totals()=={"widget":20.0,"gadget":50.0,"bolt":5.0}, acc.totals(); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0534
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: zor
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-durum-sifirlama

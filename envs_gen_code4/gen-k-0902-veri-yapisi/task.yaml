@@ -1,0 +1,168 @@
+id: gen-k-0902-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  restaurant/tree.py dosyasındaki MenuTree sınıfını ikili arama ağacı olarak gerçekleştir. insert metodu eklenen anahtarı alfabetik sıralamaya göre ağaçta doğru konuma yerleştirsin; aynı anahtar tekrar eklenirse mevcut kaydı güncelle. search metodu verilen anahtarı arayıp karşılık gelen değeri döndürsün, anahtar bulunamazsa None döndürsün. inorder metodu ise ağaçtaki tüm (anahtar, değer) çiftlerini alfabetik sırada içeren bir liste döndürsün. Sınıfın mevcut __init__, insert, search ve inorder imzalarını ve self.root ile self.size alanlarını koru; restaurant/report.py içindeki build_index ve make_price_lookup fonksiyonları bu sınıfla çalışmaya devam etsin.
+
+setup: |
+  mkdir -p restaurant
+  cat > restaurant/menu.py <<'MENU'
+  def load_menu(path):
+      items = {}
+      with open(path) as f:
+          for line in f:
+              name, price = line.strip().split(',')
+              items[name] = float(price)
+      return items
+  MENU
+  cat > restaurant/tree.py <<'TREE'
+  class MenuTree:
+      def __init__(self):
+          self.root = None
+          self.size = 0
+
+      def insert(self, key, value):
+          raise NotImplementedError
+
+      def search(self, key):
+          raise NotImplementedError
+
+      def inorder(self):
+          raise NotImplementedError
+  TREE
+  cat > restaurant/report.py <<'REPORT'
+  from restaurant.tree import MenuTree
+
+
+  def build_index(menu):
+      tree = MenuTree()
+      for name in menu:
+          tree.insert(name, menu[name])
+      return tree
+
+
+  def make_price_lookup(tree):
+      def lookup(name):
+          return tree.search(name)
+      return lookup
+  REPORT
+  cat > menu.csv <<'CSV'
+  pizza,12.5
+  salad,7.0
+  burger,9.0
+  soup,5.5
+  pasta,11.0
+  CSV
+
+goal_tr: >
+  restaurant/tree.py icindeki MenuTree sinifini ikili arama agaci olarak
+  gerceklestir; insert anahtari alfabetik siralamaya gore yerlestirsin,
+  search degeri dondursun, inorder ise (anahtar, deger) ciftlerini alfabetik
+  sirada dondursun.
+
+reference_solution: |
+  cat > restaurant/tree.py <<'TREE'
+  class _Node:
+      def __init__(self, key, value):
+          self.key = key
+          self.value = value
+          self.left = None
+          self.right = None
+
+
+  class MenuTree:
+      def __init__(self):
+          self.root = None
+          self.size = 0
+
+      def insert(self, key, value):
+          if self.root is None:
+              self.root = _Node(key, value)
+              self.size += 1
+              return
+          node = self.root
+          while True:
+              if key < node.key:
+                  if node.left is None:
+                      node.left = _Node(key, value)
+                      self.size += 1
+                      return
+                  node = node.left
+              elif key > node.key:
+                  if node.right is None:
+                      node.right = _Node(key, value)
+                      self.size += 1
+                      return
+                  node = node.right
+              else:
+                  node.value = value
+                  return
+
+      def search(self, key):
+          node = self.root
+          while node is not None:
+              if key < node.key:
+                  node = node.left
+              elif key > node.key:
+                  node = node.right
+              else:
+                  return node.value
+          return None
+
+      def inorder(self):
+          result = []
+          stack = []
+          node = self.root
+          while stack or node is not None:
+              while node is not None:
+                  stack.append(node)
+                  node = node.left
+              node = stack.pop()
+              result.append((node.key, node.value))
+              node = node.right
+          return result
+  TREE
+
+outputs:
+  - {path: restaurant/tree.py, kind: program, run: 'python3 -c ''from restaurant.menu import load_menu; from restaurant.report import build_index, make_price_lookup; m=load_menu("menu.csv"); t=build_index(m); assert t.size==5, t.size; assert t.search("burger")==9.0; assert t.search("missing") is None; assert t.inorder()==[("burger",9.0),("pasta",11.0),("pizza",12.5),("salad",7.0),("soup",5.5)], t.inorder(); f=make_price_lookup(t); assert f("soup")==5.5; assert f("nope") is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from restaurant.menu import load_menu; from restaurant.report import build_index, make_price_lookup; m=load_menu("menu.csv"); t=build_index(m); assert t.size==5, t.size; assert t.search("burger")==9.0; assert t.search("missing") is None; assert t.inorder()==[("burger",9.0),("pasta",11.0),("pizza",12.5),("salad",7.0),("soup",5.5)], t.inorder(); f=make_price_lookup(t); assert f("soup")==5.5; assert f("nope") is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0902
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: restoran-siparisleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: ikili-arama-agaci
+      karmasiklik: duz
+      kalip: closure-fabrika
+      akis: dosya-okuma
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

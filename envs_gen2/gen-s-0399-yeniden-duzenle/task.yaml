@@ -1,0 +1,71 @@
+id: gen-s-0399-yeniden-duzenle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Kütüphanedeki kayıtları başka bir araca aktarmaya çalışıyoruz, ama önce elimizdeki metin dosyalarını düzenli bir hale getirmemiz gerekiyor. Gün boyu eski kayıtlarla uğraştım, bir yandan da arşivdeki fazlalıkları ayıklıyordum. Şimdi senden şunu istiyorum: kutuphane dizin ağacındaki .txt uzantılı dosyaların her satırını "KOD tur" biçiminden "tur:KOD" biçimine çevir; .txt dışındaki dosyaları işleme katma. Sonra tüm satırları dosya yolu alfabetik sırasına göre birleştir ve ortaya çıkan sonucu, her elemanı bir satır olan geçerli bir JSON satır dizisi olarak kutuphane_ozet.json dosyasına yaz.
+
+setup: |
+  mkdir -p kutuphane/arsiv
+  cat > kutuphane/kayitlar.txt <<'K'
+  K001 roman
+  K002 siir
+  K003 roman
+  K004 deneme
+  K005 siir
+  K
+  cat > kutuphane/arsiv/eski.txt <<'K'
+  K900 roman
+  K901 siir
+  K
+  cat > kutuphane/arsiv/notlar.tmp <<'K'
+  K777 roman
+  K888 deneme
+  K
+
+goal_tr: >
+  kutuphane dizin agacindaki .txt uzantili dosyalarin her satirini "KOD tur"
+  biciminden "tur:KOD" bicimine cevirip, tum satirlari dosya yolu alfabetik
+  sirasina gore birlestirip, sonucu satir dizisi olan gecerli bir JSON
+  dosyasi olarak kutuphane_ozet.json'a yaz; .txt disindaki dosyalari isleme
+  katma
+
+reference_solution: |
+  find kutuphane -type f -name '*.txt' | sort | xargs awk '{print $2":"$1}' > /tmp/satirlar.txt
+  sed 's/.*/"&",/' /tmp/satirlar.txt | sed '$ s/,$//' > /tmp/govde.txt
+  { printf '[\n'; cat /tmp/govde.txt; printf '\n]\n'; } > kutuphane_ozet.json
+
+outputs:
+  - {path: kutuphane_ozet.json, kind: json}
+
+checks:
+  - {op: json_eq, path: kutuphane_ozet.json, value: ['roman:K900', 'siir:K901', 'roman:K001', 'siir:K002', 'roman:K003', 'deneme:K004', 'siir:K005']}
+
+metadata:
+  domain: yeniden-duzenle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0399
+    bundle: bul-tasi
+    tools:
+    - find
+    - xargs
+    konu: kutuphane-kayitlari
+    hedef: yeniden-duzenle
+    girdi: log-satiri
+    kaynak: dizin-agaci
+    cikti: json
+    kesif: dosyayi-bul
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: tuzak-dosya
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

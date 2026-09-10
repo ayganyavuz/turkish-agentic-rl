@@ -1,0 +1,158 @@
+id: gen-k-0515-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depot/unionfind.py dosyasındaki UnionFind sınıfını tam olarak gerçekleştir. Sınıf; __init__, find, union, connected, group_count ve group_sizes metotlarını içermeli ve bu metotlar gerçek bir birleştir-bul yapısının beklenen davranışını vermeli. Bu sayede depot/inventory.py içindeki merge_batches, bin_groups, largest_group_size ve same_group fonksiyonları batches.txt dosyasındaki birleştirme satırlarına göre doğru raf gruplarını döndürsün. batches.txt her satırında iki sayı (bir birleştirme çifti) bulunur; bin_groups her grubu kendi içinde artan sırada ve grupları da artan sırada döndürmeli, largest_group_size en büyük grubun eleman sayısını vermeli, same_group ise verilen iki rafın aynı grupta olup olmadığını döndürmeli.
+
+  Şu şartlar sağlanmalı:
+  - depot/unionfind.py dosyası mevcut ve içinde UnionFind sınıfı tanımlı.
+  - UnionFind sınıfı __init__, find, union, connected, group_count ve group_sizes metotlarına sahip ve hiçbiri NotImplementedError fırlatmıyor.
+  - UnionFind gerçek bir birleştir-bul yapısı gibi çalışıyor: birleştirilen elemanlar aynı grupta, birleştirilmeyenler ayrı gruplarda görünüyor.
+  - depot/inventory.py içindeki merge_batches, bin_groups, largest_group_size ve same_group fonksiyonları değiştirilmeden batches.txt içeriğine göre doğru sonucu üretiyor.
+  - bin_groups çıktısı her grup kendi içinde artan, gruplar arası artan sırada listeler döndürüyor.
+  - largest_group_size en büyük grubun eleman sayısını döndürüyor; hiç grup yoksa 0 döndürüyor.
+  - same_group aynı gruptaki iki raf için doğru, farklı gruplardaki iki raf için yanlış değer döndürüyor.
+
+setup: |
+  mkdir -p depot
+  cat > depot/__init__.py <<'INIT'
+  INIT
+  cat > depot/unionfind.py <<'UF'
+  class UnionFind:
+      def __init__(self, n):
+          raise NotImplementedError
+
+      def find(self, x):
+          raise NotImplementedError
+
+      def union(self, a, b):
+          raise NotImplementedError
+
+      def connected(self, a, b):
+          raise NotImplementedError
+
+      def group_count(self):
+          raise NotImplementedError
+
+      def group_sizes(self):
+          raise NotImplementedError
+  UF
+  cat > depot/inventory.py <<'INV'
+  from depot.unionfind import UnionFind
+
+
+  def merge_batches(n_bins, merges):
+      uf = UnionFind(n_bins)
+      for a, b in merges:
+          uf.union(a, b)
+      return uf
+
+
+  def bin_groups(n_bins, merges):
+      uf = merge_batches(n_bins, merges)
+      groups = {}
+      for b in range(n_bins):
+          groups.setdefault(uf.find(b), []).append(b)
+      return sorted(sorted(v) for v in groups.values())
+
+
+  def largest_group_size(n_bins, merges):
+      uf = merge_batches(n_bins, merges)
+      sizes = uf.group_sizes()
+      if not sizes:
+          return 0
+      return max(sizes)
+
+
+  def same_group(n_bins, merges, a, b):
+      uf = merge_batches(n_bins, merges)
+      return uf.connected(a, b)
+  INV
+  cat > batches.txt <<'BATCH'
+  0 1
+  2 3
+  1 3
+  5 6
+  BATCH
+
+goal_tr: >
+  depot/unionfind.py icindeki UnionFind sinifini tam olarak gerceklestir;
+  oyle ki depot/inventory.py icindeki bin_groups, largest_group_size ve
+  same_group fonksiyonlari batches.txt'deki birlestirmelere gore dogru raf
+  gruplarini dondursun.
+
+reference_solution: |
+  cat > depot/unionfind.py <<'UF'
+  class UnionFind:
+      def __init__(self, n):
+          self.parent = list(range(n))
+          self.rank = [0] * n
+          self.size = [1] * n
+          self.count = n
+
+      def find(self, x):
+          root = x
+          while self.parent[root] != root:
+              root = self.parent[root]
+          while self.parent[x] != root:
+              self.parent[x], x = root, self.parent[x]
+          return root
+
+      def union(self, a, b):
+          ra, rb = self.find(a), self.find(b)
+          if ra == rb:
+              return False
+          if self.rank[ra] < self.rank[rb]:
+              ra, rb = rb, ra
+          self.parent[rb] = ra
+          self.size[ra] += self.size[rb]
+          if self.rank[ra] == self.rank[rb]:
+              self.rank[ra] += 1
+          self.count -= 1
+          return True
+
+      def connected(self, a, b):
+          return self.find(a) == self.find(b)
+
+      def group_count(self):
+          return self.count
+
+      def group_sizes(self):
+          return sorted(self.size[i] for i in range(len(self.parent)) if self.parent[i] == i)
+  UF
+
+outputs:
+  - {path: depot/unionfind.py, kind: program, run: 'python3 -c ''from depot.inventory import bin_groups as g, largest_group_size as m, same_group as s; import ast; merges=[tuple(map(int,l.split())) for l in open("batches.txt").read().split()] if False else [(0,1),(2,3),(1,3),(5,6)]; assert g(7,merges)==[[0,1,2,3],[4],[5,6]], g(7,merges); assert m(7,merges)==4; assert m(4,[])==1; assert s(7,merges,0,3) is True; assert s(7,merges,0,5) is False; from depot.unionfind import UnionFind; u=UnionFind(3); assert u.group_count()==3; u.union(0,1); assert u.group_count()==2; assert u.group_sizes()==[1,2]; assert u.connected(0,1) and not u.connected(1,2); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depot.inventory import bin_groups as g, largest_group_size as m, same_group as s; import ast; merges=[tuple(map(int,l.split())) for l in open("batches.txt").read().split()] if False else [(0,1),(2,3),(1,3),(5,6)]; assert g(7,merges)==[[0,1,2,3],[4],[5,6]], g(7,merges); assert m(7,merges)==4; assert m(4,[])==1; assert s(7,merges,0,3) is True; assert s(7,merges,0,5) is False; from depot.unionfind import UnionFind; u=UnionFind(3); assert u.group_count()==3; u.union(0,1); assert u.group_count()==2; assert u.group_sizes()==[1,2]; assert u.connected(0,1) and not u.connected(1,2); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0515
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: birlesim-bulma

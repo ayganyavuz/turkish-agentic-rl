@@ -1,0 +1,73 @@
+id: gen-s-0384-bol
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) arsiv.tar.gz arsivini aç ve içindeki arsiv/notlar.txt dosyasını temel al; arsivdeki diğer dosyaları dikkate alma.
+  2) arsiv/notlar.txt içindeki her satırı öğrenci, ders, not olmak üzere üç alana ayır.
+  3) Başlık satırı öğrenci,ders,not olan geçerli bir CSV oluştur ve satırları öğrenci adına göre artan sırada diz.
+  4) Bu CSV içeriğini notlar.csv dosyasına yaz.
+
+setup: |
+  mkdir -p arsiv
+  cat > arsiv/notlar.txt <<'TXT'
+  ali|matematik|85
+  ayse|fizik|90
+  ali|fizik|70
+  mehmet|matematik|60
+  ayse|kimya|95
+  mehmet|fizik|55
+  TXT
+  cat > arsiv/bozuk.txt <<'TXT'
+  bu dosya bir tuzaktir
+  satirlar boru isareti icermez
+  TXT
+  tar -czf arsiv.tar.gz arsiv
+  rm -rf arsiv
+
+goal_tr: >
+  arsiv.tar.gz icindeki arsiv/notlar.txt dosyasindaki her satiri
+  ogrenci,ders,not seklinde uc alana ayirip baslik satiri ogrenci,ders,not
+  olan ve satirlari ogrenci adina gore artan sirada dizilmis gecerli bir CSV
+  olarak notlar.csv dosyasina yaz; arsivdeki diger dosyalar dikkate alinmaz.
+
+reference_solution: |
+  tar -xzf arsiv.tar.gz
+  awk -F'|' 'BEGIN{print "ogrenci,ders,not"} {print $1","$2","$3}' arsiv/notlar.txt | sort -t, -k1,1 > notlar.csv
+  gzip -t arsiv.tar.gz
+
+outputs:
+  - {path: notlar.csv, kind: file}
+  - {path: arsiv.tar.gz, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: notlar.csv, value: ['ali,fizik,70', 'ali,matematik,85', 'ayse,fizik,90', 'ayse,kimya,95', 'mehmet,fizik,55', 'mehmet,matematik,60', 'ogrenci,ders,not']}
+
+metadata:
+  domain: bol
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0384
+    bundle: arsiv
+    tools:
+    - tar
+    - gzip
+    konu: ogrenci-notlari
+    hedef: bol
+    girdi: log-satiri
+    kaynak: tek-dosya
+    cikti: csv
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: tuzak-dosya
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

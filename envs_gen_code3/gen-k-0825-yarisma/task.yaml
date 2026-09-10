@@ -1,0 +1,137 @@
+id: gen-k-0825-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 22
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  pricing/catalog.py ve pricing/lookup.py'yi kullanıp bütçeye uyan en pahalı ürünün SKU'sunu döndüren pricing/query.py'yi yaz. pricing/lookup.py'deki find_cheapest'i sıralama ve ikili arama ile yeniden yaz.
+
+setup: |
+  mkdir -p pricing
+  cat > pricing/catalog.py <<'CATALOG'
+  def load_catalog(text):
+      items = []
+      for line in text.strip().splitlines():
+          sku, name, price = line.split('|')
+          items.append({"sku": sku, "name": name, "price": float(price)})
+      return items
+  CATALOG
+  cat > pricing/lookup.py <<'LOOKUP'
+  def find_cheapest(catalog, budget):
+      affordable = [it for it in catalog if it["price"] <= budget]
+      affordable.sort(key=lambda it: it["price"])
+      return affordable[0]["sku"] if affordable else None
+  LOOKUP
+  cat > data.txt <<'DATA'
+  A100|widget|12.50
+  B200|gadget|4.00
+  C300|bolt|0.75
+  D400|nut|9.25
+  E500|washer|0.50
+  DATA
+
+goal_tr: >
+  pricing/catalog.py ve pricing/lookup.py dosyalarini birlikte kullanarak,
+  verilen butceye uyan en pahali urunun SKU'sunu donduren bir
+  pricing/query.py yaz; ayrica pricing/lookup.py icindeki find_cheapest
+  fonksiyonunu siralama ve ikili arama ile yeniden yaz.
+
+reference_solution: |
+  cat > pricing/lookup.py <<'LOOKUP'
+  def sort_by_price(catalog):
+      return sorted(catalog, key=lambda it: it["price"])
+
+
+  def find_cheapest(catalog, budget):
+      ordered = sort_by_price(catalog)
+      lo, hi = 0, len(ordered) - 1
+      best = None
+      while lo <= hi:
+          mid = (lo + hi) // 2
+          if ordered[mid]["price"] <= budget:
+              best = ordered[mid]
+              lo = mid + 1
+          else:
+              hi = mid - 1
+      return best["sku"] if best else None
+  LOOKUP
+  cat > pricing/query.py <<'QUERY'
+  from pricing.catalog import load_catalog
+  from pricing.lookup import sort_by_price
+
+
+  def best_within(text, budget):
+      catalog = load_catalog(text)
+      ordered = sort_by_price(catalog)
+      lo, hi = 0, len(ordered) - 1
+      best = None
+      while lo <= hi:
+          mid = (lo + hi) // 2
+          if ordered[mid]["price"] <= budget:
+              best = ordered[mid]
+              lo = mid + 1
+          else:
+              hi = mid - 1
+      return best["sku"] if best else None
+  QUERY
+
+ara_adim: |
+  cat > pricing/lookup.py <<'LOOKUP'
+  def sort_by_price(catalog):
+      return sorted(catalog, key=lambda it: it["price"])
+
+
+  def find_cheapest(catalog, budget):
+      ordered = sort_by_price(catalog)
+      lo, hi = 0, len(ordered) - 1
+      best = None
+      while lo <= hi:
+          mid = (lo + hi) // 2
+          if ordered[mid]["price"] <= budget:
+              best = ordered[mid]
+              lo = mid + 1
+          else:
+              hi = mid - 1
+      return best["sku"] if best else None
+  LOOKUP
+
+outputs:
+  - {path: pricing/query.py, kind: program, run: 'python3 -c ''from pricing.query import best_within as f; t=open("data.txt").read(); assert f(t,5.0)=="B200", f(t,5.0); assert f(t,0.6)=="E500"; assert f(t,100.0)=="A100"; assert f(t,0.1) is None; print("TAMAM")'''}
+  - {path: pricing/lookup.py, kind: program, run: 'python3 -c ''from pricing.lookup import find_cheapest as f; c=[{"sku":"X","name":"x","price":3.0},{"sku":"Y","name":"y","price":1.0},{"sku":"Z","name":"z","price":2.0}]; assert f(c,2.5)=="Z", f(c,2.5); assert f(c,0.5) is None; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from pricing.query import best_within as f; t=open("data.txt").read(); assert f(t,5.0)=="B200", f(t,5.0); assert f(t,0.6)=="E500"; assert f(t,100.0)=="A100"; assert f(t,0.1) is None; print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from pricing.lookup import find_cheapest as f; c=[{"sku":"X","name":"x","price":3.0},{"sku":"Y","name":"y","price":1.0},{"sku":"Z","name":"z","price":2.0}]; assert f(c,2.5)=="Z", f(c,2.5); assert f(c,0.5) is None; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0825
+    bundle: yarisma
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: orta
+    adim: 8
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: siralama-ikili-arama
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

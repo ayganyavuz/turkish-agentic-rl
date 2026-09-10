@@ -1,0 +1,126 @@
+id: gen-k-0340-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depot/stock.py dosyasındaki restock_plan, below_threshold ve coverage fonksiyonlarını düzelt. Stok miktarı eşik değerine tam eşit olan ürünler artık eşiğin altında sayılmasın; yani eksik kabul edilenler yalnızca stoğu eşik değerinden küçük olan ürünler olsun.
+
+setup: |
+  mkdir -p depot
+  cat > depot/items.py <<'ITEMS'
+  def parse_items(text):
+      rows = []
+      for line in text.strip().splitlines():
+          sku, qty = line.split(',')
+          rows.append((sku.strip(), int(qty)))
+      return rows
+
+
+  def total_units(rows):
+      return sum(q for _, q in rows)
+  ITEMS
+  cat > depot/stock.py <<'STOCK'
+  from depot.items import parse_items, total_units
+
+
+  def restock_plan(text, threshold):
+      rows = parse_items(text)
+      out = []
+      for sku, qty in rows:
+          if qty < threshold:
+              out.append((sku, threshold - qty))
+      return out
+
+
+  def below_threshold(text, threshold):
+      rows = parse_items(text)
+      out = []
+      for sku, qty in rows:
+          if qty <= threshold:
+              out.append(sku)
+      return out
+
+
+  def coverage(text, threshold):
+      rows = parse_items(text)
+      need = sum(d for _, d in restock_plan(text, threshold))
+      have = total_units(rows)
+      return have - need
+  STOCK
+  cat > inventory.txt <<'INV'
+  bolt,10
+  nut,0
+  washer,3
+  screw,7
+  INV
+
+goal_tr: >
+  depot/stock.py icindeki restock_plan, below_threshold ve coverage
+  fonksiyonlarini, esik degerine tam esit stogu olan urunler esigin altinda
+  sayilmayacak (yani yalnizca stogu esikten kucuk olanlar eksik sayilacak)
+  bicimde duzelt.
+
+reference_solution: |
+  cat > depot/stock.py <<'STOCK'
+  from depot.items import parse_items, total_units
+
+
+  def restock_plan(text, threshold):
+      rows = parse_items(text)
+      out = []
+      for sku, qty in rows:
+          if qty < threshold:
+              out.append((sku, threshold - qty))
+      return out
+
+
+  def below_threshold(text, threshold):
+      rows = parse_items(text)
+      out = []
+      for sku, qty in rows:
+          if qty < threshold:
+              out.append(sku)
+      return out
+
+
+  def coverage(text, threshold):
+      rows = parse_items(text)
+      need = sum(d for _, d in restock_plan(text, threshold))
+      have = total_units(rows)
+      return have - need
+  STOCK
+
+outputs:
+  - {path: depot/stock.py, kind: program, run: 'python3 -c ''from depot.stock import restock_plan as rp, below_threshold as bt, coverage as cv; t=open("inventory.txt").read(); assert rp(t,7)==[("nut",7),("washer",4)], rp(t,7); assert bt(t,7)==["nut","washer"], bt(t,7); assert bt(t,10)==["nut","washer","screw"], bt(t,10); assert cv(t,7)==9, cv(t,7); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depot.stock import restock_plan as rp, below_threshold as bt, coverage as cv; t=open("inventory.txt").read(); assert rp(t,7)==[("nut",7),("washer",4)], rp(t,7); assert bt(t,7)==["nut","washer"], bt(t,7); assert bt(t,10)==["nut","washer","screw"], bt(t,10); assert cv(t,7)==9, cv(t,7); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0340
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum

@@ -1,0 +1,85 @@
+id: gen-k-0318-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) depo/envanter.py dosyasını aç ve içindeki stok_degeri_sirali fonksiyonunu, eşit stok değerine sahip ürünlerde alfabetik ada göre kararlı bir sıralama verecek biçimde düzelt.
+
+  2) depo/envanter.py dosyasını kaydet; dosyadaki diğer fonksiyonlar ve depo/urunler.py, depo/veri.csv dosyaları değişmeden kalsın.
+
+setup: |
+  mkdir -p depo
+  cat > depo/urunler.py <<'URUNLER'
+  def urun_satirlari(metin):
+      kayitlar = []
+      for satir in metin.strip().splitlines():
+          ad, adet, fiyat = satir.split(',')
+          kayitlar.append({'ad': ad, 'adet': int(adet), 'fiyat': float(fiyat)})
+      return kayitlar
+  URUNLER
+  cat > depo/envanter.py <<'ENVANTER'
+  from depo.urunler import urun_satirlari
+
+
+  def stok_degeri_sirali(metin):
+      kayitlar = urun_satirlari(metin)
+      kayitlar.sort(key=lambda k: k['adet'] * k['fiyat'])
+      return [(k['ad'], round(k['adet'] * k['fiyat'], 2)) for k in kayitlar]
+  ENVANTER
+  cat > depo/veri.csv <<'CSV'
+  civata,10,0.5
+  somun,5,1.0
+  pul,20,0.25
+  vida,2,2.5
+  CSV
+
+goal_tr: >
+  depo/envanter.py icindeki stok_degeri_sirali fonksiyonunu, esit stok
+  degerli urunlerde alfabetik ada gore kararli bir sira verecek bicimde
+  duzelt.
+
+reference_solution: |
+  cat > depo/envanter.py <<'ENVANTER'
+  from depo.urunler import urun_satirlari
+
+
+  def stok_degeri_sirali(metin):
+      kayitlar = urun_satirlari(metin)
+      kayitlar.sort(key=lambda k: (k['adet'] * k['fiyat'], k['ad']))
+      return [(k['ad'], round(k['adet'] * k['fiyat'], 2)) for k in kayitlar]
+  ENVANTER
+
+outputs:
+  - {path: depo/envanter.py, kind: program, run: 'python3 -c ''from depo.envanter import stok_degeri_sirali as f; t=open("depo/veri.csv").read(); r=f(t); assert r==[("civata",5.0),("pul",5.0),("somun",5.0),("vida",5.0)], r; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.envanter import stok_degeri_sirali as f; t=open("depo/veri.csv").read(); r=f(t); assert r==[("civata",5.0),("pul",5.0),("somun",5.0),("vida",5.0)], r; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0318
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: siralama-kararsizligi

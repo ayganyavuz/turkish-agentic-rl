@@ -1,0 +1,70 @@
+id: gen-s-0575-ozetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Klinikteki randevu defterlerini tek tek elle saymak gerçekten yorucu oluyor; hele üç ayrı polikliniğin kayıtları ayrı ayrı dururken hangi günün ne kadar yoğun olduğunu görmek neredeyse imkânsız hale geliyor. Sabah toplantısında "hangi günler tıka basa dolu, hangi günler sakin" diye sorulduğunda kimsenin elinde derli toplu bir şey yoktu. Bu yüzden tüm bu dağınık kayıtları tek bir özet hâline getirmemiz gerekiyor.
+
+  /workspace altındaki randevular dizin ağacında yer alan bütün randevu.txt dosyalarını dolaş; her satırdaki ikinci alanı, yani tarihi topla. Aynı tarihe denk gelen randevuları gruplayıp her tarihin kaç randevuya karşılık geldiğini bul, sonucu randevu sayısına göre büyükten küçüğe sırala ve tarih ile sayı çiftleri hâlinde ozet.txt dosyasına yaz.
+
+setup: |
+  mkdir -p randevular/klinik_a randevular/klinik_b randevular/klinik_c
+  cat > randevular/klinik_a/randevu.txt <<'E'
+  KARD0001 2024-03-01 09:00
+  KARD0002 2024-03-01 09:30
+  KARD0003 2024-03-02 10:00
+  E
+  cat > randevular/klinik_b/randevu.txt <<'E'
+  NORO0001 2024-03-01 09:00
+  NORO0002 2024-03-03 11:00
+  NORO0003 2024-03-03 11:30
+  E
+  cat > randevular/klinik_c/randevu.txt <<'E'
+  ORTO0001 2024-03-02 08:00
+  ORTO0002 2024-03-02 08:00
+  ORTO0003 2024-03-04 14:00
+  E
+
+goal_tr: >
+  randevular dizin agacindaki tum randevu.txt dosyalarindaki tarihleri
+  (ikinci alan) toplayip her tarihin kac randevuya karsilik geldigini
+  buyukten kucuge sirali olarak tarih ve sayi ciftleri halinde ozet.txt
+  dosyasina yaz
+
+reference_solution: |
+  find randevular -name 'randevu.txt' | sort | xargs cat | awk '{print $2}' | sort | uniq -c | sort -rn | awk '{print $2, $1}' > ozet.txt
+
+outputs:
+  - {path: ozet.txt, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: ozet.txt, value: [2024-03-02 3, 2024-03-01 3, 2024-03-03 2, 2024-03-04 1]}
+
+metadata:
+  domain: ozetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0575
+    bundle: sirala
+    tools:
+    - sort
+    - uniq
+    konu: hastane-randevulari
+    hedef: ozetle
+    girdi: sabit-genislik
+    kaynak: dizin-agaci
+    cikti: yeniden-adlandirilmis
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: yok
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

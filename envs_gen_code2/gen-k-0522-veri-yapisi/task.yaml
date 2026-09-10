@@ -1,0 +1,84 @@
+id: gen-k-0522-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  sensor_queue.py içindeki SensorQueue sınıfını, (value, sensor_id) çiftlerini tutan bir öncelik kuyruğu olarak gerçekleştir. pop_max en yüksek değeri, eşitlikte en küçük sensor_id'yi döndürsün.
+
+setup: |
+  cat > sensor_queue.py <<'PY'
+  class SensorQueue:
+      def __init__(self):
+          raise NotImplementedError
+
+      def push(self, sensor_id, value):
+          raise NotImplementedError
+
+      def pop_max(self):
+          raise NotImplementedError
+
+      def size(self):
+          raise NotImplementedError
+  PY
+
+goal_tr: >
+  sensor_queue.py icindeki SensorQueue sinifini, (value, sensor_id)
+  ciftlerini tutan ve pop_max ile en yuksek degeri (esitlikte en kucuk
+  sensor_id'yi) donduren bir oncelik kuyrugu olacak bicimde gerceklestir.
+
+reference_solution: |
+  cat > sensor_queue.py <<'PY'
+  import heapq
+
+
+  class SensorQueue:
+      def __init__(self):
+          self._heap = []
+
+      def push(self, sensor_id, value):
+          heapq.heappush(self._heap, (-value, sensor_id))
+
+      def pop_max(self):
+          if not self._heap:
+              raise IndexError("pop from empty queue")
+          neg_value, sensor_id = heapq.heappop(self._heap)
+          return (sensor_id, -neg_value)
+
+      def size(self):
+          return len(self._heap)
+  PY
+
+outputs:
+  - {path: sensor_queue.py, kind: program, run: 'python3 -c ''from sensor_queue import SensorQueue as Q; q=Q(); assert q.size()==0; q.push("s3",10); q.push("s1",10); q.push("s2",25); q.push("s4",5); assert q.size()==4; assert q.pop_max()==("s2",25); assert q.pop_max()==("s1",10); assert q.pop_max()==("s3",10); assert q.size()==1; assert q.pop_max()==("s4",5); assert q.size()==0; ok=False; exec("try:\n    q.pop_max()\nexcept IndexError:\n    ok=True"); assert ok; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor_queue import SensorQueue as Q; q=Q(); assert q.size()==0; q.push("s3",10); q.push("s1",10); q.push("s2",25); q.push("s4",5); assert q.size()==4; assert q.pop_max()==("s2",25); assert q.pop_max()==("s1",10); assert q.pop_max()==("s3",10); assert q.size()==1; assert q.pop_max()==("s4",5); assert q.size()==0; ok=False; exec("try:\n    q.pop_max()\nexcept IndexError:\n    ok=True"); assert ok; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0522
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: oncelik-kuyrugu

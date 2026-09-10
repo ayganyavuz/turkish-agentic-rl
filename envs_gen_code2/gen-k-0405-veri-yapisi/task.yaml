@@ -1,0 +1,145 @@
+id: gen-k-0405-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Sabah toplantisinda planlama modulumuzun hala yarim oldugunu fark ettik; gun icinde de sik sik hangi isin once gelecegini karistirdigimiz icin bir turlu rahat edemedik. Simdi oturup su isi düzgün bir sekilde bitirmek istiyorum.
+
+  planner/schedule.py dosyasindaki EventQueue sinifini ve build_queue fonksiyonunu tam olarak gerceklestir. Kuyruk su sirayla calissin: en yuksek onem degerli etkinlik once cikacak; onem degerleri esitse tarihi kucuk olan once gelecek; tarihler de esitse basligi kucuk olan once gelecek. EventQueue sinifinda push, pop, peek ve __len__ davranislari bu siraya uygun olsun; build_queue ise verilen metni ayristirip tum etkinlikleri kuyruga ekleyip kuyrugu dondursun.
+
+setup: |
+  mkdir -p planner
+  cat > planner/events.py <<'EVENTS'
+  def parse_events(text):
+      """Her satir: 'YYYY-MM-DD,onem,baslik'. (tarih, onem, baslik) listesi dondurur."""
+      out = []
+      for line in text.strip().splitlines():
+          date, prio, title = line.split(',')
+          out.append((date, int(prio), title))
+      return out
+  EVENTS
+  cat > planner/schedule.py <<'SCHEDULE'
+  from planner.events import parse_events
+
+
+  class EventQueue:
+      """Onem degerine gore oncelikli kuyruk; esitlikte tarih, sonra baslik."""
+
+      def __init__(self):
+          raise NotImplementedError
+
+      def push(self, date, prio, title):
+          raise NotImplementedError
+
+      def pop(self):
+          raise NotImplementedError
+
+      def peek(self):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+
+
+  def build_queue(text):
+      """Metni ayristirip tum etkinlikleri kuyruga ekler ve kuyrugu dondurur."""
+      raise NotImplementedError
+  SCHEDULE
+  cat > planner/agenda.py <<'AGENDA'
+  from planner.schedule import build_queue
+
+
+  def next_titles(text, k):
+      """En onemli k etkinligin basligini oncelik sirasiyla dondurur."""
+      q = build_queue(text)
+      out = []
+      for _ in range(k):
+          if len(q) == 0:
+              break
+          out.append(q.pop()[2])
+      return out
+  AGENDA
+  cat > events.txt <<'TXT'
+  2024-05-01,2,standup
+  2024-04-30,5,budget-review
+  2024-05-02,5,hiring-panel
+  2024-05-01,5,standup
+  2024-04-28,1,coffee
+  TXT
+
+goal_tr: >
+  planner/schedule.py icindeki EventQueue sinifini ve build_queue
+  fonksiyonunu; en yuksek onem degerli etkinlik once cikacak, esitlikte
+  tarihi kucuk olan once, o da esitse basligi kucuk olan once gelecek
+  sekilde tam olarak gerceklestir.
+
+reference_solution: |
+  cat > planner/schedule.py <<'SCHEDULE'
+  import heapq
+
+  from planner.events import parse_events
+
+
+  class EventQueue:
+      """Onem degerine gore oncelikli kuyruk; esitlikte tarih, sonra baslik."""
+
+      def __init__(self):
+          self._heap = []
+
+      def push(self, date, prio, title):
+          heapq.heappush(self._heap, (-prio, date, title))
+
+      def pop(self):
+          neg_prio, date, title = heapq.heappop(self._heap)
+          return (date, -neg_prio, title)
+
+      def peek(self):
+          neg_prio, date, title = self._heap[0]
+          return (date, -neg_prio, title)
+
+      def __len__(self):
+          return len(self._heap)
+
+
+  def build_queue(text):
+      """Metni ayristirip tum etkinlikleri kuyruga ekler ve kuyrugu dondurur."""
+      q = EventQueue()
+      for date, prio, title in parse_events(text):
+          q.push(date, prio, title)
+      return q
+  SCHEDULE
+
+outputs:
+  - {path: planner/schedule.py, kind: program, run: 'python3 -c ''from planner.schedule import EventQueue, build_queue; t=open("events.txt").read(); q=build_queue(t); assert len(q)==5, len(q); assert q.peek()==("2024-04-30",5,"budget-review"), q.peek(); assert q.pop()==("2024-04-30",5,"budget-review"); assert q.pop()==("2024-05-01",5,"standup"); assert q.pop()==("2024-05-02",5,"hiring-panel"); assert q.pop()==("2024-05-01",2,"standup"); assert q.pop()==("2024-04-28",1,"coffee"); assert len(q)==0; e=EventQueue(); e.push("2024-01-01",3,"b"); e.push("2024-01-01",3,"a"); assert e.pop()==("2024-01-01",3,"a"); assert e.pop()==("2024-01-01",3,"b"); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from planner.schedule import EventQueue, build_queue; t=open("events.txt").read(); q=build_queue(t); assert len(q)==5, len(q); assert q.peek()==("2024-04-30",5,"budget-review"), q.peek(); assert q.pop()==("2024-04-30",5,"budget-review"); assert q.pop()==("2024-05-01",5,"standup"); assert q.pop()==("2024-05-02",5,"hiring-panel"); assert q.pop()==("2024-05-01",2,"standup"); assert q.pop()==("2024-04-28",1,"coffee"); assert len(q)==0; e=EventQueue(); e.push("2024-01-01",3,"b"); e.push("2024-01-01",3,"a"); assert e.pop()==("2024-01-01",3,"a"); assert e.pop()==("2024-01-01",3,"b"); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0405
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: oncelik-kuyrugu

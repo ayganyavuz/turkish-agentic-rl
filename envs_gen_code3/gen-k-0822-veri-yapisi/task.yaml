@@ -1,0 +1,158 @@
+id: gen-k-0822-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 18
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  planner/intervals.py, planner/agenda.py ve planner/summary.py dosyalarındaki NotImplementedError gövdelerini gerçek işlevlerle doldur. planner/intervals.py içindeki normalize ve merge fonksiyonları yarım-açık [start, end) dakika aralıklarıyla çalışsın; normalize aralıkları artan başlangıca göre sıralı döndürsün ve negatif ya da ters aralıkları (start >= end) atsın; merge ise kesişen veya değen aralıkları tek blokta birleştirsin. planner/agenda.py içinde busy_blocks normalize edilmiş meşgul blokları döndürsün, free_gaps ise gün sınırları içinde meşgul olmayan aralıkları döndürsün. planner/summary.py içindeki describe, verilen aralıklar ve gün sınırları için "busy=<n> free=<n>" biçiminde özet üretsin. planner/summary.py dosyasını oluştur ve planner/intervals.py dosyasını güncelle.
+
+  Şu şartlar sağlanmalı:
+  - planner/intervals.py içinde normalize ve merge fonksiyonları NotImplementedError yerine gerçek uygulamaya sahip olmalı.
+  - planner/agenda.py içinde busy_blocks ve free_gaps fonksiyonları gerçek uygulamaya sahip olmalı.
+  - planner/summary.py içinde describe fonksiyonu gerçek uygulamaya sahip olmalı ve çıktısı tam olarak "busy=<n> free=<n>" biçiminde olmalı.
+  - normalize, negatif veya ters aralıkları (start >= end) atmalı ve kalan aralıkları artan başlangıca göre sıralı döndürmeli.
+  - merge, kesişen veya değen aralıkları tek blokta birleştirmeli.
+  - busy_blocks, normalize edilmiş meşgul blokları döndürmeli.
+  - free_gaps, gün sınırları içinde meşgul olmayan aralıkları döndürmeli.
+  - Aralıklar yarım-açık [start, end) biçiminde ele alınmalı.
+
+setup: |
+  mkdir -p planner
+  cat > planner/intervals.py <<'PY'
+  def normalize(intervals):
+      raise NotImplementedError
+
+
+  def merge(intervals):
+      raise NotImplementedError
+  PY
+  cat > planner/agenda.py <<'PY'
+  from planner.intervals import normalize, merge
+
+
+  def busy_blocks(intervals):
+      raise NotImplementedError
+
+
+  def free_gaps(intervals, day_start, day_end):
+      raise NotImplementedError
+  PY
+  cat > planner/summary.py <<'PY'
+  from planner.agenda import busy_blocks, free_gaps
+
+
+  def describe(intervals, day_start, day_end):
+      raise NotImplementedError
+  PY
+
+goal_tr: >
+  planner/intervals.py, planner/agenda.py ve planner/summary.py icindeki
+  NotImplementedError govdelerini, yarim-acik [start, end) dakika
+  araliklarini birlestirip gun icindeki mesgul bloklari ve bosluklari dogru
+  hesaplayacak sekilde gerceklestir; normalize araliklari artan baslangica
+  gore sirala ve negatif/ters araliklari (start >= end) at, merge kesisen
+  veya deginen araliklari tek blokta birlestirsin, busy_blocks normalize
+  edilmis bloklari dondursun, free_gaps gun sinirlari icinde mesgul olmayan
+  araliklari dondursun, describe ise "busy=<n> free=<n>" biciminde ozet
+  uretsin.
+
+reference_solution: |
+  cat > planner/intervals.py <<'PY'
+  def normalize(intervals):
+      cleaned = [(int(s), int(e)) for s, e in intervals if int(s) < int(e)]
+      cleaned.sort(key=lambda pair: (pair[0], pair[1]))
+      return cleaned
+
+
+  def merge(intervals):
+      merged = []
+      for start, end in normalize(intervals):
+          if merged and start <= merged[-1][1]:
+              prev_start, prev_end = merged[-1]
+              merged[-1] = (prev_start, max(prev_end, end))
+          else:
+              merged.append((start, end))
+      return merged
+  PY
+  cat > planner/agenda.py <<'PY'
+  from planner.intervals import normalize, merge
+
+
+  def busy_blocks(intervals):
+      return merge(intervals)
+
+
+  def free_gaps(intervals, day_start, day_end):
+      gaps = []
+      cursor = int(day_start)
+      for start, end in merge(intervals):
+          if start > cursor:
+              gaps.append((cursor, start))
+          cursor = max(cursor, end)
+      if cursor < int(day_end):
+          gaps.append((cursor, int(day_end)))
+      return gaps
+  PY
+  cat > planner/summary.py <<'PY'
+  from planner.agenda import busy_blocks, free_gaps
+
+
+  def describe(intervals, day_start, day_end):
+      return "busy=%d free=%d" % (
+          len(busy_blocks(intervals)),
+          len(free_gaps(intervals, day_start, day_end)),
+      )
+  PY
+
+ara_adim: |
+  cat > planner/intervals.py <<'PY'
+  def normalize(intervals):
+      cleaned = [(int(s), int(e)) for s, e in intervals if int(s) < int(e)]
+      cleaned.sort(key=lambda pair: (pair[0], pair[1]))
+      return cleaned
+
+
+  def merge(intervals):
+      raise NotImplementedError
+  PY
+
+outputs:
+  - {path: planner/summary.py, kind: program, run: 'python3 -c ''from planner.summary import describe as f; assert f([(60,90),(30,45)],0,120)=="busy=2 free=3", f([(60,90),(30,45)],0,120); assert f([(10,20),(20,30)],0,40)=="busy=1 free=2", f([(10,20),(20,30)],0,40); print("TAMAM")'''}
+  - {path: planner/intervals.py, kind: program, run: 'python3 -c ''from planner.intervals import normalize as n; assert n([(50,40),(10,20)])==[(10,20)], n([(50,40),(10,20)]); assert n([(5,9),(1,3),(1,2)])==[(1,2),(1,3),(5,9)], n([(5,9),(1,3),(1,2)]); print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from planner.intervals import normalize as n; assert n([(50,40),(10,20)])==[(10,20)], n([(50,40),(10,20)]); assert n([(5,9),(1,3),(1,2)])==[(1,2),(1,3),(5,9)], n([(5,9),(1,3),(1,2)]); print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from planner.summary import describe as f; assert f([(60,90),(30,45)],0,120)=="busy=2 free=3", f([(60,90),(30,45)],0,120); assert f([(10,20),(20,30)],0,40)=="busy=1 free=2", f([(10,20),(20,30)],0,40); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0822
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: kolay
+    adim: 6
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: aralik-birlestirme
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

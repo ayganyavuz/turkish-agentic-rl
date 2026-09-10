@@ -1,0 +1,136 @@
+id: gen-k-0531-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  sensors/cache.py içindeki LRU sınıfını ve sensors/window.py içindeki Window sınıfını tamamla; Window.last(ts) penceredeki en yeni okumayı ts ile sorgulayıp önbellekten döndürsün, kapasite aşılınca en eski kullanılan anahtar düşürülsün ve aynı ts tekrar eklenince değeri güncellensin.
+
+setup: |
+  mkdir -p sensors
+  cat > sensors/__init__.py <<'I'
+  I
+  cat > sensors/store.py <<'STORE'
+  class Reading:
+      def __init__(self, ts, value):
+          self.ts = ts
+          self.value = value
+  STORE
+  cat > sensors/cache.py <<'CACHE'
+  class LRU:
+      def __init__(self, capacity):
+          raise NotImplementedError
+
+      def get(self, key):
+          raise NotImplementedError
+
+      def put(self, key, value):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+  CACHE
+  cat > sensors/window.py <<'WINDOW'
+  from sensors.cache import LRU
+
+
+  class Window:
+      def __init__(self, capacity):
+          self.cache = LRU(capacity)
+
+      def add(self, ts, value):
+          raise NotImplementedError
+
+      def last(self, ts):
+          raise NotImplementedError
+
+      def size(self):
+          raise NotImplementedError
+  WINDOW
+
+goal_tr: >
+  sensors/cache.py icindeki LRU sinifini (kapasite sinirli, en son
+  kullanilani basa alan onbellek) ve sensors/window.py icindeki Window
+  sinifini, penceredeki en yeni okumayi ts ile sorgulayip onbellekten
+  donecek bicimde gerceklestir; kapasite asildiginda en eski kullanilan
+  anahtar dusurulsun ve ayni ts tekrar eklendiginde degeri guncellensin.
+
+reference_solution: |
+  cat > sensors/cache.py <<'CACHE'
+  from collections import OrderedDict
+
+
+  class LRU:
+      def __init__(self, capacity):
+          if capacity <= 0:
+              raise ValueError("capacity must be positive")
+          self.capacity = capacity
+          self._data = OrderedDict()
+
+      def get(self, key):
+          if key not in self._data:
+              return None
+          self._data.move_to_end(key)
+          return self._data[key]
+
+      def put(self, key, value):
+          if key in self._data:
+              self._data.move_to_end(key)
+          self._data[key] = value
+          while len(self._data) > self.capacity:
+              self._data.popitem(last=False)
+
+      def __len__(self):
+          return len(self._data)
+  CACHE
+  cat > sensors/window.py <<'WINDOW'
+  from sensors.cache import LRU
+
+
+  class Window:
+      def __init__(self, capacity):
+          self.cache = LRU(capacity)
+
+      def add(self, ts, value):
+          self.cache.put(ts, value)
+
+      def last(self, ts):
+          return self.cache.get(ts)
+
+      def size(self):
+          return len(self.cache)
+  WINDOW
+
+outputs:
+  - {path: sensors/cache.py, kind: program, run: 'python3 -c ''from sensors.cache import LRU; from sensors.window import Window; c=LRU(2); assert len(c)==0; c.put("a",1); c.put("b",2); assert c.get("a")==1; c.put("c",3); assert c.get("b") is None; assert c.get("a")==1; assert c.get("c")==3; assert len(c)==2; c.put("a",9); assert c.get("a")==9; assert len(c)==2; w=Window(2); w.add(10,1.5); w.add(20,2.5); assert w.last(10)==1.5; w.add(30,3.5); assert w.last(20) is None; assert w.last(10)==1.5; assert w.last(30)==3.5; assert w.size()==2; w.add(10,7.5); assert w.last(10)==7.5; assert w.size()==2; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensors.cache import LRU; from sensors.window import Window; c=LRU(2); assert len(c)==0; c.put("a",1); c.put("b",2); assert c.get("a")==1; c.put("c",3); assert c.get("b") is None; assert c.get("a")==1; assert c.get("c")==3; assert len(c)==2; c.put("a",9); assert c.get("a")==9; assert len(c)==2; w=Window(2); w.add(10,1.5); w.add(20,2.5); assert w.last(10)==1.5; w.add(30,3.5); assert w.last(20) is None; assert w.last(10)==1.5; assert w.last(30)==3.5; assert w.size()==2; w.add(10,7.5); assert w.last(10)==7.5; assert w.size()==2; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0531
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: terse
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: lru-onbellek

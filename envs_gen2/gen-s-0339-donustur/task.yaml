@@ -1,0 +1,62 @@
+id: gen-s-0339-donustur
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) hava.log dosyasını oku.
+  2) hava.log içindeki her satırdan sicaklik değerini çek.
+  3) Çekilen sicaklik değerlerinin toplamını hesapla.
+  4) Bu toplamı sonuc.txt dosyasına sadece sayı olarak yaz.
+
+setup: |
+  cat > hava.log <<'LOG'
+  sehir=Ankara;sicaklik=12;nem=45
+  sehir=Istanbul;sicaklik=18;nem=72
+  sehir=Izmir;sicaklik=24;nem=38
+  sehir=Ankara;sicaklik=15;nem=50
+  sehir=Istanbul;sicaklik=20;nem=65
+  LOG
+
+goal_tr: >
+  hava.log dosyasindaki her satirdan sicaklik degerini cekip bu degerlerin
+  toplamini sonuc.txt dosyasina sadece sayi olarak yaz
+
+reference_solution: |
+  cut -d';' -f2 hava.log | cut -d'=' -f2 > sicakliklar.txt
+  paste -sd+ sicakliklar.txt > ifade.txt
+  awk -F'+' '{top=0; for(i=1;i<=NF;i++) top+=$i; print top}' ifade.txt > sonuc.txt
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '89'}
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0339
+    bundle: sutun
+    tools:
+    - cut
+    - paste
+    konu: hava-durumu-kayitlari
+    hedef: donustur
+    girdi: log-satiri
+    kaynak: tek-dosya
+    cikti: tek-sayi
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: yok
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

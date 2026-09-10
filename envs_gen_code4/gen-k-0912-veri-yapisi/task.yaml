@@ -1,0 +1,155 @@
+id: gen-k-0912-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) depo/cekirdek/aralik.py dosyasındaki normalize fonksiyonunu, ters verilmiş aralık uçlarını da doğru sıraya koyacak biçimde düzelt.
+
+  2) Düzeltme sonrasında depo/rapor/ozet.py içindeki summarize("raf.txt") çağrısının boşlukları ve toplam boş uzunluğu doğru hesapladığından emin ol.
+
+setup: |
+  mkdir -p depo/cekirdek depo/rapor
+  cat > depo/cekirdek/aralik.py <<'PY'
+  """Interval helpers for shelf placement."""
+
+
+  def normalize(interval):
+      # BUG: does not sort endpoints, so (hi, lo) stays reversed.
+      return (interval[0], interval[1])
+
+
+  def merge_intervals(intervals):
+      items = sorted(normalize(iv) for iv in intervals)
+      merged = []
+      for lo, hi in items:
+          if merged and lo <= merged[-1][1]:
+              prev_lo, prev_hi = merged[-1]
+              merged[-1] = (prev_lo, max(prev_hi, hi))
+          else:
+              merged.append((lo, hi))
+      return merged
+  PY
+  cat > depo/cekirdek/yerlesim.py <<'PY'
+  from depo.cekirdek.aralik import merge_intervals
+
+
+  def free_slots(shelf_len, occupied):
+      """Return the gaps (as (start, end) pairs) left on a shelf of length
+      shelf_len after removing all occupied intervals."""
+      blocked = merge_intervals(occupied)
+      slots = []
+      cursor = 0
+      for lo, hi in blocked:
+          if lo > cursor:
+              slots.append((cursor, lo))
+          cursor = max(cursor, hi)
+      if cursor < shelf_len:
+          slots.append((cursor, shelf_len))
+      return slots
+  PY
+  cat > depo/rapor/ozet.py <<'PY'
+  from depo.cekirdek.yerlesim import free_slots
+
+
+  def summarize(path):
+      """Read a shelf file and return a report dict.
+
+      File format: first line is the shelf length (int), each following line
+      is 'start,end' describing one occupied interval.
+      """
+      with open(path) as fh:
+          lines = [ln.strip() for ln in fh if ln.strip()]
+      shelf_len = int(lines[0])
+      occupied = []
+      for ln in lines[1:]:
+          a, b = ln.split(',')
+          occupied.append((int(a), int(b)))
+      slots = free_slots(shelf_len, occupied)
+      total = sum(hi - lo for lo, hi in slots)
+      return {
+          "shelf_len": shelf_len,
+          "slots": slots,
+          "free_total": total,
+          "slot_count": len(slots),
+      }
+  PY
+  cat > raf.txt <<'TXT'
+  100
+  10,25
+  20,40
+  60,60
+  70,95
+  TXT
+
+goal_tr: >
+  depo/cekirdek/aralik.py icindeki normalize fonksiyonunu, ters verilmis
+  aralik uclarini da dogru siraya koyacak bicimde duzelt; boylece
+  depo/rapor/ozet.py summarize("raf.txt") cagrisi bosluklari ve toplam bos
+  uzunlugu dogru hesaplasin.
+
+reference_solution: |
+  cat > depo/cekirdek/aralik.py <<'PY'
+  """Interval helpers for shelf placement."""
+
+
+  def normalize(interval):
+      lo, hi = interval
+      if lo > hi:
+          lo, hi = hi, lo
+      return (lo, hi)
+
+
+  def merge_intervals(intervals):
+      items = sorted(normalize(iv) for iv in intervals)
+      merged = []
+      for lo, hi in items:
+          if merged and lo <= merged[-1][1]:
+              prev_lo, prev_hi = merged[-1]
+              merged[-1] = (prev_lo, max(prev_hi, hi))
+          else:
+              merged.append((lo, hi))
+      return merged
+  PY
+
+outputs:
+  - {path: depo/cekirdek/aralik.py, kind: program, run: 'python3 -c ''from depo.rapor.ozet import summarize as s; r=s("raf.txt"); assert r["slots"]==[(0,10),(40,60),(60,70),(95,100)], r; assert r["free_total"]==45, r; assert r["slot_count"]==4, r; from depo.cekirdek.aralik import merge_intervals as m; assert m([(25,10),(20,40),(60,60),(95,70)])==[(10,40),(60,60),(70,95)], m([(25,10),(20,40),(60,60),(95,70)]); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.rapor.ozet import summarize as s; r=s("raf.txt"); assert r["slots"]==[(0,10),(40,60),(60,70),(95,100)], r; assert r["free_total"]==45, r; assert r["slot_count"]==4, r; from depo.cekirdek.aralik import merge_intervals as m; assert m([(25,10),(20,40),(60,60),(95,70)])==[(10,40),(60,60),(70,95)], m([(25,10),(20,40),(60,60),(95,70)]); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0912
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: depo-raf-yerlesimi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: zor
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: aralik-birlestirme
+      karmasiklik: duz
+      kalip: duz-fonksiyon
+      akis: dosya-okuma
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

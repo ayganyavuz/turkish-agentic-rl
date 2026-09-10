@@ -1,0 +1,148 @@
+id: gen-k-1048-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  scoreboard.py dosyasındaki ScoreBoard sınıfını tamamla. Sınıf, players.py içindeki LEAGUE sözlüğünde yer alan tüm (oyuncu, puan) çiftlerini düz bir ikili arama ağacına yerleştirsin. ranked metodu, kayıtları puana göre artan sırada, puanlar eşit olduğunda oyuncu adına göre alfabetik sırada döndüren bir generator olsun. top metodu ise en yüksek n kaydı azalan sırada bir liste olarak döndürsün.
+
+  Şu şartlar sağlanmalı:
+  - scoreboard.py dosyası, ScoreBoard sınıfının __init__, ranked ve top metotlarını NotImplementedError olmadan, çalışır biçimde içermeli.
+  - __init__, LEAGUE içindeki tüm lig, takım ve oyuncu katmanlarını gezip her (oyuncu, puan) çiftini düz bir ikili arama ağacına eklemeli.
+  - ranked, tüm kayıtları puana göre artan sırada; puan eşitliğinde oyuncu adına göre alfabetik sırada üreten bir generator döndürmeli.
+  - top(n), en yüksek n kaydı azalan sırada (puana göre azalan, eşitlikte oyuncu adına göre alfabetik) liste olarak döndürmeli.
+  - Örnek LEAGUE verisiyle çağrıldığında sonuçlar LEAGUE içindeki tüm 9 kaydı kapsamalı.
+
+setup: |
+  cat > players.py <<'PY'
+  # Starting data: nested league -> team -> list of (player, score) pairs.
+  LEAGUE = {
+      "alpha": {
+          "reds": [("ada", 12), ("bob", 30), ("cyn", 7)],
+          "blues": [("dan", 25), ("eve", 25), ("fay", 41)],
+      },
+      "beta": {
+          "greens": [("gil", 5), ("hal", 18), ("ivy", 18)],
+      },
+  }
+  PY
+  cat > scoreboard.py <<'PY'
+  class ScoreBoard:
+      def __init__(self, data):
+          raise NotImplementedError
+
+      def ranked(self):
+          raise NotImplementedError
+
+      def top(self, n):
+          raise NotImplementedError
+  PY
+
+goal_tr: >
+  scoreboard.py icindeki ScoreBoard sinifini, ic ice LEAGUE sozlugundeki tum
+  (oyuncu, puan) ciftlerini duz bir ikili arama agacina yerlestirip ranked
+  ile puana gore artan sirada (oyuncu adi esitlikte alfabetik) bir generator
+  dondurecek ve top(n) ile en yuksek n kaydi azalan sirada listeleyecek
+  bicimde tamamla.
+
+reference_solution: |
+  cat > scoreboard.py <<'PY'
+  class _Node:
+      __slots__ = ("key", "left", "right")
+
+      def __init__(self, key):
+          self.key = key
+          self.left = None
+          self.right = None
+
+
+  class ScoreBoard:
+      def __init__(self, data):
+          self._root = None
+          for player, score in self._flatten(data):
+              self._insert((score, player))
+
+      @staticmethod
+      def _flatten(data):
+          for league in sorted(data):
+              for team in sorted(data[league]):
+                  for entry in data[league][team]:
+                      yield entry
+
+      def _insert(self, key):
+          if self._root is None:
+              self._root = _Node(key)
+              return
+          node = self._root
+          while True:
+              if key < node.key:
+                  if node.left is None:
+                      node.left = _Node(key)
+                      return
+                  node = node.left
+              else:
+                  if node.right is None:
+                      node.right = _Node(key)
+                      return
+                  node = node.right
+
+      def ranked(self):
+          stack = []
+          node = self._root
+          while stack or node is not None:
+              while node is not None:
+                  stack.append(node)
+                  node = node.left
+              node = stack.pop()
+              yield node.key
+              node = node.right
+
+      def top(self, n):
+          out = []
+          for score, player in self.ranked():
+              out.append((player, score))
+          out.reverse()
+          return out[:n]
+  PY
+
+outputs:
+  - {path: scoreboard.py, kind: program, run: 'python3 -c ''from scoreboard import ScoreBoard; from players import LEAGUE; s=ScoreBoard(LEAGUE); r=list(s.ranked()); assert r==[(5,"gil"),(7,"cyn"),(12,"ada"),(18,"hal"),(18,"ivy"),(25,"dan"),(25,"eve"),(30,"bob"),(41,"fay")], r; import types; assert isinstance(s.ranked(), types.GeneratorType); assert s.top(3)==[("fay",41),("bob",30),("eve",25)], s.top(3); assert s.top(1)==[("fay",41)]; assert s.top(100)[-1]==("gil",5); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from scoreboard import ScoreBoard; from players import LEAGUE; s=ScoreBoard(LEAGUE); r=list(s.ranked()); assert r==[(5,"gil"),(7,"cyn"),(12,"ada"),(18,"hal"),(18,"ivy"),(25,"dan"),(25,"eve"),(30,"bob"),(41,"fay")], r; import types; assert isinstance(s.ranked(), types.GeneratorType); assert s.top(3)==[("fay",41),("bob",30),("eve",25)], s.top(3); assert s.top(1)==[("fay",41)]; assert s.top(100)[-1]==("gil",5); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1048
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: oyun-skor-tablosu
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: ikili-arama-agaci
+      karmasiklik: duz
+      kalip: generator
+      akis: ic-ice-yapi
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

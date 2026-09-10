@@ -1,0 +1,67 @@
+id: gen-s-0306-dogrula
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Muhasebe tarafında ay sonu kapanışına hazırlanıyoruz ve kayıtların gözden geçirilmesi gerekiyor. Günlerdir borç ve alacak kalemlerini ayıklamaya çalışıyorum, ama artık borç kayıtlarının sayısını net olarak bilmem lazım. kayitlar dizinindeki kalemler.txt dosyasında BORC geçen satırların sayısını bulup bu sayıyı borc_sayisi.txt dosyasına yalnızca sayı olarak yazar mısın?
+
+setup: |
+  mkdir -p kayitlar
+  cat > kayitlar/kalemler.txt <<'DATA'
+  1001 100000 TL BORC
+  1002 250000 TL ALACAK
+  1003 300000 TL BORC
+  1004 150000 TL BORC
+  1005 400000 TL ALACAK
+  1006 50000 TL BORC
+  1007 75000 TL ALACAK
+  1008 200000 TL BORC
+  1009 125000 TL ALACAK
+  1010 175000 TL BORC
+  DATA
+
+goal_tr: >
+  kayitlar dizinindeki kalemler.txt dosyasinda BORC gecen satirlarin
+  sayisini bul ve bu sayiyi borc_sayisi.txt dosyasina yalnizca sayi olarak
+  yaz.
+
+reference_solution: |
+  dosya=$(find kayitlar -type f -name 'kalemler.txt')
+  grep 'BORC' "$dosya" > gecici_borclar.txt
+  wc -l < gecici_borclar.txt > borc_sayisi.txt
+  rm gecici_borclar.txt
+
+outputs:
+  - {path: borc_sayisi.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: borc_sayisi.txt, value: '6'}
+
+metadata:
+  domain: dogrula
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0306
+    bundle: say
+    tools:
+    - grep
+    - wc
+    konu: muhasebe-kalemleri
+    hedef: dogrula
+    girdi: sabit-genislik
+    kaynak: tek-dosya
+    cikti: tek-sayi
+    kesif: dosyayi-bul
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

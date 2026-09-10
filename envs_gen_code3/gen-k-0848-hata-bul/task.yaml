@@ -1,0 +1,132 @@
+id: gen-k-0848-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 18
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  bank/report.py dosyasındaki account_summary fonksiyonunu düzelt; her hesabın bakiyesi, o hesaba ait tüm tutarların toplamı olacak şekilde çalışsın. Böylece data.csv üzerinde alice için 125, bob için 50 değerleri elde edilsin. Aynı düzeltmeyle bank/report.py içindeki total_deposits fonksiyonu da 175 döndürsün.
+
+setup: |
+  mkdir -p bank
+  cat > bank/ledger.py <<'LEDGER'
+  def parse_transactions(text):
+      rows = []
+      for line in text.strip().splitlines():
+          parts = line.split(',')
+          rows.append((parts[0], int(parts[1])))
+      return rows
+
+
+  def running_balance(text):
+      rows = parse_transactions(text)
+      total = 0
+      out = []
+      for acct, amount in rows:
+          total = total + amount
+          out.append((acct, total))
+      return out
+
+
+  def account_totals(text):
+      rows = parse_transactions(text)
+      totals = {}
+      for acct, amount in rows:
+          totals[acct] = totals.get(acct, 0) + amount
+      return totals
+  LEDGER
+  cat > bank/report.py <<'REPORT'
+  from bank.ledger import running_balance
+
+
+  def account_summary(text):
+      balances = running_balance(text)
+      result = {}
+      for acct, bal in balances:
+          result[acct] = bal
+      return result
+
+
+  def total_deposits(text):
+      balances = running_balance(text)
+      return sum(bal for _, bal in balances)
+  REPORT
+  cat > data.csv <<'CSV'
+  alice,100
+  bob,50
+  alice,25
+  CSV
+
+goal_tr: >
+  bank/report.py icindeki account_summary fonksiyonunu, her hesabin bakiye
+  toplamini (o hesaba ait tum tutarlarin toplamini) dogru dondurecek bicimde
+  duzelt; boylece alice icin 125 ve bob icin 50 degerleri elde edilsin, ve
+  total_deposits de 175 dondursun.
+
+reference_solution: |
+  cat > bank/report.py <<'REPORT'
+  from bank.ledger import account_totals
+
+
+  def account_summary(text):
+      return account_totals(text)
+
+
+  def total_deposits(text):
+      totals = account_totals(text)
+      return sum(totals.values())
+  REPORT
+
+ara_adim: |
+  cat > bank/report.py <<'REPORT'
+  from bank.ledger import account_totals
+
+
+  def account_summary(text):
+      return account_totals(text)
+
+
+  def total_deposits(text):
+      balances = account_totals(text)
+      return sum(bal for _, bal in balances)
+  REPORT
+
+outputs:
+  - {path: bank/report.py, kind: program, run: 'python3 -c ''from bank.report import account_summary as f; t=open("data.csv").read(); assert f(t)=={"alice":125,"bob":50}, f(t); print("TAMAM")'''}
+  - {path: bank/report.py, kind: program, run: 'python3 -c ''from bank.report import total_deposits as f; t=open("data.csv").read(); assert f(t)==175, f(t); print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bank.report import account_summary as f; t=open("data.csv").read(); assert f(t)=={"alice":125,"bob":50}, f(t); print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bank.report import total_deposits as f; t=open("data.csv").read(); assert f(t)==175, f(t); print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0848
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: banka-hareketleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 6
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kapsam-hatasi
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

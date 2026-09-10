@@ -1,0 +1,97 @@
+id: gen-k-0513-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depo/inventory.py dosyasındaki low_stock fonksiyonunu, stok miktarı eşik değerinin altında olan ürünlerin sku listesini döndürecek şekilde düzelt; eşik değerine eşit olan ürünler listeye girmemeli.
+
+setup: |
+  mkdir -p depo
+  cat > depo/items.py <<'ITEMS'
+  def parse_items(text):
+      rows = []
+      for line in text.strip().splitlines():
+          sku, name, qty = line.split(';')
+          rows.append({'sku': sku, 'name': name, 'qty': int(qty)})
+      return rows
+  ITEMS
+  cat > depo/inventory.py <<'INV'
+  from depo.items import parse_items
+
+
+  def low_stock(text, threshold):
+      rows = parse_items(text)
+      return [r['sku'] for r in rows if r['qty'] <= threshold]
+
+
+  def total_units(text):
+      rows = parse_items(text)
+      total = 0
+      for r in rows:
+          total = total + r['qty']
+      return total
+  INV
+  cat > stock.txt <<'STOCK'
+  A1;cable;5
+  B2;adapter;12
+  C3;hub;0
+  D4;dock;7
+  STOCK
+
+goal_tr: >
+  depo/inventory.py icindeki low_stock fonksiyonunu, stok miktari esik
+  degerinin ALTINDA olan urunlerin sku listesini dondurecek sekilde duzelt
+  (esik degerine esit olanlar listeye girmemeli)
+
+reference_solution: |
+  cat > depo/inventory.py <<'INV'
+  from depo.items import parse_items
+
+
+  def low_stock(text, threshold):
+      rows = parse_items(text)
+      return [r['sku'] for r in rows if r['qty'] < threshold]
+
+
+  def total_units(text):
+      rows = parse_items(text)
+      total = 0
+      for r in rows:
+          total = total + r['qty']
+      return total
+  INV
+
+outputs:
+  - {path: depo/inventory.py, kind: program, run: 'python3 -c ''from depo.inventory import low_stock as f, total_units as g; t=open("stock.txt").read(); assert f(t,7)==["A1","C3"], f(t,7); assert f(t,5)==["C3"]; assert f(t,0)==[]; assert f(t,12)==["A1","C3","D4"]; assert g(t)==24; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.inventory import low_stock as f, total_units as g; t=open("stock.txt").read(); assert f(t,7)==["A1","C3"], f(t,7); assert f(t,5)==["C3"]; assert f(t,0)==[]; assert f(t,12)==["A1","C3","D4"]; assert g(t)==24; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0513
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-karsilastirma

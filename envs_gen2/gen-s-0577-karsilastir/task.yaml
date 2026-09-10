@@ -1,0 +1,78 @@
+id: gen-s-0577-karsilastir
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  veri klasöründeki ilk_gun.json ve ikinci_gun.json dosyalarındaki kargo durumlarını karşılaştır. İki gün arasında durumu değişen kargoları, kargo koduna göre artan sırada, her satırda "KARGO ESKİ YENİ" biçiminde olacak şekilde degisimler.txt dosyasına yaz. Ayrıca iki günde de bulunan ortak kargo kodlarını ortak.txt dosyasına yaz.
+
+  Şu şartlar sağlanmalı:
+  - degisimler.txt ve ortak.txt dosyaları oluşturulmuş olmalı.
+  - degisimler.txt yalnızca iki gün arasında durumu değişen kargoları içermeli; durumu aynı kalan kargolar bu dosyada yer almamalı.
+  - degisimler.txt satırları "KARGO ESKİ YENİ" biçiminde olmalı ve kargo koduna göre artan sırada yer almalı.
+  - ortak.txt yalnızca iki günde de bulunan kargo kodlarını içermeli.
+
+setup: |
+  mkdir -p veri
+  cat > veri/ilk_gun.json <<'JSON'
+  {"kargo":"K001","durum":"yolda"}
+  {"kargo":"K002","durum":"teslim"}
+  {"kargo":"K003","durum":"yolda"}
+  {"kargo":"K004","durum":"iptal"}
+  JSON
+  cat > veri/ikinci_gun.json <<'JSON'
+  {"kargo":"K001","durum":"teslim"}
+  {"kargo":"K002","durum":"teslim"}
+  {"kargo":"K003","durum":"iptal"}
+  {"kargo":"K005","durum":"yolda"}
+  JSON
+
+goal_tr: >
+  veri klasorundeki ilk_gun.json ve ikinci_gun.json dosyalarindaki kargo
+  durumlarini karsilastirip iki gun arasinda durumu degisen kargolari "KARGO
+  ESKI YENI" biciminde, kargo koduna gore artan sirada degisimler.txt
+  dosyasina yaz; ayrica iki gunde de bulunan ortak kargo kodlarini ortak.txt
+  dosyasina yaz
+
+reference_solution: |
+  cut -d'"' -f4,8 veri/ilk_gun.json | sort > ilk.txt
+  cut -d'"' -f4,8 veri/ikinci_gun.json | sort > ikinci.txt
+  join -j 1 ilk.txt ikinci.txt | awk '$2 != $3 {print $1, $2, $3}' | sort > degisimler.txt
+  comm -12 <(cut -d' ' -f1 ilk.txt | sort) <(cut -d' ' -f1 ikinci.txt | sort) > ortak.txt
+  diff <(cut -d' ' -f1 degisimler.txt | sort) <(sort ortak.txt) > kume_farki.txt || true
+
+outputs:
+  - {path: degisimler.txt, kind: lines}
+  - {path: ortak.txt, kind: lines}
+
+checks:
+  - {op: is_file, path: degisimler.txt}
+  - {op: file_content_eq, path: ortak.txt, value: K002"teslim}
+
+metadata:
+  domain: karsilastir
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0577
+    bundle: karsilastir
+    tools:
+    - diff
+    - comm
+    konu: kargo-takibi
+    hedef: karsilastir
+    girdi: json
+    kaynak: iki-dosya-capraz
+    cikti: satir-listesi
+    kesif: dosyayi-bul
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

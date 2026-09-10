@@ -1,0 +1,95 @@
+id: gen-s-0348-donustur
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  girdi/sunucu_a.tsv ve girdi/sunucu_b.tsv dosyalarındaki başlıksız kayıtları birleştir. Her sunucu adı için cikti dizini altında cikti/web01.txt, cikti/web02.txt, cikti/db01.txt ve cikti/cache01.txt dosyalarını oluştur; her dosyaya yalnızca o sunucuya ait satırları, ilk iki sütun (zaman ve sunucu) çıkarılmış halde yaz. Aynı zaman ve aynı satır içeriği iki girdi dosyasında da geçiyorsa bunu yalnızca bir kez yaz.
+
+setup: |
+  mkdir -p girdi
+  cat > girdi/sunucu_a.tsv <<'TSV'
+  10:00:01	web01	GET /anasayfa	200
+  10:00:03	web01	POST /giris	500
+  10:01:10	db01	SORGU SELECT	200
+  10:02:20	web02	GET /anasayfa	404
+  10:02:45	db01	SORGU UPDATE	500
+  TSV
+  cat > girdi/sunucu_b.tsv <<'TSV'
+  10:00:01	web01	GET /anasayfa	200
+  10:00:03	web01	POST /giris	500
+  10:03:00	cache01	GET /resim	200
+  10:03:30	web02	GET /anasayfa	404
+  10:04:00	db01	SORGU SELECT	200
+  TSV
+
+goal_tr: >
+  girdi/sunucu_a.tsv ve girdi/sunucu_b.tsv dosyalarindaki basliksiz
+  kayitlari birlestirip, her sunucu adi icin cikti/<sunucu-adi>.txt
+  dosyasina o sunucuya ait satirlari ilk iki sutun (zaman ve sunucu)
+  cikarilmis halde yaz; ayni zaman ve ayni satir icerigi iki dosyada da
+  varsa yalnizca bir kez yaz.
+
+reference_solution: |
+  python3 - <<'PY'
+  import os
+  kayitlar = {}
+  for ad in ("girdi/sunucu_a.tsv", "girdi/sunucu_b.tsv"):
+      with open(ad) as f:
+          for satir in f:
+              satir = satir.rstrip("\n")
+              if not satir:
+                  continue
+              parca = satir.split("\t")
+              kayitlar[(parca[0], satir)] = parca[1]
+  os.makedirs("cikti", exist_ok=True)
+  gruplar = {}
+  for (zaman, satir), sunucu in kayitlar.items():
+      gruplar.setdefault(sunucu, []).append(satir)
+  for sunucu, satirlar in gruplar.items():
+      with open("cikti/%s.txt" % sunucu, "w") as f:
+          for satir in satirlar:
+              parca = satir.split("\t")
+              f.write("\t".join(parca[2:]) + "\n")
+  PY
+
+outputs:
+  - {path: cikti, kind: dir}
+  - {path: cikti/web01.txt, kind: file}
+  - {path: cikti/web02.txt, kind: file}
+  - {path: cikti/db01.txt, kind: file}
+  - {path: cikti/cache01.txt, kind: file}
+
+checks:
+  - {op: dir_entries_eq, path: cikti, value: [cache01.txt, db01.txt, web01.txt, web02.txt]}
+  - {op: file_content_eq, path: cikti/cache01.txt, value: "GET /resim\t200"}
+  - {op: file_lines_eq, path: cikti/db01.txt, value: ["SORGU SELECT\t200", "SORGU UPDATE\t500", "SORGU SELECT\t200"]}
+  - {op: file_lines_eq, path: cikti/web01.txt, value: ["GET /anasayfa\t200", "POST /giris\t500"]}
+  - {op: file_lines_eq, path: cikti/web02.txt, value: ["GET /anasayfa\t404", "GET /anasayfa\t404"]}
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0348
+    bundle: python-veri
+    tools:
+    - python3
+    konu: sunucu-loglari
+    hedef: donustur
+    girdi: tsv
+    kaynak: iki-dosya-capraz
+    cikti: dizin-yapisi
+    kesif: veriye-bak
+    uslup: kisit-sakli
+    direnc: baslik-yok
+    bukulme: yok
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

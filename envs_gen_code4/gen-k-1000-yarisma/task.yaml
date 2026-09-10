@@ -1,0 +1,106 @@
+id: gen-k-1000-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Takvim aracımızdaki etkinlik listesi büyüdükçe aynı saatlere denk gelen kayıtlar kafa karıştırmaya başladı; kullanıcılar hangi toplantının gerçekten yer alacağını görmek istiyor. Gün içinde bunu elle ayıklamak yerine programatik olarak çözen bir yardımcı istiyoruz. Bu yüzden events/ dizinindeki mevcut yapıyı kullanarak bir çözüm bekliyorum.
+
+  events/stack.py dosyasındaki resolve_stack fonksiyonunu, events/parser.py ile okunan etkinliklerden aynı gün ve saat aralığı çakışanları bir yığın kullanarak ayıklayacak ve çakışmayan etkinliklerin adlarını sırasıyla döndürecek biçimde gerçekleştir.
+
+setup: |
+  mkdir -p events
+  cat > events/parser.py <<'PARSER'
+  def parse_events(text):
+      rows = []
+      for line in text.strip().splitlines():
+          if not line.strip():
+              continue
+          name, day, start, end = line.split(';')
+          rows.append((name.strip(), int(day), int(start), int(end)))
+      return rows
+  PARSER
+  cat > events/conflict.py <<'CONFLICT'
+  def overlaps(a, b):
+      return a[1] == b[1] and a[2] < b[3] and b[2] < a[3]
+  CONFLICT
+  cat > events/stack.py <<'STACK'
+  def resolve_stack(events):
+      raise NotImplementedError
+  STACK
+  cat > events/__init__.py <<'INIT'
+  INIT
+  cat > schedule.txt <<'DATA'
+  standup;1;9;10
+  review;1;10;11
+  lunch;1;12;13
+  demo;2;9;10
+  sync;2;10;11
+  DATA
+
+goal_tr: >
+  events/stack.py icindeki resolve_stack fonksiyonunu, events/parser.py ile
+  okunan etkinliklerden ayni gun ve saat araligi cakisanlari bir yigin
+  kullanarak ayiklayip cakismayan etkinliklerin adlarini sirasiyla
+  dondurecek bicimde gerceklestir.
+
+reference_solution: |
+  cat > events/stack.py <<'STACK'
+  from events.conflict import overlaps
+
+
+  def resolve_stack(events):
+      kept = []
+      stack = []
+      for ev in events:
+          while stack and not overlaps(stack[-1], ev):
+              kept.append(stack.pop())
+          if stack and overlaps(stack[-1], ev):
+              stack.pop()
+          stack.append(ev)
+      while stack:
+          kept.append(stack.pop())
+      return [e[0] for e in kept]
+  STACK
+
+outputs:
+  - {path: events/stack.py, kind: program, run: 'python3 -c ''from events.parser import parse_events; from events.stack import resolve_stack; t=open("schedule.txt").read(); r=resolve_stack(parse_events(t)); assert r==["standup","review","lunch","demo","sync"], r; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from events.parser import parse_events; from events.stack import resolve_stack; t=open("schedule.txt").read(); r=resolve_stack(parse_events(t)); assert r==["standup","review","lunch","demo","sync"], r; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1000
+    bundle: yarisma
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yigin-kullanimi
+      karmasiklik: duz
+      kalip: ozyineleme
+      akis: dosya-okuma
+      topoloji: elmas
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

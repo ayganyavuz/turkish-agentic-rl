@@ -1,0 +1,90 @@
+id: gen-k-0320-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) auth/report.py dosyasındaki active_users fonksiyonunu, oturum süresi limit değerine eşit olan kullanıcıları da aktif sayacak şekilde düzelt.
+
+  2) Yaptığın değişikliğin auth/report.py içinde kaldığından emin ol; başka dosyaları değiştirme.
+
+setup: |
+  mkdir -p auth
+  cat > auth/store.py <<'STORE'
+  def parse_sessions(text):
+      sessions = {}
+      for line in text.strip().splitlines():
+          user, token, minutes = line.split(';')
+          sessions[user] = (token, int(minutes))
+      return sessions
+  STORE
+  cat > auth/report.py <<'REPORT'
+  from auth.store import parse_sessions
+
+
+  def active_users(text, limit):
+      sessions = parse_sessions(text)
+      result = []
+      for user, (token, minutes) in sessions.items():
+          if minutes < limit:
+              result.append(user)
+      return result
+  REPORT
+  cat > sessions.txt <<'DATA'
+  ada;t1;30
+  bora;t2;45
+  cem;t3;60
+  deniz;t4;15
+  DATA
+
+goal_tr: >
+  auth/report.py icindeki active_users fonksiyonunu, suresi limit degerine
+  esit olan oturumlari da aktif sayacak sekilde duzelt.
+
+reference_solution: |
+  cat > auth/report.py <<'REPORT'
+  from auth.store import parse_sessions
+
+
+  def active_users(text, limit):
+      sessions = parse_sessions(text)
+      result = []
+      for user, (token, minutes) in sessions.items():
+          if minutes >= limit:
+              result.append(user)
+      return result
+  REPORT
+
+outputs:
+  - {path: auth/report.py, kind: program, run: 'python3 -c ''from auth.report import active_users as f; t=open("sessions.txt").read(); assert f(t,45)==["bora","cem"], f(t,45); assert f(t,60)==["cem"], f(t,60); assert f(t,15)==["ada","bora","cem","deniz"], f(t,15); assert f(t,61)==[], f(t,61); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from auth.report import active_users as f; t=open("sessions.txt").read(); assert f(t,45)==["bora","cem"], f(t,45); assert f(t,60)==["cem"], f(t,60); assert f(t,15)==["ada","bora","cem","deniz"], f(t,15); assert f(t,61)==[], f(t,61); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0320
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum

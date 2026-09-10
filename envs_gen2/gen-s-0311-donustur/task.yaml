@@ -1,0 +1,78 @@
+id: gen-s-0311-donustur
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  girdi/envanter.log dosyasındaki tekrar eden satırları eleyip, kalan her satır için cikti dizini altında "<varlık>/<bileşen>.txt" yolunda bir dosya oluştur. Her dosya tek satır içermeli ve o satırda ilgili satırın üçüncü alanı yer almalı. Sonuçta cikti dizini altında cikti/sunucu-01/disk.txt, cikti/sunucu-01/cpu.txt, cikti/sunucu-02/bellek.txt, cikti/sunucu-02/cpu.txt, cikti/sunucu-03/disk.txt ve cikti/sunucu-03/bellek.txt dosyaları oluşmalı.
+
+setup: |
+  mkdir -p girdi
+  cat > girdi/envanter.log <<'LOG'
+  sunucu-01 disk 500
+  sunucu-01 disk 500
+  sunucu-02 bellek 128
+  sunucu-03 disk 250
+  sunucu-02 bellek 128
+  sunucu-01 cpu 32
+  sunucu-03 bellek 64
+  sunucu-02 cpu 16
+  LOG
+
+goal_tr: >
+  girdi/envanter.log icindeki tekrar eden satirlari eleyip, kalan her satiri
+  "<varlik>/<bilesen>.txt" yoluna, satirin ucuncu alanini iceren tek
+  satirlik dosya olarak cikti/ dizini altina yaz
+
+reference_solution: |
+  sort girdi/envanter.log | uniq > /tmp/benzersiz.txt
+  while read -r varlik bilesen deger; do
+    mkdir -p "cikti/$varlik"
+    printf '%s\n' "$deger" > "cikti/$varlik/$bilesen.txt"
+  done < /tmp/benzersiz.txt
+
+outputs:
+  - {path: cikti, kind: dir}
+  - {path: cikti/sunucu-01/disk.txt, kind: file}
+  - {path: cikti/sunucu-01/cpu.txt, kind: file}
+  - {path: cikti/sunucu-02/bellek.txt, kind: file}
+  - {path: cikti/sunucu-02/cpu.txt, kind: file}
+  - {path: cikti/sunucu-03/disk.txt, kind: file}
+  - {path: cikti/sunucu-03/bellek.txt, kind: file}
+
+checks:
+  - {op: dir_entries_eq, path: cikti, value: [sunucu-01, sunucu-02, sunucu-03]}
+  - {op: file_content_eq, path: cikti/sunucu-01/cpu.txt, value: '32'}
+  - {op: file_content_eq, path: cikti/sunucu-01/disk.txt, value: '500'}
+  - {op: file_content_eq, path: cikti/sunucu-02/bellek.txt, value: '128'}
+  - {op: file_content_eq, path: cikti/sunucu-02/cpu.txt, value: '16'}
+  - {op: file_content_eq, path: cikti/sunucu-03/bellek.txt, value: '64'}
+  - {op: file_content_eq, path: cikti/sunucu-03/disk.txt, value: '250'}
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0311
+    bundle: sirala
+    tools:
+    - sort
+    - uniq
+    konu: envanter
+    hedef: donustur
+    girdi: log-satiri
+    kaynak: tek-dosya
+    cikti: dizin-yapisi
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: tekrar-eden-kayit
+    bukulme: yok
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

@@ -1,0 +1,96 @@
+id: gen-k-0353-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) pricing dizininde parse_catalog fonksiyonunu içeren pricing/parse.py dosyasını oluştur; bu fonksiyon catalog.txt içeriğini satır satır okuyup her satırdaki sku, name ve price alanlarını ayırsın ve price değerini metin değil ondalık sayı olarak tutsun.
+
+  2) pricing/totals.py içindeki total_value fonksiyonunu düzelt; parse_catalog ile gelen fiyatları ondalık sayı olarak toplayıp catalog.txt için 16.5 değerini döndürsün.
+
+  3) pricing/totals.py içindeki cheapest fonksiyonunu düzelt; fiyatları ondalık sayı olarak karşılaştırıp catalog.txt için en ucuz ürünün kodu olan C3 değerini döndürsün.
+
+setup: |
+  mkdir -p pricing
+  cat > pricing/parse.py <<'PARSE'
+  def parse_catalog(text):
+      rows = []
+      for line in text.strip().splitlines():
+          sku, name, price = line.split(';')
+          rows.append({'sku': sku, 'name': name, 'price': price})
+      return rows
+  PARSE
+  cat > pricing/totals.py <<'TOTALS'
+  from pricing.parse import parse_catalog
+
+
+  def total_value(text):
+      rows = parse_catalog(text)
+      total = 0
+      for r in rows:
+          total += r['price']
+      return total
+
+
+  def cheapest(text):
+      rows = parse_catalog(text)
+      best = None
+      for r in rows:
+          if best is None or r['price'] < best['price']:
+              best = r
+      return best['sku']
+  TOTALS
+  cat > catalog.txt <<'CAT'
+  A1;widget;10.50
+  B2;gadget;3.25
+  C3;bolt;2.75
+  CAT
+
+goal_tr: >
+  pricing/totals.py icindeki total_value ve cheapest fonksiyonlarini,
+  fiyatlari metin degil ondalik sayi olarak isleyip dogru toplam (16.5) ve
+  en ucuz urunun kodu (C3) dondurecek bicimde duzelt
+
+reference_solution: |
+  cat > pricing/parse.py <<'PARSE'
+  def parse_catalog(text):
+      rows = []
+      for line in text.strip().splitlines():
+          sku, name, price = line.split(';')
+          rows.append({'sku': sku, 'name': name, 'price': float(price)})
+      return rows
+  PARSE
+
+outputs:
+  - {path: pricing/parse.py, kind: program, run: 'python3 -c ''from pricing.totals import total_value as tv, cheapest as ch; t=open("catalog.txt").read(); assert abs(tv(t)-16.5)<1e-9, tv(t); assert ch(t)=="C3", ch(t); assert tv("X9;only;5.00")==5.0; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from pricing.totals import total_value as tv, cheapest as ch; t=open("catalog.txt").read(); assert abs(tv(t)-16.5)<1e-9, tv(t); assert ch(t)=="C3", ch(t); assert tv("X9;only;5.00")==5.0; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0353
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: tip-karismasi

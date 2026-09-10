@@ -1,0 +1,139 @@
+id: gen-k-0543-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  nav/routebook.py dosyasındaki Routebook sınıfını gerçekleştir. Bu sınıf bir yığın gibi davranmalı: push, pop, peek, depth, path ve backtrack_to metodları doğru çalışsın. backtrack_to, verilen kavşak yığının en üstünde kalana kadar elemanları çıkarsın ve çıkarılanları sırayla döndürsün; eğer kavşak yığında hiç yoksa hiçbir şeyi değiştirmeden boş liste döndürsün. path metodu kavşakları aşağıdan yukarıya doğru bir liste olarak döndürsün.
+
+setup: |
+  mkdir -p nav
+  cat > nav/routebook.py <<'ROUTEBOOK'
+  class Routebook:
+      """A stack of junctions visited while walking a path."""
+
+      def __init__(self):
+          raise NotImplementedError
+
+      def push(self, junction):
+          raise NotImplementedError
+
+      def pop(self):
+          raise NotImplementedError
+
+      def peek(self):
+          raise NotImplementedError
+
+      def backtrack_to(self, junction):
+          """Pop until junction is on top; return popped junctions in order."""
+          raise NotImplementedError
+
+      def depth(self):
+          raise NotImplementedError
+
+      def path(self):
+          """Return the junctions from bottom to top as a list."""
+          raise NotImplementedError
+  ROUTEBOOK
+  cat > nav/walker.py <<'WALKER'
+  from nav.routebook import Routebook
+
+
+  def walk(edges, start, turns):
+      """Follow turns from start; return (routebook, dead_end)."""
+      book = Routebook()
+      book.push(start)
+      here = start
+      for turn in turns:
+          nxt = edges.get(here, {}).get(turn)
+          if nxt is None:
+              return book, here
+          book.push(nxt)
+          here = nxt
+      return book, None
+  WALKER
+  cat > nav/audit.py <<'AUDIT'
+  from nav.routebook import Routebook
+
+
+  def rewind(book, junction):
+      """Undo the route back to junction, counting reverted crossings."""
+      return len(book.backtrack_to(junction))
+  AUDIT
+
+goal_tr: >
+  nav/routebook.py dosyasindaki Routebook sinifini gerceklestir: push, pop,
+  peek, depth, path ve backtrack_to metodlari bir yigin gibi dogru calissin;
+  backtrack_to verilen kavsak ustte kalana kadar elemanlari cikarip
+  cikarilanlari sirayla dondursun, kavsak yiginda yoksa hicbir sey
+  degistirmeden bos liste dondursun.
+
+reference_solution: |
+  cat > nav/routebook.py <<'ROUTEBOOK'
+  class Routebook:
+      """A stack of junctions visited while walking a path."""
+
+      def __init__(self):
+          self._junctions = []
+
+      def push(self, junction):
+          self._junctions.append(junction)
+
+      def pop(self):
+          if not self._junctions:
+              raise IndexError("empty routebook")
+          return self._junctions.pop()
+
+      def peek(self):
+          if not self._junctions:
+              raise IndexError("empty routebook")
+          return self._junctions[-1]
+
+      def backtrack_to(self, junction):
+          if junction not in self._junctions:
+              return []
+          popped = []
+          while self._junctions[-1] != junction:
+              popped.append(self._junctions.pop())
+          return popped
+
+      def depth(self):
+          return len(self._junctions)
+
+      def path(self):
+          return list(self._junctions)
+  ROUTEBOOK
+
+outputs:
+  - {path: nav/routebook.py, kind: program, run: 'python3 -c ''from nav.routebook import Routebook; from nav.walker import walk; from nav.audit import rewind; E={"a":{"n":"b"},"b":{"n":"c","e":"d"},"c":{"w":"a"}}; b,dead=walk(E,"a",["n","n"]); assert dead is None; assert b.depth()==3; assert b.peek()=="c"; assert b.path()==["a","b","c"]; assert b.pop()=="c"; assert b.path()==["a","b"]; b.push("c"); assert b.backtrack_to("a")==["c","b"]; assert b.path()==["a"]; assert b.backtrack_to("z")==[]; assert b.path()==["a"]; b2,dead2=walk(E,"a",["n","e","w"]); assert dead2=="d"; assert b2.depth()==3; assert rewind(b2,"b")==1; assert b2.path()==["a","b"]; assert b2.depth()==2; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from nav.routebook import Routebook; from nav.walker import walk; from nav.audit import rewind; E={"a":{"n":"b"},"b":{"n":"c","e":"d"},"c":{"w":"a"}}; b,dead=walk(E,"a",["n","n"]); assert dead is None; assert b.depth()==3; assert b.peek()=="c"; assert b.path()==["a","b","c"]; assert b.pop()=="c"; assert b.path()==["a","b"]; b.push("c"); assert b.backtrack_to("a")==["c","b"]; assert b.path()==["a"]; assert b.backtrack_to("z")==[]; assert b.path()==["a"]; b2,dead2=walk(E,"a",["n","e","w"]); assert dead2=="d"; assert b2.depth()==3; assert rewind(b2,"b")==1; assert b2.path()==["a","b"]; assert b2.depth()==2; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0543
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yigin

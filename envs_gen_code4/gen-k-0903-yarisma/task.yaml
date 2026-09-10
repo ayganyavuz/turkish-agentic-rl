@@ -1,0 +1,132 @@
+id: gen-k-0903-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  flights/core/query.py dosyasını yaz. Bu dosyada FlightIndex adında bir sınıf tanımla. Sınıf, Flight nesnelerini süreye göre artan sırada tutsun. insert metodu yeni bir Flight'ı sıralı biçimde eklesin. find metodu ise verilen hedef süreyi ikili arama ile bulup bu süreye sahip ilk Flight nesnesini döndürsün; eşleşen bir Flight yoksa None döndürsün.
+
+setup: |
+  mkdir -p flights
+  cat > flights/__init__.py <<'INIT'
+  INIT
+  mkdir -p flights/core
+  cat > flights/core/__init__.py <<'CINIT'
+  CINIT
+  cat > flights/core/records.py <<'RECORDS'
+  class Flight:
+      def __init__(self, code, origin, dest, duration):
+          self.code = code
+          self.origin = origin
+          self.dest = dest
+          self.duration = duration
+
+      def __lt__(self, other):
+          return self.duration < other.duration
+
+      def __eq__(self, other):
+          return self.duration == other.duration
+
+      def __repr__(self):
+          return "Flight(%s,%s,%s,%d)" % (self.code, self.origin, self.dest, self.duration)
+
+
+  def load_flights(rows):
+      return [Flight(c, o, d, int(m)) for c, o, d, m in rows]
+  RECORDS
+  cat > flights/core/schedule.py <<'SCHED'
+  def binary_search_min_duration(flights, target):
+      lo, hi = 0, len(flights) - 1
+      while lo <= hi:
+          mid = (lo + hi) // 2
+          if flights[mid].duration == target:
+              return mid
+          elif flights[mid].duration < target:
+              lo = mid + 1
+          else:
+              hi = mid - 1
+      return -1
+  SCHED
+
+goal_tr: >
+  flights/core/query.py dosyasini yaz; Flight nesnelerini sureye gore artan
+  sirada tutan ve verilen hedef sureyi ikili aramayla bulan bir FlightIndex
+  sinifi tanimlasin (insert metodu sirali ekleme, find metodu hedef sureyi
+  bulup ilk eslesen Flight'i dondursun, bulunamazsa None).
+
+reference_solution: |
+  cat > flights/core/query.py <<'QUERY'
+  from flights.core.records import Flight
+
+
+  class FlightIndex:
+      def __init__(self):
+          self._flights = []
+
+      def insert(self, flight):
+          lo, hi = 0, len(self._flights)
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if self._flights[mid].duration < flight.duration:
+                  lo = mid + 1
+              else:
+                  hi = mid
+          self._flights.insert(lo, flight)
+
+      def find(self, duration):
+          lo, hi = 0, len(self._flights) - 1
+          while lo <= hi:
+              mid = (lo + hi) // 2
+              if self._flights[mid].duration == duration:
+                  return self._flights[mid]
+              elif self._flights[mid].duration < duration:
+                  lo = mid + 1
+              else:
+                  hi = mid - 1
+          return None
+
+      def __len__(self):
+          return len(self._flights)
+  QUERY
+
+outputs:
+  - {path: flights/core/query.py, kind: program, run: 'python3 -c ''from flights.core.records import Flight; from flights.core.query import FlightIndex; idx=FlightIndex(); rows=[("AA1","IST","ANK",70),("BB2","IST","IZM",55),("CC3","ANK","IST",70),("DD4","IZM","ANK",95),("EE5","IST","ADA",40)]; [idx.insert(Flight(c,o,d,m)) for c,o,d,m in rows]; assert len(idx)==5; assert idx.find(95).code=="DD4"; assert idx.find(70).code in ("AA1","CC3"); assert idx.find(40).code=="EE5"; assert idx.find(41) is None; assert idx.find(200) is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from flights.core.records import Flight; from flights.core.query import FlightIndex; idx=FlightIndex(); rows=[("AA1","IST","ANK",70),("BB2","IST","IZM",55),("CC3","ANK","IST",70),("DD4","IZM","ANK",95),("EE5","IST","ADA",40)]; [idx.insert(Flight(c,o,d,m)) for c,o,d,m in rows]; assert len(idx)==5; assert idx.find(95).code=="DD4"; assert idx.find(70).code in ("AA1","CC3"); assert idx.find(40).code=="EE5"; assert idx.find(41) is None; assert idx.find(200) is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0903
+    bundle: yarisma
+    tools:
+    - python3
+    konu: ucus-rezervasyonlari
+    hedef: yarisma
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: siralama-ikili-arama
+      karmasiklik: duz
+      kalip: operator-asiri-yukleme
+      akis: ic-ice-yapi
+      topoloji: paket-alt-paket
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

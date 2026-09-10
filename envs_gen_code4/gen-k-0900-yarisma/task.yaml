@@ -1,0 +1,140 @@
+id: gen-k-0900-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  routekit/pathfinder.py dosyasını oluştur; içinde RouteFinder sınıfı bulunsun. Bu sınıf, map.txt dosyasındaki kenarları routekit.parser.EdgeParser ve routekit.graph.AdjacencyBuilder kullanarak inşa etsin ve verilen bir başlangıç düğümünden hedef düğüme en kısa mesafeyi ve bu mesafeye karşılık gelen yolu, yığın tabanlı geri-izleme (backtracking) yaklaşımıyla bulan find_shortest metodunu sunsun.
+
+setup: |
+  mkdir -p routekit
+  cat > routekit/__init__.py <<'PY'
+  PY
+  cat > routekit/parser.py <<'PY'
+  from abc import ABC, abstractmethod
+
+
+  class LineParser(ABC):
+      @abstractmethod
+      def parse(self, text):
+          ...
+
+
+  class EdgeParser(LineParser):
+      def parse(self, text):
+          edges = []
+          for raw in text.splitlines():
+              line = raw.strip()
+              if not line or line.startswith("#"):
+                  continue
+              src, dst, dist = line.split(":")
+              edges.append((src.strip(), dst.strip(), int(dist)))
+          return edges
+  PY
+  cat > routekit/graph.py <<'PY'
+  from abc import ABC, abstractmethod
+
+
+  class GraphBuilder(ABC):
+      @abstractmethod
+      def build(self, edges):
+          ...
+
+
+  class AdjacencyBuilder(GraphBuilder):
+      def build(self, edges):
+          graph = {}
+          for src, dst, dist in edges:
+              graph.setdefault(src, []).append((dst, dist))
+              graph.setdefault(dst, []).append((src, dist))
+          return graph
+  PY
+  cat > map.txt <<'TXT'
+  # sehir baglantilari
+  A:B:4
+  A:C:2
+  B:D:5
+  C:D:1
+  C:E:7
+  D:E:3
+  TXT
+
+goal_tr: >
+  routekit/pathfinder.py dosyasini yaz; RouteFinder sinifi, map.txt icindeki
+  kenarlari routekit.parser.EdgeParser ve routekit.graph.AdjacencyBuilder
+  ile insa edip, verilen baslangictan hedefe en kisa mesafeyi ve yolu, yigin
+  tabanli geri-izleme (backtracking) ile bulan find_shortest metodunu
+  sunsun.
+
+reference_solution: |
+  cat > routekit/pathfinder.py <<'PY'
+  from routekit.parser import EdgeParser
+  from routekit.graph import AdjacencyBuilder
+
+
+  class RouteFinder:
+      def __init__(self, edges):
+          self.edges = edges
+          self.graph = AdjacencyBuilder().build(edges)
+
+      @classmethod
+      def from_text(cls, text):
+          return cls(EdgeParser().parse(text))
+
+      def find_shortest(self, start, goal):
+          best = None
+          stack = [(start, 0, [start])]
+          while stack:
+              node, dist, path = stack.pop()
+              if node == goal:
+                  if best is None or dist < best[0]:
+                      best = (dist, path)
+                  continue
+              for nxt, weight in self.graph.get(node, []):
+                  if nxt in path:
+                      continue
+                  stack.append((nxt, dist + weight, path + [nxt]))
+          return best
+  PY
+
+outputs:
+  - {path: routekit/pathfinder.py, kind: program, run: 'python3 -c ''from routekit.pathfinder import RouteFinder as R; t=open("map.txt").read(); f=R.from_text(t); assert f.find_shortest("A","E")==(6,["A","C","D","E"]), f.find_shortest("A","E"); assert f.find_shortest("A","D")==(3,["A","C","D"]); assert f.find_shortest("B","E")==(8,["B","D","E"]); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from routekit.pathfinder import RouteFinder as R; t=open("map.txt").read(); f=R.from_text(t); assert f.find_shortest("A","E")==(6,["A","C","D","E"]), f.find_shortest("A","E"); assert f.find_shortest("A","D")==(3,["A","C","D"]); assert f.find_shortest("B","E")==(8,["B","D","E"]); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0900
+    bundle: yarisma
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yigin-kullanimi
+      karmasiklik: duz
+      kalip: abc-protokol
+      akis: dosya-okuma
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

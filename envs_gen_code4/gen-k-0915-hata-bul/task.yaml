@@ -1,0 +1,101 @@
+id: gen-k-0915-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün atölyede skor tablosu üzerinde çalışırken epey kafa yorduk; küçük bir hata yüzünden sıralamalar bir türlü beklediğimiz gibi çıkmıyordu. Öğleden sonra arena klasöründeki dosyaları gözden geçirdik ve sorunun arena/board.py içindeki top_names fonksiyonunda olduğunu fark ettik. Bu fonksiyon, skor tablosunda en yüksek puanlı k oyuncunun adını doğru döndürmüyor. arena/board.py dosyasındaki top_names fonksiyonunu, en yüksek puanlı k oyuncunun adını doğru biçimde döndürecek şekilde düzeltir misin?
+
+setup: |
+  mkdir -p arena
+  cat > arena/players.py <<'PLAYERS'
+  class Player:
+      def __init__(self, name, score):
+          self.name = name
+          self.score = score
+
+      def __lt__(self, other):
+          return self.score < other.score
+
+      def __repr__(self):
+          return "Player(%r, %r)" % (self.name, self.score)
+  PLAYERS
+  cat > arena/table.py <<'TABLE'
+  from arena.players import Player
+
+
+  def build_table(entries):
+      players = [Player(n, s) for n, s in entries]
+      players.sort(reverse=True)
+      return players
+  TABLE
+  cat > arena/board.py <<'BOARD'
+  from arena.table import build_table
+
+
+  def top_names(entries, k):
+      table = build_table(entries)
+      return [p.name for p in table[:k - 1]]
+  BOARD
+  cat > scores.txt <<'SCORES'
+  ada,90
+  bora,75
+  cem,60
+  demir,45
+  PLAYERS_UNUSED
+
+goal_tr: >
+  arena/board.py icindeki top_names fonksiyonunu, skor tablosunda en yuksek
+  puanli k oyuncunun adini dogru dondurecek bicimde duzelt.
+
+reference_solution: |
+  cat > arena/board.py <<'BOARD'
+  from arena.table import build_table
+
+
+  def top_names(entries, k):
+      table = build_table(entries)
+      return [p.name for p in table[:k]]
+  BOARD
+
+outputs:
+  - {path: arena/board.py, kind: program, run: 'python3 -c ''from arena.board import top_names as f; e=[("ada",90),("bora",75),("cem",60),("demir",45)]; assert f(e,2)==["ada","bora"], f(e,2); assert f(e,1)==["ada"]; assert f(e,4)==["ada","bora","cem","demir"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from arena.board import top_names as f; e=[("ada",90),("bora",75),("cem",60),("demir",45)]; assert f(e,2)==["ada","bora"], f(e,2); assert f(e,1)==["ada"]; assert f(e,4)==["ada","bora","cem","demir"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0915
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: oyun-skor-tablosu
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: off-by-one
+      karmasiklik: duz
+      kalip: operator-asiri-yukleme
+      akis: bellek-ici
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

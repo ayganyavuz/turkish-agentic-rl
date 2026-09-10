@@ -1,0 +1,110 @@
+id: gen-k-0516-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depo/envanter.py içindeki Envanter sınıfında her örneğin kendi kalem listesi olsun; bir örneğe eklenen kalem diğerlerine sızmasın. ekle, toplam ve listele davranışları aynı kalsın.
+
+setup: |
+  mkdir -p depo
+  cat > depo/kalem.py <<'KALEM'
+  class Kalem:
+      def __init__(self, ad, adet):
+          self.ad = ad
+          self.adet = adet
+
+      def dus(self, n):
+          self.adet -= n
+          return self.adet
+  KALEM
+  cat > depo/envanter.py <<'ENVANTER'
+  from depo.kalem import Kalem
+
+  VARSAYILAN = []
+
+
+  class Envanter:
+      def __init__(self, kalemler=VARSAYILAN):
+          self.kalemler = kalemler
+
+      def ekle(self, ad, adet):
+          for k in self.kalemler:
+              if k.ad == ad:
+                  k.adet += adet
+                  return k.adet
+          self.kalemler.append(Kalem(ad, adet))
+          return adet
+
+      def toplam(self):
+          return sum(k.adet for k in self.kalemler)
+
+      def listele(self):
+          return [(k.ad, k.adet) for k in self.kalemler]
+  ENVANTER
+  cat > depo/__init__.py <<'INIT'
+  INIT
+
+goal_tr: >
+  depo/envanter.py icindeki Envanter sinifini, olusturulan her ornegin kendi
+  bagimsiz kalem listesine sahip olacagi bicimde duzelt; paylasilan
+  varsayilan liste yuzunden bir ornege eklenen kalem digerlerine sizmasin,
+  ekle/toplam/listele davranisi korunsun.
+
+reference_solution: |
+  cat > depo/envanter.py <<'ENVANTER'
+  from depo.kalem import Kalem
+
+
+  class Envanter:
+      def __init__(self, kalemler=None):
+          self.kalemler = list(kalemler) if kalemler is not None else []
+
+      def ekle(self, ad, adet):
+          for k in self.kalemler:
+              if k.ad == ad:
+                  k.adet += adet
+                  return k.adet
+          self.kalemler.append(Kalem(ad, adet))
+          return adet
+
+      def toplam(self):
+          return sum(k.adet for k in self.kalemler)
+
+      def listele(self):
+          return [(k.ad, k.adet) for k in self.kalemler]
+  ENVANTER
+
+outputs:
+  - {path: depo/envanter.py, kind: program, run: 'python3 -c ''from depo.envanter import Envanter as E; a=E(); b=E(); a.ekle("vida",5); assert b.toplam()==0, ("leak", b.toplam()); assert b.listele()==[], b.listele(); assert a.toplam()==5; c=E(); c.ekle("somun",2); assert a.toplam()==5, a.toplam(); assert c.toplam()==2; a.ekle("vida",3); assert a.toplam()==8; assert b.toplam()==0; assert a.listele()==[("vida",8)], a.listele(); d=E(); assert d.toplam()==0; d.ekle("ray",1); assert a.toplam()==8, a.toplam(); assert b.toplam()==0; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.envanter import Envanter as E; a=E(); b=E(); a.ekle("vida",5); assert b.toplam()==0, ("leak", b.toplam()); assert b.listele()==[], b.listele(); assert a.toplam()==5; c=E(); c.ekle("somun",2); assert a.toplam()==5, a.toplam(); assert c.toplam()==2; a.ekle("vida",3); assert a.toplam()==8; assert b.toplam()==0; assert a.listele()==[("vida",8)], a.listele(); d=E(); assert d.toplam()==0; d.ekle("ray",1); assert a.toplam()==8, a.toplam(); assert b.toplam()==0; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0516
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: mutable-varsayilan

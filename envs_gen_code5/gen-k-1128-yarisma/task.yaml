@@ -1,0 +1,121 @@
+id: gen-k-1128-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  `kitchen/report.py` dosyasını yaz. İçinde `rank_tables(lines)` adında bir generator fonksiyonu tanımla. Bu fonksiyon, `kitchen.aggregate.totals` çıktısını kullanarak her tabak için o tabağı sipariş eden masaları listeleyen bir generator olsun.
+
+  Fonksiyon her adımda `(dish, [(table, qty), ...])` biçiminde bir çift üretsin. Tabaklar artan sırada döndürülsün. Her tabağın masa listesi, sipariş adedine göre azalan sırada olsun; adetler eşit olduğunda masa adı artan sırada gelsin.
+
+  Şu şartlar sağlanmalı:
+  - `kitchen/report.py` dosyası oluşturulmuş olmalı.
+  - Dosyada `rank_tables(lines)` adlı bir generator fonksiyonu tanımlı olmalı.
+  - Fonksiyon, `kitchen.aggregate.totals` fonksiyonunu kullanmalı.
+  - Her adımda `(dish, [(table, qty), ...])` biçiminde çift üretilmeli.
+  - Tabaklar artan sırada döndürülmeli.
+  - Her tabak için masa listesi sipariş adedine göre azalan sırada olmalı.
+  - Adetler eşit olduğunda masa adı artan sırada olmalı.
+  - `data/orders.txt` içeriği ile çalıştırıldığında sonuçlar doğru olmalı.
+
+setup: |
+  mkdir -p kitchen data
+  cat > kitchen/orders.py <<'ORDERS'
+  def parse_lines(lines):
+      for line in lines:
+          line = line.strip()
+          if not line or line.startswith("#"):
+              continue
+          parts = [p.strip() for p in line.split("|")]
+          if len(parts) != 3:
+              continue
+          table, dish, qty = parts
+          yield table, dish, int(qty)
+  ORDERS
+  cat > kitchen/aggregate.py <<'AGG'
+  from kitchen.orders import parse_lines
+
+
+  def totals(lines):
+      acc = {}
+      for table, dish, qty in parse_lines(lines):
+          acc.setdefault(table, {})
+          acc[table][dish] = acc[table].get(dish, 0) + qty
+      return acc
+  AGG
+  cat > data/orders.txt <<'DATA'
+  # table | dish | qty
+  T1 | soup | 2
+  T2 | soup | 1
+  T1 | salad | 3
+  T3 | soup | 4
+  T2 | salad | 2
+  T1 | soup | 1
+  DATA
+
+goal_tr: >
+  kitchen/report.py dosyasini yaz: kitchen.aggregate.totals ciktisini
+  kullanarak, her tabak icin o tabagi siparis eden masalari siparis adedine
+  gore azalan sirada (esitlikte masa adi artan) listeleyen bir generator
+  fonksiyonu `rank_tables(lines)` tanimla; her adimda (dish, [(table, qty),
+  ...]) uret ve tabak adlarini artan sirada dondur.
+
+reference_solution: |
+  cat > kitchen/report.py <<'REPORT'
+  from kitchen.aggregate import totals
+
+
+  def rank_tables(lines):
+      acc = totals(lines)
+      dishes = sorted({d for per_table in acc.values() for d in per_table})
+      for dish in dishes:
+          stack = []
+          for table, per_table in acc.items():
+              qty = per_table.get(dish, 0)
+              if qty > 0:
+                  stack.append((table, qty))
+          stack.sort(key=lambda item: (-item[1], item[0]))
+          yield dish, stack
+  REPORT
+
+outputs:
+  - {path: kitchen/report.py, kind: program, run: 'python3 -c ''from kitchen.report import rank_tables as r; lines=open("data/orders.txt").read().splitlines(); out=list(r(lines)); assert out==[("salad",[("T1",3),("T2",2)]),("soup",[("T3",4),("T1",3),("T2",1)])], out; assert list(r([]))==[], list(r([])); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from kitchen.report import rank_tables as r; lines=open("data/orders.txt").read().splitlines(); out=list(r(lines)); assert out==[("salad",[("T1",3),("T2",2)]),("soup",[("T3",4),("T1",3),("T2",1)])], out; assert list(r([]))==[], list(r([])); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1128
+    bundle: yarisma
+    tools:
+    - python3
+    konu: restoran-siparisleri
+    hedef: yarisma
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yigin-kullanimi
+      karmasiklik: duz
+      kalip: generator
+      akis: cok-dosya-birlestirme
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

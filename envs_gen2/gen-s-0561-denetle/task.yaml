@@ -1,0 +1,76 @@
+id: gen-s-0561-denetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  randevular klasöründeki .tsv dosyalarında son sütunu tamamlandi olan satırların ilk sütunundaki hasta_id değerlerini tekrarsız ve artan sırada tamamlananlar.txt dosyasına her satırda bir tane yaz; notlar.txt hariç.
+
+setup: |
+  mkdir -p randevular
+  cat > randevular/kayitlar.tsv <<'TSV'
+  hasta_id	klinik	tarih	durum
+  H001	Kardiyoloji	2024-03-01	tamamlandi
+  H002	Dermatoloji	2024-03-02	iptal
+  H003	Kardiyoloji	2024-03-03	tamamlandi
+  H004	Noroloji	2024-03-04	beklemede
+  H005	Dermatoloji	2024-03-05	tamamlandi
+  TSV
+  cat > randevular/kayitlar_ek.tsv <<'TSV'
+  hasta_id	klinik	tarih	durum
+  H006	Noroloji	2024-03-06	iptal
+  H007	Kardiyoloji	2024-03-07	tamamlandi
+  H008	Noroloji	2024-03-08	beklemede
+  H009	Dermatoloji	2024-03-09	tamamlandi
+  H010	Kardiyoloji	2024-03-10	iptal
+  TSV
+  cat > randevular/notlar.txt <<'TXT'
+  Bu dosya randevu kaydi degildir, denetimde yok sayilmali.
+  TXT
+
+goal_tr: >
+  randevular klasorundeki .tsv uzantili tum dosyalarda (notlar.txt haric)
+  son sutunu tamamlandi olan satirlarin ilk sutunundaki hasta_id
+  degerlerini, tekrarsiz ve artan sirada, tamamlananlar.txt dosyasina her
+  satirda bir hasta_id olacak sekilde yaz.
+
+reference_solution: |
+  find randevular -name '*.tsv' -type f | sort > /tmp/tsv_dosyalar.txt
+  while IFS= read -r f; do tail -n +2 "$f"; done < /tmp/tsv_dosyalar.txt > /tmp/tum_satirlar.txt
+  awk -F'\t' '$4 == "tamamlandi" { print $1 }' /tmp/tum_satirlar.txt | sort -u > tamamlananlar.txt
+  wc -l < tamamlananlar.txt > /tmp/sayi.txt
+  cat tamamlananlar.txt
+
+outputs:
+  - {path: tamamlananlar.txt, kind: lines}
+
+checks:
+  - {op: file_lines_eq, path: tamamlananlar.txt, value: [H001, H003, H005, H007, H009]}
+
+metadata:
+  domain: denetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0561
+    bundle: dizin-istatistik
+    tools:
+    - wc
+    - find
+    konu: hastane-randevulari
+    hedef: denetle
+    girdi: tsv
+    kaynak: cok-dosya
+    cikti: satir-listesi
+    kesif: yok
+    uslup: terse
+    direnc: bom
+    bukulme: tuzak-dosya
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

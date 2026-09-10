@@ -1,0 +1,69 @@
+id: gen-s-0338-bol
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  loglar.tar arşivini açıp içindeki gzip ile sıkıştırılmış sunucu.log.gz dosyasını çıkar ve bu dosyada HATA geçen satırların sayısını bul. Bu sayıyı sonuc.txt dosyasına yalnızca sayı olarak, başka hiçbir şey eklemeden yaz.
+
+setup: |
+  mkdir -p arsiv
+  cat > arsiv/sunucu.log <<'LOG'
+  BILGI sistem basladi
+  HATA disk dolu
+  BILGI kullanici giris yapti
+  HATA baglanti koptu
+  UYARI bellek az
+  HATA zaman asimi
+  BILGI yedek tamam
+  LOG
+  cat > arsiv/notlar.txt <<'TXT'
+  bu dosya log degil
+  HATA burada gecen kelime sayilmamali
+  TXT
+  gzip -c arsiv/sunucu.log > arsiv/sunucu.log.gz
+  tar -cf loglar.tar -C arsiv sunucu.log.gz notlar.txt
+  rm arsiv/sunucu.log
+
+goal_tr: >
+  loglar.tar arsivindeki gzip ile sikistirilmis sunucu.log.gz dosyasini acip
+  icindeki HATA gecen satir sayisini sonuc.txt'ye sadece sayi olarak yaz
+
+reference_solution: |
+  mkdir -p gecici
+  tar -xf loglar.tar -C gecici
+  gzip -dc gecici/sunucu.log.gz | grep -c 'HATA' > sonuc.txt
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '3'}
+
+metadata:
+  domain: bol
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0338
+    bundle: arsiv
+    tools:
+    - tar
+    - gzip
+    konu: sunucu-loglari
+    hedef: bol
+    girdi: duz-metin
+    kaynak: tek-dosya
+    cikti: tek-sayi
+    kesif: dolayli-hedef
+    uslup: duz-hedef
+    direnc: bos-dosya
+    bukulme: tuzak-dosya
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

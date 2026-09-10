@@ -1,0 +1,111 @@
+id: gen-k-0377-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Dün akşam depo tarafındaki fatura dökümünü incelerken muhasebeden biri iade ve iptal olan satırların hâlâ toplama girdiğini söyledi; ben de bugün oturup şu raporlama kısmına bakayım dedim. Malum, ay sonu yaklaşıyor ve rakamların temiz çıkması lazım.
+
+  shop/rollup.py dosyasındaki billable_total ve count_billable fonksiyonları şu an iptal edilmiş ya da iade edilmiş kayıtları da hesaba katıyor gibi görünüyor; bunların yalnızca geçerli, yani iptal ve iade edilmemiş kayıtları sayması gerekiyor. Bu düzeltmeyi yaparken elimizdeki orders.txt dosyası için billable_total toplamının 550, count_billable adedinin ise 2 dönmesini bekliyorum. Sadece shop/rollup.py üzerinde çalış, diğer dosyalara dokunma.
+
+setup: |
+  mkdir -p shop
+  cat > shop/records.py <<'RECORDS'
+  def parse_line(line):
+      parts = line.split('|')
+      return {
+          'sku': parts[0],
+          'qty': int(parts[1]),
+          'unit_cents': int(parts[2]),
+          'status': parts[3],
+      }
+
+
+  def parse_records(text):
+      return [parse_line(l) for l in text.strip().splitlines() if l.strip()]
+  RECORDS
+  cat > shop/rollup.py <<'ROLLUP'
+  from shop.records import parse_records
+
+
+  def billable_total(text):
+      total = 0
+      for r in parse_records(text):
+          if r['status'] != 'cancelled' or r['status'] != 'refunded':
+              total += r['qty'] * r['unit_cents']
+      return total
+
+
+  def count_billable(text):
+      n = 0
+      for r in parse_records(text):
+          if r['status'] != 'cancelled' or r['status'] != 'refunded':
+              n += 1
+      return n
+  ROLLUP
+  cat > orders.txt <<'DATA'
+  A1|2|150|paid
+  B2|1|900|cancelled
+  C3|4|50|refunded
+  D4|1|250|paid
+  DATA
+
+goal_tr: >
+  shop/rollup.py icindeki billable_total ve count_billable fonksiyonlarini,
+  yalnizca iptal ve iade edilmemis kayitlari sayacak bicimde duzelt;
+  orders.txt icin toplam 550 ve adet 2 donmelidir.
+
+reference_solution: |
+  cat > shop/rollup.py <<'ROLLUP'
+  from shop.records import parse_records
+
+
+  def billable_total(text):
+      total = 0
+      for r in parse_records(text):
+          if r['status'] != 'cancelled' and r['status'] != 'refunded':
+              total += r['qty'] * r['unit_cents']
+      return total
+
+
+  def count_billable(text):
+      n = 0
+      for r in parse_records(text):
+          if r['status'] != 'cancelled' and r['status'] != 'refunded':
+              n += 1
+      return n
+  ROLLUP
+
+outputs:
+  - {path: shop/rollup.py, kind: program, run: 'python3 -c ''from shop.rollup import billable_total as t, count_billable as c; s=open("orders.txt").read(); assert t(s)==550, t(s); assert c(s)==2, c(s); assert t("X|1|100|cancelled")==0; assert c("X|1|100|refunded")==0; assert t("X|1|100|paid")==100; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from shop.rollup import billable_total as t, count_billable as c; s=open("orders.txt").read(); assert t(s)==550, t(s); assert c(s)==2, c(s); assert t("X|1|100|cancelled")==0; assert c("X|1|100|refunded")==0; assert t("X|1|100|paid")==100; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0377
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-karsilastirma

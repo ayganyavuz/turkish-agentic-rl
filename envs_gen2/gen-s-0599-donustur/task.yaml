@@ -1,0 +1,59 @@
+id: gen-s-0599-donustur
+split: single_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 8
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  muhasebe dizin ağacındaki tüm txt dosyalarını ele alıp, her bir satırın son 12 hanesini sayı olarak topla ve bulduğun toplamı sadece sayı olarak sonuc.txt dosyasına yaz.
+
+setup: |
+  mkdir -p muhasebe/2024/ocak muhasebe/2024/subat muhasebe/arsiv
+  printf '0001ALACAK        000000012500\n' > muhasebe/2024/ocak/k1.txt
+  printf '0002BORC          000000003075\n' > muhasebe/2024/ocak/k2.txt
+  printf '0003ALACAK        000000000900\n' > muhasebe/2024/subat/k3.txt
+  printf '0004BORC          000000007450\n' > muhasebe/2024/subat/k4.txt
+  printf '0005ALACAK        000000000000\n' > muhasebe/arsiv/k5.txt
+
+goal_tr: >
+  muhasebe dizin agacindaki tum txt dosyalarinda her satirin son 12 hanesini
+  sayi olarak toplayip sonuc.txt dosyasina sadece toplami yaz
+
+reference_solution: |
+  find muhasebe -type f -name '*.txt' | sort > /tmp/dosyalar.txt
+  seq 1 $(wc -l < /tmp/dosyalar.txt) | while read i; do
+    sed -n "${i}p" /tmp/dosyalar.txt
+  done | xargs cat | cut -c 19-30 | awk '{t+=$1} END{printf "%d\n", t}' > sonuc.txt
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '23925'}
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0599
+    bundle: uret
+    tools:
+    - printf
+    - seq
+    konu: muhasebe-kalemleri
+    hedef: donustur
+    girdi: sabit-genislik
+    kaynak: dizin-agaci
+    cikti: tek-sayi
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: yok
+    adim: 1
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

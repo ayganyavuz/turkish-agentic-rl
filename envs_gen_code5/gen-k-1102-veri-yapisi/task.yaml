@@ -1,0 +1,121 @@
+id: gen-k-1102-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) shift/planner.py dosyasındaki make_reachability fonksiyonunu, build_shift_graph ile kurulan yönlü grafta her düğümden ulaşılabilen tüm düğümleri (düğümün kendisi dahil) döndüren bir closure üretecek şekilde tamamla.
+
+  2) Girdi satırlarını stdin'den "kaynak hedef" biçiminde oku ve rows listesine çevir.
+
+  3) reachable(start) kümesini graf gezinmesiyle hesapla.
+
+setup: |
+  mkdir -p shift
+  cat > shift/schedule.py <<'SCHED'
+  def build_shift_graph(rows):
+      graph = {}
+      for row in rows:
+          worker = row["worker"]
+          graph.setdefault(worker, [])
+          for other in row["covers"]:
+              graph[worker].append(other)
+      return graph
+  SCHED
+  cat > shift/planner.py <<'PLANNER'
+  from shift.schedule import build_shift_graph
+
+
+  def make_reachability(rows):
+      graph = build_shift_graph(rows)
+
+      def reachable(start):
+          raise NotImplementedError
+
+      return reachable
+  PLANNER
+  cat > shifts.txt <<'TXT'
+  alice bob
+  bob carol
+  carol alice
+  dave erin
+  erin dave
+  frank grace
+  grace frank
+  TXT
+
+goal_tr: >
+  shift/planner.py icindeki make_reachability fonksiyonunu,
+  build_shift_graph ile kurulan yonlu grafta her dugumden ulasilabilen tum
+  dugumleri (kendisi dahil) donduren bir closure uretecek bicimde tamamla;
+  girdi satirlari stdin'den "kaynak hedef" biciminde okunup rows listesine
+  cevrilecek ve reachable(start) kumesi graf gezinmesiyle hesaplanacak.
+
+reference_solution: |
+  cat > shift/planner.py <<'PLANNER'
+  from shift.schedule import build_shift_graph
+
+
+  def make_reachability(rows):
+      graph = build_shift_graph(rows)
+      nodes = set(graph)
+      for targets in graph.values():
+          nodes.update(targets)
+
+      def reachable(start):
+          visited = set()
+          stack = [start]
+          while stack:
+              node = stack.pop()
+              if node in visited:
+                  continue
+              visited.add(node)
+              for nxt in graph.get(node, ()):
+                  if nxt not in visited:
+                      stack.append(nxt)
+          return visited
+
+      return reachable
+  PLANNER
+
+outputs:
+  - {path: shift/planner.py, kind: program, run: 'python3 -c ''import io,sys; from shift.planner import make_reachability as m; rows=[{"worker":"alice","covers":["bob"]},{"worker":"bob","covers":["carol"]},{"worker":"carol","covers":[]},{"worker":"dave","covers":["erin"]},{"worker":"erin","covers":["dave"]}]; r=m(rows); assert r("alice")=={"alice","bob","carol"}, r("alice"); assert r("carol")=={"carol"}; assert r("dave")=={"dave","erin"}; assert r("erin")=={"dave","erin"}; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import io,sys; from shift.planner import make_reachability as m; rows=[{"worker":"alice","covers":["bob"]},{"worker":"bob","covers":["carol"]},{"worker":"carol","covers":[]},{"worker":"dave","covers":["erin"]},{"worker":"erin","covers":["dave"]}]; r=m(rows); assert r("alice")=={"alice","bob","carol"}, r("alice"); assert r("carol")=={"carol"}; assert r("dave")=={"dave","erin"}; assert r("erin")=={"dave","erin"}; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1102
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: vardiya-cizelgesi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: zor
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: graf-gezinme
+      karmasiklik: duz
+      kalip: closure-fabrika
+      akis: stdin-boru
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

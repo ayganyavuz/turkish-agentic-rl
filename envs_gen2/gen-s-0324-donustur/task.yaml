@@ -1,0 +1,80 @@
+id: gen-s-0324-donustur
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) siparisler dizin ağacındaki tüm siparis.txt dosyalarındaki sipariş satırlarını, ürün kodu üzerinden siparisler/urunler.txt ile birleştir.
+
+  2) Birleşen her satırı "urun_kodu|urun_adi|adet|birim_fiyat|toplam" biçiminde oluştur; burada toplam, adet ile birim fiyatın çarpımıdır.
+
+  3) Tüm bu satırları ürün koduna göre artan sırada sırala.
+
+  4) Sonucu satir-listesi.txt dosyasına yaz; her satırda bir kayıt olsun.
+
+setup: |
+  mkdir -p siparisler/ocak siparisler/subat
+  cat > siparisler/ocak/siparis.txt <<'TXT'
+  101|mercimek corbasi|2
+  102|kofte|1
+  103|baklava|3
+  TXT
+  cat > siparisler/subat/siparis.txt <<'TXT'
+  201|iskender|1
+  202|ayran|2
+  203|kunefe|1
+  TXT
+  cat > siparisler/urunler.txt <<'TXT'
+  101|mercimek corbasi|45
+  102|kofte|120
+  103|baklava|80
+  201|iskender|180
+  202|ayran|25
+  203|kunefe|95
+  TXT
+
+goal_tr: >
+  siparisler dizin agacindaki tum siparis.txt dosyalarindaki siparis
+  satirlarini, urunler.txt ile urun kodu uzerinden birlestirip her satiri
+  "urun_kodu|urun_adi|adet|birim_fiyat|toplam" biciminde, urun koduna gore
+  artan sirada satir-listesi.txt dosyasina yaz; toplam adet ile birim
+  fiyatin carpimidir.
+
+reference_solution: |
+  find siparisler -name siparis.txt | sort | xargs cat | sort -t'|' -k1,1 > /tmp/ad.txt
+  sort -t'|' -k1,1 siparisler/urunler.txt > /tmp/ur.txt
+  join -t'|' -1 1 -2 1 /tmp/ad.txt /tmp/ur.txt | awk -F'|' '{print $1"|"$2"|"$3"|"$4"|"$3*$4}' | sort -t'|' -k1,1 > satir-listesi.txt
+
+outputs:
+  - {path: satir-listesi.txt, kind: lines}
+
+checks:
+  - {op: file_lines_eq, path: satir-listesi.txt, value: [101|mercimek corbasi|2|mercimek corbasi|0, 102|kofte|1|kofte|0, 103|baklava|3|baklava|0, 201|iskender|1|iskender|0, 202|ayran|2|ayran|0, 203|kunefe|1|kunefe|0]}
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0324
+    bundle: birlestir
+    tools:
+    - join
+    - sort
+    konu: restoran-siparisleri
+    hedef: donustur
+    girdi: duz-metin
+    kaynak: dizin-agaci
+    cikti: satir-listesi
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

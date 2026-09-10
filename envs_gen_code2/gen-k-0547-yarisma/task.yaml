@@ -1,0 +1,83 @@
+id: gen-k-0547-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) bank/balance.py dosyasını oluştur.
+
+  2) Bu dosyanın içine prefix_balances(text) adında bir fonksiyon yaz; fonksiyon, verilen metindeki işlemleri sırayla ele alıp her işlemden sonraki kümülatif bakiyeyi, işlem sırasına göre bir liste olarak döndürsün. Deposit işlemi bakiyeye eklesin, withdraw işlemi bakiyeden çıkarsın.
+
+setup: |
+  mkdir -p bank
+  cat > bank/transactions.py <<'TX'
+  def load_transactions(text):
+      rows = []
+      for line in text.strip().splitlines():
+          parts = line.split(',')
+          rows.append((parts[0], int(parts[1])))
+      return rows
+  TX
+  cat > data.csv <<'CSV'
+  deposit,100
+  withdraw,30
+  deposit,50
+  withdraw,20
+  deposit,10
+  CSV
+
+goal_tr: >
+  bank/balance.py dosyasini yaz; icinde prefix_balances(text) fonksiyonu
+  olsun ve her islemden SONRAki kumulatif bakiyeyi, islem sirasina gore bir
+  liste olarak dondursun (deposit ekler, withdraw cikar).
+
+reference_solution: |
+  cat > bank/balance.py <<'PY'
+  from bank.transactions import load_transactions
+
+
+  def prefix_balances(text):
+      balances = []
+      total = 0
+      for kind, amount in load_transactions(text):
+          if kind == "deposit":
+              total += amount
+          else:
+              total -= amount
+          balances.append(total)
+      return balances
+  PY
+
+outputs:
+  - {path: bank/balance.py, kind: program, run: 'python3 -c ''from bank.balance import prefix_balances as f; t=open("data.csv").read(); assert f(t)==[100,70,120,100,110], f(t); assert f("deposit,5\nwithdraw,5\n")==[5,0]; assert f("withdraw,7\n")==[-7]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bank.balance import prefix_balances as f; t=open("data.csv").read(); assert f(t)==[100,70,120,100,110], f(t); assert f("deposit,5\nwithdraw,5\n")==[5,0]; assert f("withdraw,7\n")==[-7]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0547
+    bundle: yarisma
+    tools:
+    - python3
+    konu: banka-hareketleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: onek-toplam

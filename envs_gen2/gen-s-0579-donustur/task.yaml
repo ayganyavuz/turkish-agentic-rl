@@ -1,0 +1,63 @@
+id: gen-s-0579-donustur
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  gelen/kargo.csv ile sevk/adres.csv'yi takip_no üzerinden birleştir; sadece iki dosyada da olan kayıtları takip_no ve sevk edilecek adet sütunlarıyla, CRLF satır sonuyla cikti.csv'ye yaz. sevk/iptal.csv'dekileri dahil etme.
+
+setup: |
+  mkdir -p gelen sevk
+  printf 'takip_no,adet\r\nK001,12\r\nK002,5\r\nK003,7\r\nK004,9\r\nK005,3\r\n' > gelen/kargo.csv
+  printf 'K001,Istanbul\r\nK002,Ankara\r\nK003,Izmir\r\nK005,Bursa\r\n' > sevk/adres.csv
+  printf 'K999,99\r\nK000,1\r\n' > sevk/iptal.csv
+
+goal_tr: >
+  gelen/kargo.csv ile sevk/adres.csv dosyalarini takip_no uzerinden
+  birlestirip yalnizca her iki dosyada da bulunan kayitlari, takip_no ve
+  sevk edilecek adet sutunlariyla, CRLF satir sonu kullanarak cikti.csv
+  dosyasina yaz; sevk/iptal.csv dosyasindaki kayitlari dahil etme.
+
+reference_solution: |
+  cut -d, -f1 gelen/kargo.csv | rev | cut -d$'\r' -f1 | rev | tail -n +2 | sort > /tmp/kargo_no.txt
+  cut -d, -f1 sevk/adres.csv | rev | cut -d$'\r' -f1 | rev | sort > /tmp/adres_no.txt
+  comm -12 /tmp/kargo_no.txt /tmp/adres_no.txt > /tmp/ortak_no.txt
+  printf 'takip_no,adet\r\n' > cikti.csv
+  while read -r no; do
+    adet=$(grep "^$no," gelen/kargo.csv | cut -d, -f2 | rev | cut -d$'\r' -f1 | rev)
+    printf '%s,%s\r\n' "$no" "$adet" >> cikti.csv
+  done < /tmp/ortak_no.txt
+
+outputs:
+  - {path: cikti.csv, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: cikti.csv, value: ['takip_no,adet', 'K001,', 'K002,', 'K003,', 'K005,']}
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0579
+    bundle: ters-cevir
+    tools:
+    - rev
+    - cut
+    konu: kargo-takibi
+    hedef: donustur
+    girdi: csv
+    kaynak: iki-dosya-capraz
+    cikti: csv
+    kesif: veriye-bak
+    uslup: terse
+    direnc: crlf
+    bukulme: tuzak-dosya
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

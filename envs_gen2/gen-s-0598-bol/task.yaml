@@ -1,0 +1,65 @@
+id: gen-s-0598-bol
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) arşiv/yorumlar.tar.gz arşivini aç ve içindeki yorumlar.txt dosyasını kullan.
+  2) yorumlar.txt içindeki her satırdan ürün adını ve puanı ayıkla.
+  3) Her ürün için puanların toplamını hesapla.
+  4) Ürün adlarının anahtar, toplam puanların sayı değer olduğu geçerli bir JSON nesnesi oluştur ve bunu sonuc.json dosyasına yaz.
+
+setup: |
+  mkdir -p arsiv
+  cat > yorumlar.txt <<'EOF'
+  urun: kalem | puan: 5 | yorum: cok guzel
+  urun: defter | puan: 3 | yorum: idare eder
+  urun: silgi | puan: 4 | yorum: ise yarar
+  urun: kalem | puan: 2 | yorum: cabuk bitti
+  urun: defter | puan: 5 | yorum: sayfalar kaliteli
+  urun: silgi | puan: 1 | yorum: iz birakiyor
+  EOF
+  tar -czf arsiv/yorumlar.tar.gz yorumlar.txt
+
+goal_tr: >
+  arsiv/yorumlar.tar.gz arsivindeki yorumlar.txt dosyasinin icerigindeki her
+  satirdan urun adini ve puanini ayiklayip, her urun icin puanlarin
+  toplamini iceren gecerli bir JSON nesnesini sonuc.json dosyasina yaz;
+  dosyada urun adlari anahtar, toplam puanlar sayi deger olmali.
+
+reference_solution: |
+  tar -xzf arsiv/yorumlar.tar.gz -O yorumlar.txt | gzip -c | gzip -dc | awk -F'|' '{gsub(/^ *| *$/,"",$1); gsub(/^ *| *$/,"",$2); split($1,a,": "); split($2,b,": "); t[a[2]]+=b[2]} END {printf "{"; n=0; for (u in t) {n++; printf "%s\"%s\": %d", (n>1?", ":""), u, t[u]} printf "}\n"}' > sonuc.json
+
+outputs:
+  - {path: sonuc.json, kind: json}
+
+checks:
+  - {op: json_eq, path: sonuc.json, value: {silgi: 5, defter: 8, kalem: 7}}
+
+metadata:
+  domain: bol
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0598
+    bundle: arsiv
+    tools:
+    - tar
+    - gzip
+    konu: urun-yorumlari
+    hedef: bol
+    girdi: log-satiri
+    kaynak: tek-dosya
+    cikti: json
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

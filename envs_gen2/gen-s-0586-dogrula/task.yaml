@@ -1,0 +1,67 @@
+id: gen-s-0586-dogrula
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) /workspace dizinindeki beklenen.txt ve gerceklesen.txt dosyalarını oku; her iki dosyada da her satırda bir personelin adı, vardiya başlangıç saati ve vardiya bitiş saati yer alıyor.
+
+  2) beklenen.txt ile gerceklesen.txt içindeki aynı personelin satırlarını karşılaştır; başlangıç saati veya bitiş saati birbirinden farklı olan personelleri belirle.
+
+  3) Başlangıç saati veya bitiş saati farklı olan personel sayısını /workspace dizinindeki sonuc.txt dosyasına sadece sayı olarak yaz; dosyada başka hiçbir metin, başlık veya açıklama bulunmasın.
+
+setup: |
+  cat > beklenen.txt <<'E'
+  Ayse 09:00 17:00
+  Mehmet 10:00 18:00
+  Zeynep 12:00 20:00
+  Ali 08:00 16:00
+  E
+  cat > gerceklesen.txt <<'E'
+  Ayse 09:00 17:00
+  Mehmet 10:15 18:00
+  Zeynep 12:00 20:30
+  Ali 08:00 16:00
+  E
+
+goal_tr: >
+  beklenen.txt ve gerceklesen.txt dosyalarindaki ayni personelin vardiya
+  satirlarini karsilastirip, baslangic veya bitis saati farkli olan personel
+  sayisini sonuc.txt'ye sadece sayi olarak yaz
+
+reference_solution: |
+  join beklenen.txt gerceklesen.txt | grep -v -E '^([^ ]+) ([^ ]+) ([^ ]+) \2 \3$' | wc -l > sonuc.txt
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '2'}
+
+metadata:
+  domain: dogrula
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0586
+    bundle: say
+    tools:
+    - grep
+    - wc
+    konu: personel-vardiyalari
+    hedef: dogrula
+    girdi: log-satiri
+    kaynak: iki-dosya-capraz
+    cikti: tek-sayi
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: yok
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

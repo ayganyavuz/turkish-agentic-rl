@@ -1,0 +1,184 @@
+id: gen-k-0726-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 22
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) docpipe/tokens.py içindeki tokenize fonksiyonunu düzelt: blok gövdesini metin olarak değil, blok olarak tanımasını sağla.
+
+  2) docpipe/render.py içindeki render fonksiyonunun, blok gövdesini küçük harfe çevirmesini sağla.
+
+  3) docpipe/summary.py içindeki count_blocks fonksiyonunun blok sayısını doğru döndürmesini sağla.
+
+setup: |
+  mkdir -p docpipe
+  cat > docpipe/tokens.py <<'TOKENS'
+  def tokenize(line):
+      """Split a raw line into (kind, value) pairs.
+
+      Blocks are introduced with '[' and closed with ']'.  Inside a block
+      the payload is everything up to the closing bracket.
+      """
+      out = []
+      i = 0
+      n = len(line)
+      while i < n:
+          ch = line[i]
+          if ch == "[":
+              j = line.find("]", i)
+              if j == -1:
+                  out.append(("text", line[i:]))
+                  break
+              out.append(("block", line[i + 1:j]))
+              i = j + 1
+          else:
+              j = i
+              while j < n and line[j] != "[":
+                  j += 1
+              out.append(("text", line[i:j]))
+              i = j
+      return out
+  TOKENS
+  cat > docpipe/render.py <<'RENDER'
+  from docpipe.tokens import tokenize
+
+
+  def render(line):
+      """Render a line: blocks stay as-is, text is upper-cased."""
+      parts = []
+      for kind, value in tokenize(line):
+          if kind == "block":
+              parts.append(value)
+          else:
+              parts.append(value.upper())
+      return "".join(parts)
+  RENDER
+  cat > docpipe/summary.py <<'SUMMARY'
+  from docpipe.tokens import tokenize
+
+
+  def count_blocks(line):
+      total = 0
+      for kind, value in tokenize(line):
+          if kind == "text":
+              total += 1
+      return total
+  SUMMARY
+
+goal_tr: >
+  docpipe/tokens.py icindeki tokenize fonksiyonunun blok govdesini
+  yanlislikla metin sanmasini duzelt; oyle ki docpipe/render.py'deki render
+  blok govdesini kucuk harfe cevirsin ve docpipe/summary.py'deki
+  count_blocks blok sayisini dogru dondursun.
+
+reference_solution: |
+  cat > docpipe/tokens.py <<'TOKENS'
+  def tokenize(line):
+      """Split a raw line into (kind, value) pairs.
+
+      Blocks are introduced with '[' and closed with ']'.  Inside a block
+      the payload is everything up to the closing bracket.
+      """
+      out = []
+      i = 0
+      n = len(line)
+      while i < n:
+          ch = line[i]
+          if ch == "[":
+              j = line.find("]", i)
+              if j == -1:
+                  out.append(("text", line[i:]))
+                  break
+              out.append(("block", line[i + 1:j]))
+              i = j + 1
+          else:
+              j = i
+              while j < n and line[j] != "[":
+                  j += 1
+              out.append(("text", line[i:j]))
+              i = j
+      return out
+  TOKENS
+  cat > docpipe/render.py <<'RENDER'
+  from docpipe.tokens import tokenize
+
+
+  def render(line):
+      """Render a line: blocks become lower-cased, text stays as-is."""
+      parts = []
+      for kind, value in tokenize(line):
+          if kind == "block":
+              parts.append(value.lower())
+          else:
+              parts.append(value.upper())
+      return "".join(parts)
+  RENDER
+  cat > docpipe/summary.py <<'SUMMARY'
+  from docpipe.tokens import tokenize
+
+
+  def count_blocks(line):
+      total = 0
+      for kind, value in tokenize(line):
+          if kind == "block":
+              total += 1
+      return total
+  SUMMARY
+
+ara_adim: |
+  cat > docpipe/render.py <<'RENDER'
+  from docpipe.tokens import tokenize
+
+
+  def render(line):
+      """Render a line: blocks become lower-cased, text stays as-is."""
+      parts = []
+      for kind, value in tokenize(line):
+          if kind == "block":
+              parts.append(value.lower())
+          else:
+              parts.append(value.upper())
+      return "".join(parts)
+  RENDER
+
+outputs:
+  - {path: docpipe/render.py, kind: program, run: 'python3 -c ''from docpipe.render import render as f; assert f("Hi [There] bye")=="HI there BYE", f("Hi [There] bye"); print("TAMAM")'''}
+  - {path: docpipe/summary.py, kind: program, run: 'python3 -c ''from docpipe.summary import count_blocks as f; assert f("[a] [b] [c]")==3, f("[a] [b] [c]"); assert f("no blocks")==0, f("no blocks"); print("TAMAM")'''}
+  - {path: docpipe/tokens.py, kind: program, run: 'python3 -c ''from docpipe.tokens import tokenize as f; t=f("Hello [World] end"); assert t==[("text","Hello "),("block","World"),("text"," end")], t; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from docpipe.render import render as f; assert f("Hi [There] bye")=="HI there BYE", f("Hi [There] bye"); print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from docpipe.summary import count_blocks as f; assert f("[a] [b] [c]")==3, f("[a] [b] [c]"); assert f("no blocks")==0, f("no blocks"); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0726
+    bundle: yarisma
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 8
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: metin-ayristirma
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

@@ -1,0 +1,148 @@
+id: gen-k-1107-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  arena/board.py dosyasındaki ScoreBoard sınıfını tam bir gerçekleştirim olarak yaz. Bu sınıf, kayıtları en yüksek skorlu önce gelecek biçimde bir öncelik kuyruğunda tutmalı ve bunun için yalnızca arena/entry.py dosyasındaki Entry ile heapq kullanılmalı; başka bir veri yapısı ya da yardımcı modül kullanma.
+
+  ScoreBoard şu davranışları sağlamalı: add(player, score) çağrısıyla yeni bir kayıt eklenebilmeli; best(k) çağrısı skora göre azalan sırada ilk k oyuncuyu döndürmeli; total() tüm kayıtların toplam skorunu vermeli; __len__ ise board üzerindeki kayıt sayısını döndürmeli. Sınıfın __init__ metodu da dahil olmak üzere tüm metotları gerçek birer uygulamaya sahip olmalı, hiçbiri NotImplementedError yükseltmemeli.
+
+  Yalnızca arena/board.py dosyasını üret; arena/entry.py ve arena/api.py dosyalarına dokunma, onlar olduğu gibi kalmalı.
+
+setup: |
+  mkdir -p arena
+  cat > arena/entry.py <<'ENTRY'
+  from dataclasses import dataclass
+
+
+  @dataclass
+  class Entry:
+      player: str
+      score: int
+
+      def __post_init__(self):
+          if not self.player:
+              raise ValueError("player name required")
+          if self.score < 0:
+              raise ValueError("score must be non-negative")
+  ENTRY
+  cat > arena/board.py <<'BOARD'
+  from arena.entry import Entry
+
+
+  class ScoreBoard:
+      def __init__(self):
+          raise NotImplementedError
+
+      def add(self, player, score):
+          raise NotImplementedError
+
+      def best(self, k):
+          raise NotImplementedError
+
+      def total(self):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+  BOARD
+  cat > arena/api.py <<'API'
+  from arena.board import ScoreBoard
+
+
+  def build_board(records):
+      board = ScoreBoard()
+      for player, score in records:
+          board.add(player, score)
+      return board
+
+
+  def leaderboard(records, k):
+      return build_board(records).best(k)
+
+
+  def grand_total(records):
+      return build_board(records).total()
+  API
+
+goal_tr: >
+  arena/board.py icindeki ScoreBoard sinifini, yalnizca arena/entry.py'deki
+  Entry ve heapq kullanarak, en yuksek skorlu kayitlari oncelik kuyrugunda
+  tutan ve best(k) ile azalan skora gore ilk k oyuncuyu donduren, total()
+  ile toplam skoru veren, __len__ ile kayit sayisini donduren tam bir
+  gerceklestirme olarak yaz.
+
+reference_solution: |
+  cat > arena/board.py <<'BOARD'
+  import heapq
+
+  from arena.entry import Entry
+
+
+  class ScoreBoard:
+      def __init__(self):
+          self._heap = []
+          self._total = 0
+          self._count = 0
+
+      def add(self, player, score):
+          entry = Entry(player, score)
+          heapq.heappush(self._heap, (-entry.score, entry.player))
+          self._total += entry.score
+          self._count += 1
+
+      def best(self, k):
+          if k < 0:
+              raise ValueError("k must be non-negative")
+          picked = heapq.nsmallest(k, self._heap)
+          return [player for _, player in picked]
+
+      def total(self):
+          return self._total
+
+      def __len__(self):
+          return self._count
+  BOARD
+
+outputs:
+  - {path: arena/board.py, kind: program, run: 'python3 -c ''from arena.api import leaderboard as L, grand_total as G; from arena.board import ScoreBoard; r=[("ann",10),("bob",30),("cid",20),("dee",30)]; assert L(r,2)==["bob","dee"], L(r,2); assert L(r,4)==["bob","dee","cid","ann"], L(r,4); assert L(r,0)==[]; assert G(r)==90, G(r); b=ScoreBoard(); b.add("x",5); b.add("y",7); assert len(b)==2; assert b.best(1)==["y"]; assert b.total()==12; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from arena.api import leaderboard as L, grand_total as G; from arena.board import ScoreBoard; r=[("ann",10),("bob",30),("cid",20),("dee",30)]; assert L(r,2)==["bob","dee"], L(r,2); assert L(r,4)==["bob","dee","cid","ann"], L(r,4); assert L(r,0)==[]; assert G(r)==90, G(r); b=ScoreBoard(); b.add("x",5); b.add("y",7); assert len(b)==2; assert b.best(1)==["y"]; assert b.total()==12; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1107
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: oyun-skor-tablosu
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: oncelik-kuyrugu
+      karmasiklik: duz
+      kalip: dataclass-dogrulama
+      akis: bellek-ici
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

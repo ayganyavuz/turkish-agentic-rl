@@ -1,0 +1,151 @@
+id: gen-k-0844-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 18
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Sabah toplantısında gömülü sensör ekibinden gelen şikayetleri konuştuk; sahada konuşlandırılan cihazların veri hattında bazı okumalar yanlış birimde görünüyor ve raporlar tutarsız çıkıyor. Günün geri kalanı başka işlerle geçti, şimdi bu birim meselesine dönüp sensör tarafındaki kodu düzeltmemiz gerekiyor.
+
+  Sorunun kaynağı sensor/series.py içindeki normalize fonksiyonu: okuma sözlüğünün anahtarlarını birim adı gibi ele alıyor, oysa bu anahtarlar kanal adı; birim bilgisi her kanalın kendi kaydında duruyor. Bu yüzden normalize, kanal adını birim sanıp yanlış dönüşüm uyguluyor. sensor/series.py dosyasını bu mantığı düzeltecek şekilde güncelle; anahtarlar kanal adı olarak kalsın, birim bilgisi kanal kaydından okunsun. Ardından sensor/summary.py içindeki channel_means, her kanal için doğru Celsius ortalamasını döndürsün. Değişikliklerden sonra run_demo.py çalıştırıldığında çıktının her kanal için beklenen Celsius ortalamasını vermesi gerekiyor.
+
+setup: |
+  mkdir -p sensor
+  cat > sensor/units.py <<'UNITS'
+  FACTORS = {
+      "celsius": 1.0,
+      "fahrenheit": 1.0,
+      "kelvin": 1.0,
+  }
+
+
+  def to_celsius(value, unit):
+      return (value - 32.0) * 5.0 / 9.0 if unit == "fahrenheit" else value
+  UNITS
+  cat > sensor/series.py <<'SERIES'
+  from sensor.units import FACTORS, to_celsius
+
+
+  def normalize(readings):
+      out = {}
+      for name, samples in readings.items():
+          scale = FACTORS[name]
+          out[name] = [to_celsius(v, name) * scale for v in samples]
+      return out
+  SERIES
+  cat > sensor/summary.py <<'SUMMARY'
+  from sensor.series import normalize
+
+
+  def channel_means(readings):
+      norm = normalize(readings)
+      return {name: sum(vals) / len(vals) for name, vals in norm.items()}
+  SUMMARY
+  cat > run_demo.py <<'DEMO'
+  from sensor.summary import channel_means
+
+  data = {
+      "celsius": [0.0, 10.0],
+      "fahrenheit": [32.0, 50.0],
+  }
+  print(channel_means(data))
+  DEMO
+
+goal_tr: >
+  sensor paketindeki normalize fonksiyonunun okuma sozlugunun anahtarlarini
+  birim adi sanmasindan kaynaklanan hatayi gider; anahtarlar kanal adi,
+  birim bilgisi ise her kanalin kendi kaydinda tutulur ve channel_means her
+  kanalin dogru Celsius ortalamasini dondurur.
+
+reference_solution: |
+  cat > sensor/units.py <<'UNITS'
+  FACTORS = {
+      "celsius": 1.0,
+      "fahrenheit": 5.0 / 9.0,
+      "kelvin": 1.0,
+  }
+
+
+  def to_celsius(value, unit):
+      if unit == "fahrenheit":
+          return (value - 32.0) * 5.0 / 9.0
+      if unit == "kelvin":
+          return value - 273.15
+      return value
+  UNITS
+  cat > sensor/series.py <<'SERIES'
+  from sensor.units import to_celsius
+
+
+  def normalize(readings):
+      out = {}
+      for name, record in readings.items():
+          unit = record["unit"]
+          out[name] = [to_celsius(v, unit) for v in record["samples"]]
+      return out
+  SERIES
+  cat > sensor/summary.py <<'SUMMARY'
+  from sensor.series import normalize
+
+
+  def channel_means(readings):
+      norm = normalize(readings)
+      return {name: sum(vals) / len(vals) for name, vals in norm.items()}
+  SUMMARY
+
+ara_adim: |
+  cat > sensor/units.py <<'UNITS'
+  FACTORS = {
+      "celsius": 1.0,
+      "fahrenheit": 5.0 / 9.0,
+      "kelvin": 1.0,
+  }
+
+
+  def to_celsius(value, unit):
+      if unit == "fahrenheit":
+          return (value - 32.0) * 5.0 / 9.0
+      if unit == "kelvin":
+          return value - 273.15
+      return value
+  UNITS
+
+outputs:
+  - {path: sensor/series.py, kind: program, run: 'python3 -c ''from sensor.summary import channel_means as f; d={"celsius":{"unit":"celsius","samples":[0.0,10.0]},"fahrenheit":{"unit":"fahrenheit","samples":[32.0,50.0]}}; assert f(d)=={"celsius":5.0,"fahrenheit":5.0}, f(d); print("TAMAM")'''}
+  - {path: sensor/series.py, kind: program, run: 'python3 -c ''from sensor.units import to_celsius as f; assert abs(f(212.0,"fahrenheit")-100.0)<1e-9; assert abs(f(273.15,"kelvin")-0.0)<1e-9; assert f(7.0,"celsius")==7.0; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor.summary import channel_means as f; d={"celsius":{"unit":"celsius","samples":[0.0,10.0]},"fahrenheit":{"unit":"fahrenheit","samples":[32.0,50.0]}}; assert f(d)=={"celsius":5.0,"fahrenheit":5.0}, f(d); print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor.units import to_celsius as f; assert abs(f(212.0,"fahrenheit")-100.0)<1e-9; assert abs(f(273.15,"kelvin")-0.0)<1e-9; assert f(7.0,"celsius")==7.0; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0844
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 6
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sozluk-anahtar-hatasi
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

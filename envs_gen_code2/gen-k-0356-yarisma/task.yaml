@@ -1,0 +1,99 @@
+id: gen-k-0356-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) depot/ledger.py dosyasını oluştur; içinde, depot/events.py içindeki parse_events fonksiyonunu kullanan bir reconcile(text) fonksiyonu olsun.
+
+  2) reconcile(text) içinde olayları sırayla işle: her SHIP olayında o olayın sipariş kimliğini yığına ekle.
+
+  3) Her CANCEL olayında yığının tepesindeki siparişi çıkar.
+
+  4) İşlem sonunda yığında kalan siparişleri en son eklenenden en erken eklenene doğru (LIFO) bir liste olarak döndür.
+
+setup: |
+  mkdir -p depot
+  cat > depot/events.py <<'EVENTS'
+  def parse_events(text):
+      events = []
+      for line in text.strip().splitlines():
+          parts = line.split()
+          events.append((parts[0], parts[1]))
+      return events
+  EVENTS
+  cat > depot/ledger.py <<'LEDGER'
+  def load_ledger(text):
+      entries = []
+      for line in text.strip().splitlines():
+          parts = line.split()
+          entries.append((parts[0], int(parts[1])))
+      return entries
+  LEDGER
+  cat > events.txt <<'TXT'
+  SHIP ord-1
+  SHIP ord-2
+  CANCEL ord-2
+  SHIP ord-3
+  CANCEL ord-3
+  SHIP ord-4
+  TXT
+
+goal_tr: >
+  depot/events.py icindeki parse_events fonksiyonunu kullanarak
+  depot/ledger.py icinde su uc adimi uygulayan bir reconcile(text)
+  fonksiyonu yaz: 1) olaylari sirayla isle, SHIP olayinda siparis kimligini
+  yigina ekle, 2) CANCEL olayinda yiginin tepesindeki siparisi cikar, 3)
+  islem sonunda yiginda kalan siparisleri en son eklenenden en erken
+  eklenene dogru (LIFO) liste olarak dondur.
+
+reference_solution: |
+  cat > depot/ledger.py <<'LEDGER'
+  from depot.events import parse_events
+
+
+  def reconcile(text):
+      events = parse_events(text)
+      stack = []
+      for kind, order_id in events:
+          if kind == "SHIP":
+              stack.append(order_id)
+          elif kind == "CANCEL":
+              if stack:
+                  stack.pop()
+      return list(reversed(stack))
+  LEDGER
+
+outputs:
+  - {path: depot/ledger.py, kind: program, run: 'python3 -c ''from depot.ledger import reconcile as f; t=open("events.txt").read(); assert f(t)==["ord-4","ord-1"], f(t); assert f("SHIP a\nSHIP b\nSHIP c\n")==["c","b","a"]; assert f("SHIP a\nCANCEL a\n")==[]; assert f("CANCEL x\nSHIP y\n")==["y"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depot.ledger import reconcile as f; t=open("events.txt").read(); assert f(t)==["ord-4","ord-1"], f(t); assert f("SHIP a\nSHIP b\nSHIP c\n")==["c","b","a"]; assert f("SHIP a\nCANCEL a\n")==[]; assert f("CANCEL x\nSHIP y\n")==["y"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0356
+    bundle: yarisma
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yigin-kullanimi

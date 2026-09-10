@@ -1,0 +1,121 @@
+id: gen-k-1125-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  inventory/billing.py dosyasındaki invoice fonksiyonunu, catalog içinde adı bulunmayan sipariş adları geldiğinde KeyError vermeyecek şekilde düzelt. Bu tür bilinmeyen adlar için o satır, ad, adet ve 0.0 tutar içerecek biçimde işlenmeli ve toplama hiçbir şey eklenmemeli; catalog'da adı bulunan sipariş adları için davranış aynı kalmalı.
+
+setup: |
+  mkdir -p inventory
+  cat > inventory/catalog.py <<'CATALOG'
+  def build_catalog(rows):
+      catalog = {}
+      for sku, name, price, stock in rows:
+          catalog[sku] = {"name": name, "price": price, "stock": stock}
+      return catalog
+
+
+  def sku_for(catalog, name):
+      for sku, item in catalog.items():
+          if item["name"] == name:
+              return sku
+      return None
+  CATALOG
+  cat > inventory/billing.py <<'BILLING'
+  from inventory.catalog import build_catalog, sku_for
+
+
+  def line_total(catalog, name, qty):
+      sku = sku_for(catalog, name)
+      item = catalog[sku]
+      return item["price"] * qty
+
+
+  def invoice(rows, orders):
+      catalog = build_catalog(rows)
+      total = 0.0
+      lines = []
+      for name, qty in orders:
+          amount = line_total(catalog, name, qty)
+          lines.append((name, qty, amount))
+          total += amount
+      return lines, total
+  BILLING
+  cat > rows.txt <<'ROWS'
+  A100,widget,4.0,10
+  B200,gadget,50.0,2
+  C300,bolt,0.5,100
+  ROWS
+
+goal_tr: >
+  inventory/billing.py icindeki invoice fonksiyonunu, catalog'da adi
+  bulunmayan siparis adlari geldiginde KeyError yerine o satiri ad, adet,
+  0.0 tutarli olarak isleyip toplama hicbir sey eklemeyecek bicimde duzelt;
+  bilinen adlar icin davranis degismesin.
+
+reference_solution: |
+  cat > inventory/billing.py <<'BILLING'
+  from inventory.catalog import build_catalog, sku_for
+
+
+  def line_total(catalog, name, qty):
+      sku = sku_for(catalog, name)
+      if sku is None:
+          return 0.0
+      item = catalog[sku]
+      return item["price"] * qty
+
+
+  def invoice(rows, orders):
+      catalog = build_catalog(rows)
+      total = 0.0
+      lines = []
+      for name, qty in orders:
+          amount = line_total(catalog, name, qty)
+          lines.append((name, qty, amount))
+          total += amount
+      return lines, total
+  BILLING
+
+outputs:
+  - {path: inventory/billing.py, kind: program, run: 'python3 -c ''from inventory.billing import invoice; rows=[("A100","widget",4.0,10),("B200","gadget",50.0,2)]; lines,total=invoice(rows,[("widget",3),("ghost",5),("gadget",1)]); assert lines==[("widget",3,12.0),("ghost",5,0.0),("gadget",1,50.0)], lines; assert abs(total-62.0)<1e-9, total; lines2,total2=invoice(rows,[("ghost",2)]); assert lines2==[("ghost",2,0.0)] and abs(total2-0.0)<1e-9, (lines2,total2); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from inventory.billing import invoice; rows=[("A100","widget",4.0,10),("B200","gadget",50.0,2)]; lines,total=invoice(rows,[("widget",3),("ghost",5),("gadget",1)]); assert lines==[("widget",3,12.0),("ghost",5,0.0),("gadget",1,50.0)], lines; assert abs(total-62.0)<1e-9, total; lines2,total2=invoice(rows,[("ghost",2)]); assert lines2==[("ghost",2,0.0)] and abs(total2-0.0)<1e-9, (lines2,total2); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1125
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: zor
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sozluk-anahtar-hatasi
+      karmasiklik: duz
+      kalip: duz-fonksiyon
+      akis: bellek-ici
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

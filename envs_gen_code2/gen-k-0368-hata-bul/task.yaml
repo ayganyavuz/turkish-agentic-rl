@@ -1,0 +1,123 @@
+id: gen-k-0368-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) routing/dijkstra.py dosyasındaki shortest_path fonksiyonunu, başlangıç ve hedef düğüm aynı olduğunda None yerine tek elemanlı [start] yolunu döndürecek şekilde düzelt.
+
+  2) routing/dijkstra.py dosyasının geri kalanının ve routing/graph.py ile routing/__init__.py dosyalarının değişmemesini sağla.
+
+setup: |
+  mkdir -p routing
+  cat > routing/graph.py <<'GRAPH'
+  def build_graph(edges):
+      g = {}
+      for a, b in edges:
+          g.setdefault(a, set()).add(b)
+          g.setdefault(b, set()).add(a)
+      return g
+  GRAPH
+  cat > routing/dijkstra.py <<'DIJKSTRA'
+  import heapq
+  from routing.graph import build_graph
+
+
+  def shortest_path(edges, start, goal):
+      g = build_graph(edges)
+      if start == goal:
+          return None
+      dist = {start: 0}
+      prev = {}
+      heap = [(0, start)]
+      while heap:
+          d, node = heapq.heappop(heap)
+          if d > dist.get(node, float('inf')):
+              continue
+          for nxt in g.get(node, ()):
+              nd = d + 1
+              if nd < dist.get(nxt, float('inf')):
+                  dist[nxt] = nd
+                  prev[nxt] = node
+                  heapq.heappush(heap, (nd, nxt))
+      if goal not in dist:
+          return None
+      path = [goal]
+      while path[-1] != start:
+          path.append(prev[path[-1]])
+      path.reverse()
+      return path
+  DIJKSTRA
+  cat > routing/__init__.py <<'INIT'
+  INIT
+
+goal_tr: >
+  routing/dijkstra.py icindeki shortest_path fonksiyonunu, baslangic ile
+  hedef ayni dugum oldugunda None yerine tek elemanli [start] yolunu
+  dondurecek bicimde duzelt.
+
+reference_solution: |
+  cat > routing/dijkstra.py <<'DIJKSTRA'
+  import heapq
+  from routing.graph import build_graph
+
+
+  def shortest_path(edges, start, goal):
+      g = build_graph(edges)
+      if start == goal:
+          return [start]
+      dist = {start: 0}
+      prev = {}
+      heap = [(0, start)]
+      while heap:
+          d, node = heapq.heappop(heap)
+          if d > dist.get(node, float('inf')):
+              continue
+          for nxt in g.get(node, ()):
+              nd = d + 1
+              if nd < dist.get(nxt, float('inf')):
+                  dist[nxt] = nd
+                  prev[nxt] = node
+                  heapq.heappush(heap, (nd, nxt))
+      if goal not in dist:
+          return None
+      path = [goal]
+      while path[-1] != start:
+          path.append(prev[path[-1]])
+      path.reverse()
+      return path
+  DIJKSTRA
+
+outputs:
+  - {path: routing/dijkstra.py, kind: program, run: 'python3 -c ''from routing.dijkstra import shortest_path as f; e=[("A","B"),("B","C"),("C","D")]; assert f(e,"A","D")==["A","B","C","D"]; assert f(e,"A","A")==["A"]; assert f(e,"C","C")==["C"]; assert f(e,"A","Z") is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from routing.dijkstra import shortest_path as f; e=[("A","B"),("B","C"),("C","D")]; assert f(e,"A","D")==["A","B","C","D"]; assert f(e,"A","A")==["A"]; assert f(e,"C","C")==["C"]; assert f(e,"A","Z") is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0368
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum

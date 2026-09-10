@@ -1,0 +1,61 @@
+id: gen-s-0347-denetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) veri dizin ağacındaki adı rapor.csv ile biten tüm dosyaları bul.
+
+  2) Bulunan her rapor.csv dosyasındaki CRLF satır sonlarını temizle.
+
+  3) Bu dosyalardaki puan sütunundaki sayıların toplamını hesapla.
+
+  4) Toplamı sonuc.txt dosyasına tek sayı olarak yaz.
+
+setup: |
+  mkdir -p veri/alt
+  printf 'ad,puan\r\nA,5\r\nB,3\r\n' > veri/rapor.csv
+  printf 'ad,puan\r\nC,4\r\n' > veri/alt/rapor.csv
+  printf 'ad,puan\nD,2\n' > veri/alt/notlar.txt
+
+goal_tr: >
+  veri dizin agacindaki adi rapor.csv ile biten dosyalardaki CRLF satir
+  sonlarini temizleyip yalnizca puan sutunundaki sayilarin toplamini
+  sonuc.txt dosyasina tek sayi olarak yaz
+
+reference_solution: |
+  find veri -type f -name 'rapor.csv' | while read -r f; do d=$(dirname "$f"); b=$(basename "$f"); sed 's/\r$//' "$d/$b" | tail -n +2 | cut -d, -f2; done | awk '{t+=$1} END{print t}' > sonuc.txt
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '12'}
+
+metadata:
+  domain: denetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0347
+    bundle: yol-parcala
+    tools:
+    - basename
+    - dirname
+    konu: urun-yorumlari
+    hedef: denetle
+    girdi: csv
+    kaynak: dizin-agaci
+    cikti: tek-sayi
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: crlf
+    bukulme: yok
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

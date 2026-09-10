@@ -1,0 +1,145 @@
+id: gen-k-1142-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Dünkü stok mutabakatında yine aynı şikayet geldi: depo ekibi birden fazla SKU içeren bir hareket dosyası yüklediğinde özet tablosunda sadece ilk ürünü görüyor, gerisi kayboluyor. Ben de sabah oturup stock/summary.py dosyasına baktım; summarize fonksiyonu net stok değişimlerini hesaplıyor ama sanki ilk SKU'yu işleyip döngüden çıkıyor gibi davranıyor.
+
+  Rica etsem stock/summary.py içindeki summarize fonksiyonunu, verilen MoveSource üzerindeki her SKU için net stok değişimini eksiksiz döndürecek biçimde düzeltir misin? Yani ilk SKU'dan sonra erken dönüp diğerlerini atlamasın; tüm SKU'lar sonuçlarda yer alsın.
+
+setup: |
+  mkdir -p stock
+  cat > stock/records.py <<'RECORDS'
+  from abc import ABC, abstractmethod
+
+
+  class MoveSource(ABC):
+      @abstractmethod
+      def moves(self):
+          """Yield (sku, delta) pairs."""
+
+
+  class FileMoveSource(MoveSource):
+      def __init__(self, path):
+          self.path = path
+
+      def moves(self):
+          with open(self.path, encoding="utf-8") as fh:
+              for line in fh:
+                  line = line.strip()
+                  if not line or line.startswith("#"):
+                      continue
+                  sku, delta = line.split(",")
+                  yield sku.strip(), int(delta)
+
+
+  class MemoryMoveSource(MoveSource):
+      def __init__(self, rows):
+          self.rows = list(rows)
+
+      def moves(self):
+          for sku, delta in self.rows:
+              yield sku, delta
+  RECORDS
+  cat > stock/ledger.py <<'LEDGER'
+  from stock.records import FileMoveSource
+
+
+  def net_by_sku(source):
+      totals = {}
+      for sku, delta in source.moves():
+          totals[sku] = totals.get(sku, 0) + delta
+      return totals
+
+
+  def skus_in_order(source):
+      seen = []
+      for sku, _ in source.moves():
+          if sku not in seen:
+              seen.append(sku)
+      return seen
+  LEDGER
+  cat > stock/summary.py <<'SUMMARY'
+  from stock.ledger import net_by_sku, skus_in_order
+
+
+  def summarize(source):
+      totals = net_by_sku(source)
+      out = {}
+      for sku in skus_in_order(source):
+          if sku in totals:
+              out[sku] = totals[sku]
+              return out
+      return out
+  SUMMARY
+  cat > moves.txt <<'MOVES'
+  bolt,5
+  nut,-2
+  bolt,-3
+  washer,4
+  nut,1
+  # trailing comment
+  bolt,2
+  washer,-1
+  MOVES
+
+goal_tr: >
+  stock/summary.py icindeki summarize fonksiyonunu, verilen MoveSource
+  uzerindeki her SKU icin net stok degisimini eksiksiz dondurecek bicimde
+  duzelt; ilk SKU'dan sonra erken donup digerlerini atlama.
+
+reference_solution: |
+  cat > stock/summary.py <<'SUMMARY'
+  from stock.ledger import net_by_sku, skus_in_order
+
+
+  def summarize(source):
+      totals = net_by_sku(source)
+      out = {}
+      for sku in skus_in_order(source):
+          out[sku] = totals[sku]
+      return out
+  SUMMARY
+
+outputs:
+  - {path: stock/summary.py, kind: program, run: 'python3 -c ''from stock.summary import summarize as f; from stock.records import FileMoveSource, MemoryMoveSource; r=f(FileMoveSource("moves.txt")); assert r=={"bolt":4,"nut":-1,"washer":3}, r; assert list(r.keys())==["bolt","nut","washer"], list(r.keys()); m=f(MemoryMoveSource([("a",2),("b",-5),("a",1)])); assert m=={"a":3,"b":-5}, m; assert list(m.keys())==["a","b"], list(m.keys()); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from stock.summary import summarize as f; from stock.records import FileMoveSource, MemoryMoveSource; r=f(FileMoveSource("moves.txt")); assert r=={"bolt":4,"nut":-1,"washer":3}, r; assert list(r.keys())==["bolt","nut","washer"], list(r.keys()); m=f(MemoryMoveSource([("a",2),("b",-5),("a",1)])); assert m=={"a":3,"b":-5}, m; assert list(m.keys())==["a","b"], list(m.keys()); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1142
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: stok-hareketleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: erken-donus
+      karmasiklik: duz
+      kalip: abc-protokol
+      akis: dosya-okuma
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

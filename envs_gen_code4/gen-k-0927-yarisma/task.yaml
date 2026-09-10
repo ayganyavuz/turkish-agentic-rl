@@ -1,0 +1,110 @@
+id: gen-k-0927-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  routekit/ledger.py dosyasını oluştur. Bu dosyada RouteLedger adında bir sınıf tanımla. Sınıf, cost_stream(edges) ile parça parça verilen kenar maliyetlerini biriktirebilmeli. add_edge metodu her çağrıldığında o ana kadarki toplam maliyeti (önek toplamını) döndürmeli. total_upto metodu ise verilen kenar indeksine kadar olan toplam maliyeti döndürmeli. Toplamlar routekit.edges modülü üzerinden hesaplanmalı.
+
+setup: |
+  mkdir -p routekit
+  cat > routekit/prefix.py <<'PREFIX'
+  def running_totals(values):
+      totals = []
+      acc = 0
+      for v in values:
+          acc += v
+          totals.append(acc)
+      return totals
+
+
+  def prefix_at(totals, index):
+      if index < 0:
+          return 0
+      return totals[index]
+  PREFIX
+  cat > routekit/edges.py <<'EDGES'
+  from routekit.prefix import running_totals, prefix_at
+
+
+  def edge_costs(edges):
+      return running_totals(edges)
+
+
+  def cost_upto(totals, edge_index):
+      return prefix_at(totals, edge_index)
+  EDGES
+  cat > routekit/__init__.py <<'INIT'
+  INIT
+  cat > routes.txt <<'ROUTES'
+  3,4,2,5
+  ROUTES
+
+goal_tr: >
+  routekit/ledger.py dosyasini yaz: RouteLedger sinifi, cost_stream(edges)
+  ile parca parca verilen kenar maliyetlerini biriktirip her adimdan sonra o
+  ana kadarki toplam maliyeti (onek toplami) donduren bir metot (add_edge)
+  ve verilen kenar indeksine kadar olan toplam maliyeti donduren bir metot
+  (total_upto) sunmali; toplamlar routekit.edges modulu uzerinden
+  hesaplanmali.
+
+reference_solution: |
+  cat > routekit/ledger.py <<'LEDGER'
+  from routekit.edges import edge_costs, cost_upto
+
+
+  class RouteLedger:
+      def __init__(self):
+          self._costs = []
+
+      def add_edge(self, cost):
+          self._costs.append(cost)
+          totals = edge_costs(self._costs)
+          return totals[-1]
+
+      def total_upto(self, edge_index):
+          totals = edge_costs(self._costs)
+          return cost_upto(totals, edge_index)
+  LEDGER
+
+outputs:
+  - {path: routekit/ledger.py, kind: program, run: 'python3 -c ''from routekit.ledger import RouteLedger as L; s=L(); r=[s.add_edge(c) for c in (3,4,2,5)]; assert r==[3,7,9,14], r; assert s.total_upto(0)==3; assert s.total_upto(2)==9; assert s.total_upto(3)==14; assert s.total_upto(-1)==0; t=L(); t.add_edge(10); assert t.total_upto(0)==10; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from routekit.ledger import RouteLedger as L; s=L(); r=[s.add_edge(c) for c in (3,4,2,5)]; assert r==[3,7,9,14], r; assert s.total_upto(0)==3; assert s.total_upto(2)==9; assert s.total_upto(3)==14; assert s.total_upto(-1)==0; t=L(); t.add_edge(10); assert t.total_upto(0)==10; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0927
+    bundle: yarisma
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: onek-toplam
+      karmasiklik: duz
+      kalip: durumlu-sinif
+      akis: parcali-akis
+      topoloji: elmas
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

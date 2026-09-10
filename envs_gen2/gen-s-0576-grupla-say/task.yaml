@@ -1,0 +1,65 @@
+id: gen-s-0576-grupla-say
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  kayitlar.txt dosyasındaki her satırı tek bir kayıt adı olarak ele al. Bu kayıt adları arasında en çok geçen adı ve kaç kez geçtiğini belirle. Sonucu, ad ve sayı arasında bir boşluk olacak şekilde "ad sayi" biçiminde, yalnızca bu bilgiyi içerecek şekilde sonuc.txt dosyasına yaz; dosyada başka açıklama ya da ek satır bulunmasın.
+
+setup: |
+  cat > kayitlar.txt <<'KAY'
+  Yaprakli Kus
+  Yaprakli Kus
+  Deniz Feneri
+  Yaprakli Kus
+  Deniz Feneri
+  Gokyuzu Mavisi
+  Deniz Feneri
+  Yaprakli Kus
+  KAY
+
+goal_tr: >
+  kayitlar.txt dosyasindaki her satiri tek bir kayit adi olarak ele alip, en
+  cok gecen kayit adini ve kac kez gectigini "ad sayi" biciminde sonuc.txt
+  dosyasina yaz.
+
+reference_solution: |
+  sort kayitlar.txt | uniq -c | sort -rn | head -n 1 | tr -s ' ' | sed 's/^ //' > gecici.txt
+  cut -d' ' -f2- gecici.txt > ad.txt
+  cut -d' ' -f1 gecici.txt > sayi.txt
+  paste -d' ' ad.txt sayi.txt > sonuc.txt
+  rm -f gecici.txt ad.txt sayi.txt
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: Yaprakli Kus 4}
+
+metadata:
+  domain: grupla-say
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0576
+    bundle: sirala
+    tools:
+    - sort
+    - uniq
+    konu: kutuphane-kayitlari
+    hedef: grupla-say
+    girdi: duz-metin
+    kaynak: tek-dosya
+    cikti: tek-sayi
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

@@ -1,0 +1,107 @@
+id: gen-k-0553-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Depo yönetimi tarafında acil stok talepleri bazen sırayla karışıyor; hangi talebin daha önce işleme alınacağını netleştirmek için öncelik kavramına ihtiyacımız var. Bugün bu işi tek bir dosyada toparlamaya çalışıyoruz. /workspace altındaki warehouse.py dosyasında InventoryQueue sınıfı şu an sadece iskelet halinde duruyor ve metotları NotImplementedError fırlatıyor.
+
+  Bu sınıfı, küçük öncelik numarası olan öğelerin daha önce çıkacağı bir öncelik kuyruğu olarak çalışacak biçimde gerçekleştir. push, pop, peek ve len desteklensin. Aynı öncelik numarasına sahip öğelerde ise önce eklenen önce çıksın.
+
+setup: |
+  cat > warehouse.py <<'PY'
+  class InventoryQueue:
+      """Priority queue of restock requests.
+
+      Lower priority number means more urgent.
+      """
+
+      def __init__(self):
+          raise NotImplementedError
+
+      def push(self, priority, item):
+          raise NotImplementedError
+
+      def pop(self):
+          raise NotImplementedError
+
+      def peek(self):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+  PY
+
+goal_tr: >
+  warehouse.py icindeki InventoryQueue sinifini, kucuk oncelik numarasi daha
+  once cikacak sekilde calisan bir oncelik kuyrugu olarak gerceklestir;
+  push, pop, peek ve len desteklensin ve esit onceliklerde once eklenen once
+  cikarilsin.
+
+reference_solution: |
+  cat > warehouse.py <<'PY'
+  import heapq
+
+
+  class InventoryQueue:
+      """Priority queue of restock requests.
+
+      Lower priority number means more urgent.
+      """
+
+      def __init__(self):
+          self._heap = []
+          self._counter = 0
+
+      def push(self, priority, item):
+          heapq.heappush(self._heap, (priority, self._counter, item))
+          self._counter += 1
+
+      def pop(self):
+          if not self._heap:
+              raise IndexError("pop from empty queue")
+          priority, _, item = heapq.heappop(self._heap)
+          return item
+
+      def peek(self):
+          if not self._heap:
+              raise IndexError("peek from empty queue")
+          return self._heap[0][2]
+
+      def __len__(self):
+          return len(self._heap)
+  PY
+
+outputs:
+  - {path: warehouse.py, kind: program, run: 'python3 -c ''from warehouse import InventoryQueue as Q; q=Q(); assert len(q)==0; q.push(5,"bolts"); q.push(1,"masks"); q.push(3,"gloves"); assert len(q)==3; assert q.peek()=="masks"; assert q.pop()=="masks"; assert q.pop()=="gloves"; q.push(1,"tape"); q.push(1,"rope"); assert q.pop()=="tape"; assert q.pop()=="rope"; assert q.pop()=="bolts"; assert len(q)==0; ok=False; exec("try:\n    q.pop()\nexcept IndexError:\n    ok=True"); assert ok; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from warehouse import InventoryQueue as Q; q=Q(); assert len(q)==0; q.push(5,"bolts"); q.push(1,"masks"); q.push(3,"gloves"); assert len(q)==3; assert q.peek()=="masks"; assert q.pop()=="masks"; assert q.pop()=="gloves"; q.push(1,"tape"); q.push(1,"rope"); assert q.pop()=="tape"; assert q.pop()=="rope"; assert q.pop()=="bolts"; assert len(q)==0; ok=False; exec("try:\n    q.pop()\nexcept IndexError:\n    ok=True"); assert ok; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0553
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: oncelik-kuyrugu

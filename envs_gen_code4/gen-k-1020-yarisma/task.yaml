@@ -1,0 +1,107 @@
+id: gen-k-1020-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  flights/reservations.py dosyasındaki reserve fonksiyonunu düzelt. Fonksiyon, aynı uçuş kodu arka arkaya istendiğinde kontenjan tükendiğinde isteği reddetmeli ve istekleri sondan başa bir yığın mantığıyla işlemeli. Onaylanan kodları ise istek sırasının tersine göre döndürmeli.
+
+setup: |
+  mkdir -p flights
+  cat > flights/__init__.py <<'INIT'
+  INIT
+  cat > flights/schedule.py <<'SCHED'
+  def load_schedule(path):
+      rows = []
+      with open(path) as fh:
+          for line in fh:
+              line = line.strip()
+              if not line:
+                  continue
+              code, seats = line.split(':')
+              rows.append((code, int(seats)))
+      return rows
+  SCHED
+  cat > flights/reservations.py <<'RES'
+  from flights.schedule import load_schedule
+
+
+  def reserve(path, requests):
+      remaining = dict(load_schedule(path))
+      granted = []
+      for code in requests:
+          if remaining.get(code, 0) > 0:
+              remaining[code] -= 1
+              granted.append(code)
+      return granted
+  RES
+  cat > data.txt <<'DATA'
+  TK100:2
+  TK200:1
+  TK300:0
+  DATA
+
+goal_tr: >
+  flights/reservations.py icindeki reserve fonksiyonunu, ayni ucus kodu
+  ardisik istendiginde kontenjan tukendiginde reddedecek ve istekleri SONDAN
+  BASA bir yigin (LIFO) mantigiyla isleyip onaylanan kodlari istek sirasinin
+  tersine gore dondurecek bicimde duzelt.
+
+reference_solution: |
+  cat > flights/reservations.py <<'RES'
+  from flights.schedule import load_schedule
+
+
+  def reserve(path, requests):
+      remaining = dict(load_schedule(path))
+      granted = []
+      stack = list(requests)
+      while stack:
+          code = stack.pop()
+          if remaining.get(code, 0) > 0:
+              remaining[code] -= 1
+              granted.append(code)
+      return granted
+  RES
+
+outputs:
+  - {path: flights/reservations.py, kind: program, run: 'python3 -c ''from flights.reservations import reserve as f; r=f("data.txt",["TK100","TK100","TK100"]); assert r==["TK100","TK100"], r; r=f("data.txt",["TK200","TK200"]); assert r==["TK200"], r; r=f("data.txt",["TK300"]); assert r==[], r; r=f("data.txt",["TK100","TK200","TK300"]); assert r==["TK200","TK100"], r; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from flights.reservations import reserve as f; r=f("data.txt",["TK100","TK100","TK100"]); assert r==["TK100","TK100"], r; r=f("data.txt",["TK200","TK200"]); assert r==["TK200"], r; r=f("data.txt",["TK300"]); assert r==[], r; r=f("data.txt",["TK100","TK200","TK300"]); assert r==["TK200","TK100"], r; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1020
+    bundle: yarisma
+    tools:
+    - python3
+    konu: ucus-rezervasyonlari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yigin-kullanimi
+      karmasiklik: duz
+      kalip: ozyineleme
+      akis: cok-dosya-birlestirme
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

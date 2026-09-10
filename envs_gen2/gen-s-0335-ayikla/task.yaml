@@ -1,0 +1,73 @@
+id: gen-s-0335-ayikla
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  siparisler.tsv dosyasını okuyup her masa için toplam tutarı hesapla; her satırda ADET ile FIYAT çarpımını o masanın toplamına ekle. Sonucu masa numarasına göre artan sırada, her masa için "masa" ve "tutar" alanlarını içeren geçerli bir JSON dizisi olarak toplam.json dosyasına yaz.
+
+setup: |
+  cat > siparisler.tsv <<'TSV'
+  MASA	URUN	ADET	FIYAT
+  5	Corba	2	45
+  3	Kebap	1	120
+  5	Salata	1	60
+  7	Kebap	2	120
+  3	Ayran	3	15
+  5	Corba	1	45
+  TSV
+
+goal_tr: >
+  siparisler.tsv dosyasindaki her masa icin toplam tutari (ADET*FIYAT
+  toplami) hesaplayip masa numarasina gore artan sirada, her masa icin
+  "masa" ve "tutar" alanlarini iceren gecerli bir JSON dizisi olarak
+  toplam.json dosyasina yaz.
+
+reference_solution: |
+  cut -f1,3,4 siparisler.tsv | tail -n +2 | rev | cut -f1,2 -d'	' | rev > _tutar.tsv
+  cut -f1 siparisler.tsv | tail -n +2 > _masa.tsv
+  paste _masa.tsv _tutar.tsv | awk -F'\t' '{split($2,a,"\t"); t[$1]+=a[1]*a[2]} END {for (m in t) print m"\t"t[m]}' | sort -n > _tmp.tsv
+  {
+    printf '['
+    sep=''
+    while IFS=$'\t' read -r m tutar; do
+      printf '%s{"masa":%s,"tutar":%s}' "$sep" "$m" "$tutar"
+      sep=','
+    done < _tmp.tsv
+    printf ']\n'
+  } > toplam.json
+  rm _tutar.tsv _masa.tsv _tmp.tsv
+
+outputs:
+  - {path: toplam.json, kind: json}
+
+checks:
+  - {op: json_eq, path: toplam.json, value: [{masa: 3, tutar: 0}, {masa: 5, tutar: 0}, {masa: 7, tutar: 0}]}
+
+metadata:
+  domain: ayikla
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0335
+    bundle: ters-cevir
+    tools:
+    - rev
+    - cut
+    konu: restoran-siparisleri
+    hedef: ayikla
+    girdi: tsv
+    kaynak: tek-dosya
+    cikti: json
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

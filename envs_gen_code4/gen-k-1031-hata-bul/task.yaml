@@ -1,0 +1,158 @@
+id: gen-k-1031-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  calendar/merge.py dosyasındaki Schedule sınıfının overlapping_pairs ve busiest metotlarını düzelt. overlapping_pairs, yalnızca gerçekten ortak zaman paylaşan aralıkları kapsayan çiftleri döndürsün; uçları paylaşan bitişik aralıklar kesişim sayılmasın ve her kesişen çift i<j sırasında yalnızca bir kez döndürülsün. busiest ise eşit süreye sahip etkinlikler arasından ilk ekleneni seçsin. calendar/event.py içindeki Event.overlaps metodunu da bu gerçek kesişim tanımına uygun hale getir.
+
+setup: |
+  mkdir -p calendar
+  cat > calendar/event.py <<'EVENT'
+  from abc import ABC, abstractmethod
+
+
+  class Event(ABC):
+      def __init__(self, title, start, end):
+          self.title = title
+          self.start = start
+          self.end = end
+
+      @abstractmethod
+      def duration(self):
+          ...
+
+      def overlaps(self, other):
+          return self.start <= other.end and other.start <= self.end
+  EVENT
+  cat > calendar/timed.py <<'TIMED'
+  from calendar.event import Event
+
+
+  class TimedEvent(Event):
+      def duration(self):
+          return self.end - self.start
+  TIMED
+  cat > calendar/merge.py <<'MERGE'
+  from calendar.timed import TimedEvent
+
+
+  class Schedule:
+      def __init__(self):
+          self.events = []
+
+      def add(self, event):
+          self.events.append(event)
+
+      def busiest(self):
+          best = None
+          for e in self.events:
+              if best is None or e.duration() >= best.duration():
+                  best = e
+          return best
+
+      def overlapping_pairs(self):
+          pairs = []
+          for i in range(len(self.events)):
+              for j in range(i + 1, len(self.events)):
+                  if self.events[i].overlaps(self.events[j]):
+                      pairs.append((self.events[i].title, self.events[j].title))
+          return pairs
+  MERGE
+  cat > calendar/__init__.py <<'INIT'
+  INIT
+
+goal_tr: >
+  calendar/event.py icindeki Event.overlaps metodu ile calendar/merge.py
+  icindeki Schedule.overlapping_pairs ve Schedule.busiest metotlarini
+  duzelt: kesisim yalnizca iki aralik gercekten ortak zaman paylasiyorsa
+  (uclari paylasan bitisik araliklar kesisim sayilmayacak) dogru olsun,
+  overlapping_pairs her kesisen cifti (i<j sirasinda) bir kez dondursun ve
+  busiest esit surede ilk eklenen etkinligi secsin.
+
+reference_solution: |
+  cat > calendar/event.py <<'EVENT'
+  from abc import ABC, abstractmethod
+
+
+  class Event(ABC):
+      def __init__(self, title, start, end):
+          self.title = title
+          self.start = start
+          self.end = end
+
+      @abstractmethod
+      def duration(self):
+          ...
+
+      def overlaps(self, other):
+          return self.start < other.end and other.start < self.end
+  EVENT
+  cat > calendar/merge.py <<'MERGE'
+  from calendar.timed import TimedEvent
+
+
+  class Schedule:
+      def __init__(self):
+          self.events = []
+
+      def add(self, event):
+          self.events.append(event)
+
+      def busiest(self):
+          best = None
+          for e in self.events:
+              if best is None or e.duration() > best.duration():
+                  best = e
+          return best
+
+      def overlapping_pairs(self):
+          pairs = []
+          for i in range(len(self.events)):
+              for j in range(i + 1, len(self.events)):
+                  if self.events[i].overlaps(self.events[j]):
+                      pairs.append((self.events[i].title, self.events[j].title))
+          return pairs
+  MERGE
+
+outputs:
+  - {path: calendar/merge.py, kind: program, run: 'python3 -c ''from calendar.timed import TimedEvent as T; from calendar.merge import Schedule as S; s=S(); s.add(T("a",0,10)); s.add(T("b",10,20)); s.add(T("c",5,15)); s.add(T("d",30,40)); assert s.overlapping_pairs()==[("a","c"),("b","c")], s.overlapping_pairs(); assert s.busiest().title=="a", s.busiest().title; t=S(); t.add(T("x",0,5)); t.add(T("y",5,10)); assert t.overlapping_pairs()==[], t.overlapping_pairs(); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from calendar.timed import TimedEvent as T; from calendar.merge import Schedule as S; s=S(); s.add(T("a",0,10)); s.add(T("b",10,20)); s.add(T("c",5,15)); s.add(T("d",30,40)); assert s.overlapping_pairs()==[("a","c"),("b","c")], s.overlapping_pairs(); assert s.busiest().title=="a", s.busiest().title; t=S(); t.add(T("x",0,5)); t.add(T("y",5,10)); assert t.overlapping_pairs()==[], t.overlapping_pairs(); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1031
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-karsilastirma
+      karmasiklik: duz
+      kalip: abc-protokol
+      akis: cok-dosya-birlestirme
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

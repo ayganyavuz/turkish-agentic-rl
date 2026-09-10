@@ -1,0 +1,189 @@
+id: gen-k-0555-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Kargo deposundaki sevkiyat planlarını elle çıkarmaktan yorulduk; artık rotaları kod tarafında hesaplamak istiyoruz. Bugün bütün gün sevkiyat listelerini gözden geçirdim, akşam da bunu toparlamaya ayırdım.
+
+  routekit/planner.py dosyasındaki RoutePlanner sınıfında şu an yalnızca iskelet var; sınıfın reachable, shortest_time, route ve stops metodlarını gerçekleştirmen gerekiyor. reachable, verilen başlangıçtan ulaşılabilen tüm düğümleri -- başlangıç düğümü de dahil olacak şekilde -- bir küme olarak döndürmeli. shortest_time, başlangıçtan hedefe en kısa toplam süreyi versin; hedefe hiç ulaşılamıyorsa None döndürmeli. route, en kısa yolu düğüm listesi olarak döndürsün ve yol yoksa boş liste versin. stops ise bu en kısa yol üzerindeki ara düğüm sayısını döndürsün; yani başlangıç ve hedef dışında kalan düğümlerin sayısını.
+
+  Sınıf, routekit/network.py içindeki build_network ve neighbours fonksiyonlarını kullanmaya devam etsin; travel.py dosyasındaki describe fonksiyonu da çıktıda path, stops ve minutes alanlarını bekliyor, dolayısıyla bu dört metodun döndürdüğü değerlerle uyumlu çalışmalı.
+
+setup: |
+  mkdir -p routekit
+  cat > routekit/__init__.py <<'INIT'
+  INIT
+  cat > routekit/network.py <<'NET'
+  def build_network(edges):
+      graph = {}
+      for a, b, minutes in edges:
+          graph.setdefault(a, []).append((b, minutes))
+          graph.setdefault(b, []).append((a, minutes))
+      return graph
+
+
+  def neighbours(graph, node):
+      return [n for n, _ in graph.get(node, [])]
+  NET
+  cat > routekit/planner.py <<'PLAN'
+  from routekit.network import build_network, neighbours
+
+
+  class RoutePlanner:
+      def __init__(self, edges):
+          self.graph = build_network(edges)
+
+      def reachable(self, start):
+          raise NotImplementedError
+
+      def shortest_time(self, start, goal):
+          raise NotImplementedError
+
+      def route(self, start, goal):
+          raise NotImplementedError
+
+      def stops(self, start, goal):
+          raise NotImplementedError
+  PLAN
+  cat > travel.py <<'TRAVEL'
+  from routekit.planner import RoutePlanner
+
+  EDGES = [
+      ("depot", "harbor", 7),
+      ("depot", "market", 3),
+      ("market", "harbor", 4),
+      ("harbor", "clinic", 6),
+      ("market", "clinic", 20),
+      ("clinic", "school", 2),
+      ("school", "stadium", 5),
+      ("clinic", "stadium", 30),
+      ("depot", "annex", 25),
+      ("annex", "stadium", 4),
+  ]
+
+
+  def describe(start, goal):
+      planner = RoutePlanner(EDGES)
+      path = planner.route(start, goal)
+      return {
+          "path": path,
+          "stops": planner.stops(start, goal),
+          "minutes": planner.shortest_time(start, goal),
+      }
+  TRAVEL
+
+goal_tr: >
+  routekit/planner.py dosyasindaki RoutePlanner sinifinin reachable,
+  shortest_time, route ve stops metodlarini; reachable baslangictan
+  ulasilabilen tum dugumleri (baslangic dahil) kume olarak, shortest_time en
+  kisa toplam sureyi (ulasilamiyorsa None), route en kisa yolu dugum listesi
+  olarak (ulasilamiyorsa bos liste), stops ise bu yol uzerindeki ara dugum
+  sayisini dondurecek bicimde gerceklestir.
+
+reference_solution: |
+  cat > routekit/planner.py <<'PLAN'
+  import heapq
+
+  from routekit.network import build_network, neighbours
+
+
+  class RoutePlanner:
+      def __init__(self, edges):
+          self.graph = build_network(edges)
+
+      def reachable(self, start):
+          seen = {start}
+          stack = [start]
+          while stack:
+              node = stack.pop()
+              for nxt in neighbours(self.graph, node):
+                  if nxt not in seen:
+                      seen.add(nxt)
+                      stack.append(nxt)
+          return seen
+
+      def shortest_time(self, start, goal):
+          if start not in self.graph or goal not in self.graph:
+              return None
+          dist = {start: 0}
+          heap = [(0, start)]
+          while heap:
+              cost, node = heapq.heappop(heap)
+              if node == goal:
+                  return cost
+              if cost > dist.get(node, float("inf")):
+                  continue
+              for nxt, minutes in self.graph[node]:
+                  cand = cost + minutes
+                  if cand < dist.get(nxt, float("inf")):
+                      dist[nxt] = cand
+                      heapq.heappush(heap, (cand, nxt))
+          return None
+
+      def route(self, start, goal):
+          if start not in self.graph or goal not in self.graph:
+              return []
+          dist = {start: 0}
+          prev = {}
+          heap = [(0, start)]
+          while heap:
+              cost, node = heapq.heappop(heap)
+              if node == goal:
+                  break
+              if cost > dist.get(node, float("inf")):
+                  continue
+              for nxt, minutes in self.graph[node]:
+                  cand = cost + minutes
+                  if cand < dist.get(nxt, float("inf")):
+                      dist[nxt] = cand
+                      prev[nxt] = node
+                      heapq.heappush(heap, (cand, nxt))
+          if goal not in dist:
+              return []
+          path = [goal]
+          while path[-1] != start:
+              path.append(prev[path[-1]])
+          path.reverse()
+          return path
+
+      def stops(self, start, goal):
+          path = self.route(start, goal)
+          if len(path) < 2:
+              return 0
+          return len(path) - 2
+  PLAN
+
+outputs:
+  - {path: routekit/planner.py, kind: program, run: 'python3 -c ''from routekit.planner import RoutePlanner as P; e=[("a","b",1),("b","c",1),("a","c",5),("c","d",2),("x","y",1)]; p=P(e); assert p.reachable("a")=={"a","b","c","d"}, p.reachable("a"); assert p.reachable("x")=={"x","y"}; assert p.shortest_time("a","d")==4; assert p.shortest_time("a","y") is None; assert p.route("a","d")==["a","b","c","d"]; assert p.route("a","y")==[]; assert p.stops("a","d")==2; assert p.stops("a","a")==0; assert p.stops("a","y")==0; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from routekit.planner import RoutePlanner as P; e=[("a","b",1),("b","c",1),("a","c",5),("c","d",2),("x","y",1)]; p=P(e); assert p.reachable("a")=={"a","b","c","d"}, p.reachable("a"); assert p.reachable("x")=={"x","y"}; assert p.shortest_time("a","d")==4; assert p.shortest_time("a","y") is None; assert p.route("a","d")==["a","b","c","d"]; assert p.route("a","y")==[]; assert p.stops("a","d")==2; assert p.stops("a","a")==0; assert p.stops("a","y")==0; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0555
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: graf-gezinme

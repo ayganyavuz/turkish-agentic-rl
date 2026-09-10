@@ -1,0 +1,113 @@
+id: gen-k-0906-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  rel/compare.py içindeki is_newer fonksiyonunu düzelt. Fonksiyon, "1.10.0" gibi çok haneli parçaları ve "1.0" ile "1.0.0" gibi farklı uzunluktaki sürümleri doğru karşılaştırmalı; a sürümü b sürümünden yeni ise True, değilse False döndürmeli.
+
+setup: |
+  mkdir -p rel
+  cat > rel/parse.py <<'PY'
+  def parse_versions(text):
+      out = []
+      for line in text.splitlines():
+          line = line.strip()
+          if not line:
+              continue
+          name, ver = line.split("=")
+          out.append((name.strip(), ver.strip()))
+      return out
+  PY
+  cat > rel/compare.py <<'PY'
+  def split_ver(v):
+      parts = v.split(".")
+      return tuple(int(p) for p in parts)
+
+
+  def is_newer(a, b):
+      return split_ver(a) > split_ver(b)
+  PY
+  cat > rel/summary.py <<'PY'
+  from rel.parse import parse_versions
+  from rel.compare import is_newer
+
+
+  def latest(text):
+      rows = parse_versions(text)
+      best = None
+      for name, ver in rows:
+          if best is None:
+              best = (name, ver)
+          elif is_newer(ver, best[1]):
+              best = (name, ver)
+      return best
+  PY
+  cat > releases.txt <<'TXT'
+  alpha=1.2.0
+  beta=1.10.0
+  gamma=1.9.3
+  TXT
+
+goal_tr: >
+  rel/compare.py icindeki is_newer fonksiyonunu, "1.10.0" gibi cok haneli
+  parcalari ve "1.0" ile "1.0.0" gibi farkli uzunluktaki surumleri dogru
+  karsilastirip a yeni ise True, degilse False dondurecek bicimde duzelt.
+
+reference_solution: |
+  cat > rel/compare.py <<'PY'
+  def split_ver(v):
+      parts = v.split(".")
+      return tuple(int(p) for p in parts)
+
+
+  def is_newer(a, b):
+      pa = split_ver(a)
+      pb = split_ver(b)
+      n = max(len(pa), len(pb))
+      pa = pa + (0,) * (n - len(pa))
+      pb = pb + (0,) * (n - len(pb))
+      return pa > pb
+  PY
+
+outputs:
+  - {path: rel/compare.py, kind: program, run: 'python3 -c ''from rel.compare import is_newer as f; assert f("1.10.0","1.9.3") is True, f("1.10.0","1.9.3"); assert f("1.9.3","1.10.0") is False, f("1.9.3","1.10.0"); assert f("1.0.0","1.0") is False, f("1.0.0","1.0"); assert f("2.0","1.9.9") is True, f("2.0","1.9.9"); assert f("1.2.0","1.2.0") is False, f("1.2.0","1.2.0"); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from rel.compare import is_newer as f; assert f("1.10.0","1.9.3") is True, f("1.10.0","1.9.3"); assert f("1.9.3","1.10.0") is False, f("1.9.3","1.10.0"); assert f("1.0.0","1.0") is False, f("1.0.0","1.0"); assert f("2.0","1.9.9") is True, f("2.0","1.9.9"); assert f("1.2.0","1.2.0") is False, f("1.2.0","1.2.0"); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0906
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: yazilim-surumleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum
+      karmasiklik: duz
+      kalip: duz-fonksiyon
+      akis: bellek-ici
+      topoloji: elmas
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

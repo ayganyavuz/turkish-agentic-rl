@@ -1,0 +1,105 @@
+id: gen-k-0529-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) planner/schedule.py dosyasındaki busiest_slot fonksiyonunu, en çok etkinlik içeren dilim belirlenirken eşitlik durumunda en erken dilimin seçilmesini sağlayacak şekilde düzelt.
+
+  2) Aynı fonksiyonda, slot değeri sıfır ya da negatif olduğunda ValueError yükseltilmesini sağla.
+
+setup: |
+  mkdir -p planner
+  cat > planner/__init__.py <<'INIT'
+  INIT
+  cat > planner/events.py <<'EVENTS'
+  def parse_events(text):
+      rows = []
+      for line in text.strip().splitlines():
+          title, start, end = line.split('|')
+          rows.append((title, int(start), int(end)))
+      return rows
+  EVENTS
+  cat > planner/schedule.py <<'SCHEDULE'
+  from planner.events import parse_events
+
+
+  def busiest_slot(text, slot):
+      rows = parse_events(text)
+      counts = {}
+      for _, start, end in rows:
+          first = start // slot
+          last = (end - 1) // slot
+          for i in range(first, last + 1):
+              counts[i] = counts.get(i, 0) + 1
+      if not counts:
+          return None
+      best = max(counts, key=lambda i: (counts[i], i))
+      return (best * slot, best * slot + slot)
+  SCHEDULE
+  cat > events.txt <<'DATA'
+  standup|0|30
+  review|30|60
+  deploy|60|90
+  DATA
+
+goal_tr: >
+  planner/schedule.py icindeki busiest_slot fonksiyonunu, en cok etkinlik
+  iceren dilim secilirken esitlik durumunda en erken dilimin secilmesini ve
+  slot degeri sifir ya da negatifse ValueError yukseltilmesini saglayacak
+  bicimde duzelt.
+
+reference_solution: |
+  cat > planner/schedule.py <<'SCHEDULE'
+  from planner.events import parse_events
+
+
+  def busiest_slot(text, slot):
+      if slot <= 0:
+          raise ValueError("slot must be positive")
+      rows = parse_events(text)
+      counts = {}
+      for _, start, end in rows:
+          first = start // slot
+          last = (end - 1) // slot
+          for i in range(first, last + 1):
+              counts[i] = counts.get(i, 0) + 1
+      if not counts:
+          return None
+      best = max(counts, key=lambda i: (counts[i], -i))
+      return (best * slot, best * slot + slot)
+  SCHEDULE
+
+outputs:
+  - {path: planner/schedule.py, kind: program, run: 'python3 -c ''from planner.schedule import busiest_slot as f; t=open("events.txt").read(); assert f(t,30)==(0,30), f(t,30); assert f("a|0|10\nb|20|30\nc|40|50",30)==(0,30), f("a|0|10\nb|20|30\nc|40|50",30); assert f("",30) is None; assert f("   ",30) is None; ok=False; exec("try:\n    f(t,0)\nexcept ValueError:\n    ok=True"); assert ok; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from planner.schedule import busiest_slot as f; t=open("events.txt").read(); assert f(t,30)==(0,30), f(t,30); assert f("a|0|10\nb|20|30\nc|40|50",30)==(0,30), f("a|0|10\nb|20|30\nc|40|50",30); assert f("",30) is None; assert f("   ",30) is None; ok=False; exec("try:\n    f(t,0)\nexcept ValueError:\n    ok=True"); assert ok; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0529
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum

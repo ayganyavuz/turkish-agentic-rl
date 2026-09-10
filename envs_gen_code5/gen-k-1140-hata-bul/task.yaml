@@ -1,0 +1,112 @@
+id: gen-k-1140-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  school/report.py dosyasındaki Report sınıfını düzelt. Bir öğrencinin hiç notu yokken average çağrıldığında sıfır döndürmeli ve summary çağrıldığında KeyError vermemeli. Sınıfın geri kalan davranışı aynı kalmalı; notu olan öğrenciler için average doğru hesaplamaya ve summary öğrenciyi, ortalamayı ve dersleri döndürmeye devam etmeli.
+
+setup: |
+  mkdir -p school/records
+  cat > school/records/__init__.py <<'INIT'
+  INIT
+  cat > school/records/store.py <<'STORE'
+  class TranscriptStore:
+      def __init__(self):
+          self._grades = {}
+
+      def add(self, student, course, grade):
+          self._grades.setdefault(student, {})[course] = grade
+
+      def courses(self, student):
+          return sorted(self._grades.get(student, {}).keys())
+  STORE
+  cat > school/report.py <<'REPORT'
+  from school.records.store import TranscriptStore
+
+
+  class Report:
+      def __init__(self):
+          self.store = TranscriptStore()
+
+      def add_grade(self, student, course, grade):
+          self.store.add(student, course, grade)
+
+      def average(self, student):
+          grades = self.store._grades[student]
+          return sum(grades.values()) / len(grades)
+
+      def summary(self, student):
+          return (student, self.average(student), self.store.courses(student))
+  REPORT
+  cat > school/__init__.py <<'INIT'
+  INIT
+
+goal_tr: >
+  school/report.py icindeki Report sinifini, hic notu olmayan bir ogrenci
+  icin average cagrildiginda sifir dondurecek ve summary cagrildiginda
+  KeyError vermeyecek bicimde duzelt.
+
+reference_solution: |
+  cat > school/report.py <<'REPORT'
+  from school.records.store import TranscriptStore
+
+
+  class Report:
+      def __init__(self):
+          self.store = TranscriptStore()
+
+      def add_grade(self, student, course, grade):
+          self.store.add(student, course, grade)
+
+      def average(self, student):
+          grades = self.store._grades.get(student, {})
+          if not grades:
+              return 0.0
+          return sum(grades.values()) / len(grades)
+
+      def summary(self, student):
+          return (student, self.average(student), self.store.courses(student))
+  REPORT
+
+outputs:
+  - {path: school/report.py, kind: program, run: 'python3 -c ''from school.report import Report; r=Report(); r.add_grade("ada","math",90.0); r.add_grade("ada","art",70.0); assert r.average("ada")==80.0, r.average("ada"); assert r.summary("ada")==("ada",80.0,["art","math"]); assert r.average("nobody")==0.0; assert r.summary("nobody")==("nobody",0.0,[]); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from school.report import Report; r=Report(); r.add_grade("ada","math",90.0); r.add_grade("ada","art",70.0); assert r.average("ada")==80.0, r.average("ada"); assert r.summary("ada")==("ada",80.0,["art","math"]); assert r.average("nobody")==0.0; assert r.summary("nobody")==("nobody",0.0,[]); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1140
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sozluk-anahtar-hatasi
+      karmasiklik: duz
+      kalip: durumlu-sinif
+      akis: bellek-ici
+      topoloji: paket-alt-paket
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

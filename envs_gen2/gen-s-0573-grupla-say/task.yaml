@@ -1,0 +1,76 @@
+id: gen-s-0573-grupla-say
+split: single_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 8
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) randevular.csv dosyasındaki her poliklinik için randevu sayısını, poliklinik adına göre artan sırada bir JSON nesnesi olarak ozet.json dosyasına yaz.
+
+  2) randevular.csv.bak gibi .bak uzantılı dosyaları yok say.
+
+setup: |
+  cat > randevular.csv <<'CSV'
+  hasta,poliklinik,tarih
+  Ayse,Kardiyoloji,2024-03-01
+  Mehmet,Dahiliye,2024-03-01
+  Zeynep,Kardiyoloji,2024-03-02
+  Ali,Dahiliye,2024-03-02
+  Fatma,Goz,2024-03-02
+  CSV
+  cat > randevular.csv.bak <<'CSV'
+  hasta,poliklinik,tarih
+  Sahte,Goz,2099-01-01
+  CSV
+
+goal_tr: >
+  randevular.csv dosyasindaki her poliklinik icin randevu sayisini
+  poliklinik adina gore artan sirada gecerli bir JSON nesnesi olarak
+  ozet.json dosyasina yaz; .bak uzantili dosyalari yok say.
+
+reference_solution: |
+  python3 - <<'PY'
+  import csv, json, glob
+  counts = {}
+  for path in glob.glob('randevular*.csv'):
+      if path.endswith('.bak'):
+          continue
+      with open(path, newline='') as f:
+          for row in csv.DictReader(f):
+              p = row['poliklinik']
+              counts[p] = counts.get(p, 0) + 1
+  with open('ozet.json', 'w') as f:
+      json.dump({k: counts[k] for k in sorted(counts)}, f, ensure_ascii=True)
+  PY
+
+outputs:
+  - {path: ozet.json, kind: json, run: python3 -c "import json;json.load(open('ozet.json'))"}
+
+checks:
+  - {op: json_eq, path: ozet.json, value: {Dahiliye: 2, Goz: 1, Kardiyoloji: 2}}
+
+metadata:
+  domain: grupla-say
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0573
+    bundle: python-veri
+    tools:
+    - python3
+    konu: hastane-randevulari
+    hedef: grupla-say
+    girdi: csv
+    kaynak: tek-dosya
+    cikti: json
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: tuzak-dosya
+    adim: 1
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

@@ -1,0 +1,137 @@
+id: gen-k-0855-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Sabah toplantılar arasında takvimi elle kontrol etmekten yoruldum; artık toplantı listesini bir metin dosyasından okuyup bana toplam meşgul süreyi ve kaç toplantı olduğunu söyleyen küçük bir hesap aracı istiyorum. Bu yüzden cal/events.py ve cal/planner.py dosyalarını yazmaya başladım ama içlerinde birkaç hata var, düzgün çalışmıyorlar.
+
+  cal/events.py ve cal/planner.py içindeki hataları gider. agenda.txt dosyasındaki toplantı satırları için busy_time fonksiyonu 135 döndürsün, summary fonksiyonu ise tam olarak "events=3 minutes=135" metnini döndürsün.
+
+setup: |
+  mkdir -p cal
+  cat > cal/events.py <<'EVENTS'
+  def parse_events(text):
+      rows = []
+      for line in text.strip().splitlines():
+          name, start, end = line.split(',')
+          rows.append((name, int(start), int(end)))
+      return rows
+
+
+  def total_minutes(rows):
+      total = 0
+      for name, start, end in rows:
+          total = total + (start - end)
+      return total
+  EVENTS
+  cat > cal/planner.py <<'PLANNER'
+  from cal.events import parse_events, total_minutes
+
+
+  def busy_time(text):
+      rows = parse_events(text)
+      return total_minutes(rows)
+
+
+  def summary(text):
+      rows = parse_events(text)
+      return "events=%d minutes=%d" % (len(rows), total_minutes(rows[:1]))
+  PLANNER
+  cat > agenda.txt <<'AGENDA'
+  standup,540,555
+  review,600,660
+  lunch,720,780
+  AGENDA
+
+goal_tr: >
+  cal/events.py ve cal/planner.py icindeki hatalari gider; busy_time
+  agenda.txt icin 135, summary ise "events=3 minutes=135" dondursun.
+
+reference_solution: |
+  cat > cal/events.py <<'EVENTS'
+  def parse_events(text):
+      rows = []
+      for line in text.strip().splitlines():
+          name, start, end = line.split(',')
+          rows.append((name, int(start), int(end)))
+      return rows
+
+
+  def total_minutes(rows):
+      total = 0
+      for name, start, end in rows:
+          total = total + (end - start)
+      return total
+  EVENTS
+  cat > cal/planner.py <<'PLANNER'
+  from cal.events import parse_events, total_minutes
+
+
+  def busy_time(text):
+      rows = parse_events(text)
+      return total_minutes(rows)
+
+
+  def summary(text):
+      rows = parse_events(text)
+      return "events=%d minutes=%d" % (len(rows), total_minutes(rows))
+  PLANNER
+
+ara_adim: |
+  cat > cal/events.py <<'EVENTS'
+  def parse_events(text):
+      rows = []
+      for line in text.strip().splitlines():
+          name, start, end = line.split(',')
+          rows.append((name, int(start), int(end)))
+      return rows
+
+
+  def total_minutes(rows):
+      total = 0
+      for name, start, end in rows:
+          total = total + (end - start)
+      return total
+  EVENTS
+
+outputs:
+  - {path: cal/planner.py, kind: program, run: 'python3 -c ''from cal.planner import summary as f; t=open("agenda.txt").read(); assert f(t)=="events=3 minutes=135", f(t); print("TAMAM")'''}
+  - {path: cal/events.py, kind: program, run: 'python3 -c ''from cal.planner import busy_time as f; t=open("agenda.txt").read(); assert f(t)==135, f(t); print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from cal.planner import busy_time as f; t=open("agenda.txt").read(); assert f(t)==135, f(t); print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from cal.planner import summary as f; t=open("agenda.txt").read(); assert f(t)=="events=3 minutes=135", f(t); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0855
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-toplama-sirasi
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

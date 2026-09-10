@@ -1,0 +1,110 @@
+id: gen-k-0370-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  nav/queue.py dosyasındaki RouteQueue sınıfını, her zaman en düşük maliyetli elemanı önce verecek bir öncelik kuyruğu olarak gerçekleştir. Bu sayede nav/planner.py içindeki cheapest_route fonksiyonu en ucuz rotayı doğru biçimde döndürebilsin. RouteQueue sınıfı push, pop ve __len__ metotlarını içermeli; push bir düğümü, maliyetini ve yolunu kuyruğa eklemeli, pop en düşük maliyetli elemanı döndürmeli, __len__ ise kuyruktaki eleman sayısını vermeli.
+
+setup: |
+  mkdir -p nav
+  cat > nav/graph.py <<'GRAPH'
+  def build_graph(edges):
+      g = {}
+      for a, b, w in edges:
+          g.setdefault(a, []).append((b, w))
+          g.setdefault(b, []).append((a, w))
+      return g
+  GRAPH
+  cat > nav/queue.py <<'QUEUE'
+  class RouteQueue:
+      def __init__(self):
+          raise NotImplementedError
+
+      def push(self, node, cost, path):
+          raise NotImplementedError
+
+      def pop(self):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+  QUEUE
+  cat > nav/planner.py <<'PLANNER'
+  from nav.graph import build_graph
+  from nav.queue import RouteQueue
+
+
+  def cheapest_route(edges, start, goal):
+      graph = build_graph(edges)
+      frontier = RouteQueue()
+      frontier.push(start, 0, [start])
+      while len(frontier) > 0:
+          node, cost, path = frontier.pop()
+          if node == goal:
+              return cost, path
+          for nxt, w in graph.get(node, []):
+              frontier.push(nxt, cost + w, path + [nxt])
+      return None
+  PLANNER
+
+goal_tr: >
+  nav/queue.py dosyasindaki RouteQueue sinifini, en dusuk maliyetli elemani
+  once veren bir oncelik kuyrugu olacak sekilde gerceklestir; boylece
+  nav/planner.py icindeki cheapest_route en ucuz rotayi dogru dondursun.
+
+reference_solution: |
+  cat > nav/queue.py <<'QUEUE'
+  import heapq
+
+
+  class RouteQueue:
+      def __init__(self):
+          self._items = []
+          self._count = 0
+
+      def push(self, node, cost, path):
+          heapq.heappush(self._items, (cost, self._count, node, path))
+          self._count += 1
+
+      def pop(self):
+          cost, _, node, path = heapq.heappop(self._items)
+          return node, cost, path
+
+      def __len__(self):
+          return len(self._items)
+  QUEUE
+
+outputs:
+  - {path: nav/queue.py, kind: program, run: 'python3 -c ''from nav.planner import cheapest_route as f; e=[("A","B",1),("B","C",1),("A","C",5),("C","D",1),("B","D",10)]; assert f(e,"A","D")==(3,["A","B","C","D"]), f(e,"A","D"); e2=[("X","Y",4),("Y","Z",4),("X","Z",10)]; assert f(e2,"X","Z")==(8,["X","Y","Z"]), f(e2,"X","Z"); assert f([("A","B",2)],"A","A")==(0,["A"]); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from nav.planner import cheapest_route as f; e=[("A","B",1),("B","C",1),("A","C",5),("C","D",1),("B","D",10)]; assert f(e,"A","D")==(3,["A","B","C","D"]), f(e,"A","D"); e2=[("X","Y",4),("Y","Z",4),("X","Z",10)]; assert f(e2,"X","Z")==(8,["X","Y","Z"]), f(e2,"X","Z"); assert f([("A","B",2)],"A","A")==(0,["A"]); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0370
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kuyruk

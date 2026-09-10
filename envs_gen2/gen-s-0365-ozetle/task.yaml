@@ -1,0 +1,67 @@
+id: gen-s-0365-ozetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) /workspace dizinindeki kutuphane_kayitlari.txt dosyasındaki sabit genişlikli kayıtları incele.
+  2) Bu kayıtlarda geçen her yayın türü için kaç kayıt olduğunu hesapla ve sonucu tür adıyla birlikte her satırda bir tür olacak şekilde tur_sayilari.txt dosyasına yaz.
+  3) Bu kayıtlarda geçen her yayın yılı için kaç kayıt olduğunu hesapla ve sonucu yıl ile birlikte her satırda bir yıl olacak şekilde yil_sayilari.txt dosyasına yaz.
+
+setup: |
+  cat > kutuphane_kayitlari.txt <<'DATA'
+  1001 Kitap   Roman      MatbaaA 1998
+  1002 Kitap   Siir       MatbaaB 2001
+  1003 Dergi   Bilim      MatbaaA 2005
+  1004 Kitap   Roman      MatbaaC 1998
+  1005 Dergi   Sanat      MatbaaB 2010
+  1006 Kitap   Tarih      MatbaaA 2001
+  1007 Dergi   Bilim      MatbaaC 2005
+  1008 Kitap   Siir       MatbaaB 2010
+  1009 Kitap   Roman      MatbaaA 1998
+  1010 Dergi   Sanat      MatbaaB 2001
+  DATA
+
+goal_tr: >
+  kutuphane_kayitlari.txt icindeki sabit genislikli kayitlardan tur bazinda
+  (Kitap/Dergi) kayit sayisini tur_sayilari.txt dosyasina ve yayin yili
+  bazinda kayit sayisini yil_sayilari.txt dosyasina yaz
+
+reference_solution: |
+  awk '{tur=substr($0,6,7); gsub(/ /,"",tur); say[tur]++} END {for (t in say) print t, say[t]}' kutuphane_kayitlari.txt | sort > tur_sayilari.txt
+  awk '{yil=substr($0,29,4); say[yil]++} END {for (y in say) print y, say[y]}' kutuphane_kayitlari.txt | sort > yil_sayilari.txt
+
+outputs:
+  - {path: tur_sayilari.txt, kind: file}
+  - {path: yil_sayilari.txt, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: tur_sayilari.txt, value: [Dergi 4, Kitap 6]}
+  - {op: file_lines_eq, path: yil_sayilari.txt, value: [aaA  4, aaB  4, aaC  2]}
+
+metadata:
+  domain: ozetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0365
+    bundle: awk
+    tools:
+    - awk
+    konu: kutuphane-kayitlari
+    hedef: ozetle
+    girdi: sabit-genislik
+    kaynak: tek-dosya
+    cikti: birden-cok-dosya
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: olcek
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

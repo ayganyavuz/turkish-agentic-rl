@@ -1,0 +1,112 @@
+id: gen-k-1122-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) sim/alarm.py dosyasını oluştur. Bu dosyada her sensör okumasını sim/thresholds.py içindeki limit_for fonksiyonuyla ölç.
+
+  2) İç içe seriyi sim/readings.py içindeki expand fonksiyonuyla düzleştir.
+
+  3) sim/alarm.py içinde alarm_rule adlı bir dekoratör tanımla.
+
+  4) sim/alarm.py içinde simulate(series) fonksiyonunu tanımla; bu fonksiyon her adımda alarm seviyesini "ok", "warn" ve "crit" değerlerinden biri olarak döndüren kayıtlar üretsin.
+
+setup: |
+  mkdir -p sim
+  cat > sim/thresholds.py <<'THRESH'
+  def limit_for(sensor):
+      table = {
+          "temp": {"warn": 30.0, "crit": 45.0},
+          "press": {"warn": 5.0, "crit": 9.0},
+          "flow": {"warn": 100.0, "crit": 150.0},
+      }
+      return table.get(sensor, {"warn": 0.0, "crit": 0.0})
+  THRESH
+  cat > sim/readings.py <<'READ'
+  def expand(series):
+      out = []
+      for step in series:
+          for name, value in sorted(step.items()):
+              out.append((name, value))
+      return out
+  READ
+
+goal_tr: >
+  sim/alarm.py dosyasini yaz: her sensor okumasini sim/thresholds.limit_for
+  ile olc, sim/readings.expand ile ic ice seriyi duzlestir, `alarm_rule`
+  adli bir dekorator tanimla ve `simulate(series)` fonksiyonu her adimda
+  alarm seviyesini ("ok", "warn", "crit") donduren kayitlari uretsin.
+
+reference_solution: |
+  cat > sim/alarm.py <<'ALARM'
+  from sim.thresholds import limit_for
+  from sim.readings import expand
+
+
+  def alarm_rule(fn):
+      def wrapper(name, value):
+          lim = limit_for(name)
+          if value >= lim["crit"]:
+              level = "crit"
+          elif value >= lim["warn"]:
+              level = "warn"
+          else:
+              level = "ok"
+          return fn(name, value, level)
+      return wrapper
+
+
+  @alarm_rule
+  def _record(name, value, level):
+      return {"sensor": name, "value": value, "level": level}
+
+
+  def simulate(series):
+      result = []
+      for name, value in expand(series):
+          result.append(_record(name, value))
+      return result
+  ALARM
+
+outputs:
+  - {path: sim/alarm.py, kind: program, run: 'python3 -c ''from sim.alarm import simulate; s=[{"temp":31.0,"press":2.0},{"flow":160.0,"temp":50.0}]; r=simulate(s); assert r==[{"sensor":"press","value":2.0,"level":"ok"},{"sensor":"temp","value":31.0,"level":"warn"},{"sensor":"flow","value":160.0,"level":"crit"},{"sensor":"temp","value":50.0,"level":"crit"}], r; assert simulate([])==[]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sim.alarm import simulate; s=[{"temp":31.0,"press":2.0},{"flow":160.0,"temp":50.0}]; r=simulate(s); assert r==[{"sensor":"press","value":2.0,"level":"ok"},{"sensor":"temp","value":31.0,"level":"warn"},{"sensor":"flow","value":160.0,"level":"crit"},{"sensor":"temp","value":50.0,"level":"crit"}], r; assert simulate([])==[]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1122
+    bundle: yarisma
+    tools:
+    - python3
+    konu: sensor-alarm-kurallari
+    hedef: yarisma
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: benzetim
+      karmasiklik: duz
+      kalip: dekorator
+      akis: ic-ice-yapi
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

@@ -1,0 +1,147 @@
+id: gen-k-0829-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  sessions/merge.py içindeki merge_spans fonksiyonunu, örtüşen aralıkları birleştirirken bitiş noktalarını en büyük değere genişletecek şekilde düzelt; ayrıca sessions/report.py içindeki total_busy fonksiyonunu tüm aralıkları toplayacak biçimde düzelt. Böylece tüm oturumların toplam meşgul süresi doğru hesaplanmalı.
+
+setup: |
+  mkdir -p sessions
+  cat > sessions/records.py <<'RECORDS'
+  def parse_log(lines):
+      out = []
+      for line in lines:
+          line = line.strip()
+          if not line:
+              continue
+          user, start, end = line.split()
+          out.append((user, int(start), int(end)))
+      return out
+  RECORDS
+  cat > sessions/merge.py <<'MERGE'
+  from sessions.records import parse_log
+
+
+  def merge_spans(spans):
+      if not spans:
+          return []
+      spans = sorted(spans)
+      merged = [spans[0]]
+      for start, end in spans[1:]:
+          last_start, last_end = merged[-1]
+          if start <= last_end:
+              merged[-1] = (last_start, last_end)
+          else:
+              merged.append((start, end))
+      return merged
+
+
+  def busy_intervals(lines):
+      spans = [(s, e) for _, s, e in parse_log(lines)]
+      return merge_spans(spans)
+  MERGE
+  cat > sessions/report.py <<'REPORT'
+  from sessions.merge import busy_intervals
+
+
+  def total_busy(lines):
+      intervals = busy_intervals(lines)
+      total = 0
+      for i in range(len(intervals) - 1):
+          s, e = intervals[i]
+          total += e - s
+      return total
+  REPORT
+
+goal_tr: >
+  sessions/merge.py icindeki merge_spans fonksiyonunu ortusen araliklari
+  bitis noktalarini en buyuge genisletecek sekilde ve sessions/report.py
+  icindeki total_busy fonksiyonunu tum araliklari toplayacak sekilde duzelt;
+  boylece tum oturumlarin toplam mesgul suresi dogru hesaplansin.
+
+reference_solution: |
+  cat > sessions/merge.py <<'MERGE'
+  from sessions.records import parse_log
+
+
+  def merge_spans(spans):
+      if not spans:
+          return []
+      spans = sorted(spans)
+      merged = [spans[0]]
+      for start, end in spans[1:]:
+          last_start, last_end = merged[-1]
+          if start <= last_end:
+              merged[-1] = (last_start, max(last_end, end))
+          else:
+              merged.append((start, end))
+      return merged
+
+
+  def busy_intervals(lines):
+      spans = [(s, e) for _, s, e in parse_log(lines)]
+      return merge_spans(spans)
+  MERGE
+  cat > sessions/report.py <<'REPORT'
+  from sessions.merge import busy_intervals
+
+
+  def total_busy(lines):
+      intervals = busy_intervals(lines)
+      total = 0
+      for s, e in intervals:
+          total += e - s
+      return total
+  REPORT
+
+ara_adim: |
+  python3 - <<'PY'
+  src = open("sessions/merge.py").read()
+  src = src.replace(
+      "merged[-1] = (last_start, last_end)",
+      "merged[-1] = (last_start, max(last_end, end))",
+  )
+  open("sessions/merge.py", "w").write(src)
+  PY
+
+outputs:
+  - {path: sessions/report.py, kind: program, run: 'python3 -c ''from sessions.report import total_busy as f; lines=["alice 1 5","bob 4 9","alice 20 25"]; assert f(lines)==13, f(lines); print("TAMAM")'''}
+  - {path: sessions/merge.py, kind: program, run: 'python3 -c ''from sessions.merge import merge_spans as f; assert f([])==[]; assert f([(3,5)])==[(3,5)]; assert f([(1,2),(5,6)])==[(1,2),(5,6)]; assert f([(1,5),(4,9)])==[(1,9)]; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sessions.merge import merge_spans as f; assert f([])==[]; assert f([(3,5)])==[(3,5)]; assert f([(1,2),(5,6)])==[(1,2),(5,6)]; assert f([(1,5),(4,9)])==[(1,9)]; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sessions.report import total_busy as f; lines=["alice 1 5","bob 4 9","alice 20 25"]; assert f(lines)==13, f(lines); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0829
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: aralik-birlestirme
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

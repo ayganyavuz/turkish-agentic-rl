@@ -1,0 +1,142 @@
+id: gen-k-0826-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 20
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  pricing/report.py dosyasını yaz. Bu dosyada iki fonksiyon tanımlanmalı: `valid_bundles(catalog_text, bundles_text)` ve `sku_usage(catalog_text, bundles_text)`.
+
+  `valid_bundles` fonksiyonu, catalog ve bundles girdilerini kullanarak, tamamen katalogda bulunan SKU'lardan oluşan paketlerin adlarını alfabetik sıralı bir liste olarak döndürmeli.
+
+  `sku_usage` fonksiyonu, her SKU'nun kaç geçerli pakette yer aldığını döndürmeli ve yalnızca en az bir geçerli pakette geçen SKU'ları içermeli.
+
+  Çalışma dizininde pricing/catalog.py ve pricing/bundles.py modülleri ile data/catalog.csv ve data/bundles.txt dosyaları hazır bulunuyor; pricing/report.py bunları kullanmalı.
+
+  Şu şartlar sağlanmalı:
+  - pricing/report.py dosyası oluşturulmuş olmalı.
+  - Dosyada `valid_bundles(catalog_text, bundles_text)` fonksiyonu tanımlı olmalı.
+  - `valid_bundles`, tamamen katalogda bulunan SKU'lardan oluşan paketlerin adlarını döndürmeli.
+  - `valid_bundles` sonucu alfabetik sıralı bir liste olmalı.
+  - Dosyada `sku_usage(catalog_text, bundles_text)` fonksiyonu tanımlı olmalı.
+  - `sku_usage`, her SKU'nun kaç geçerli pakette yer aldığını döndürmeli.
+  - `sku_usage` yalnızca en az bir geçerli pakette geçen SKU'ları içermeli.
+  - Fonksiyonlar pricing/catalog.py ve pricing/bundles.py modüllerindeki mevcut yardımcıları kullanabilmeli.
+
+setup: |
+  mkdir -p pricing data
+  cat > pricing/catalog.py <<'CATALOG'
+  def load_catalog(text):
+      items = {}
+      for line in text.strip().splitlines():
+          sku, price = line.split(',')
+          items[sku] = float(price)
+      return items
+
+
+  def skus(text):
+      return set(load_catalog(text).keys())
+  CATALOG
+  cat > pricing/bundles.py <<'BUNDLES'
+  def parse_bundles(text):
+      result = {}
+      for line in text.strip().splitlines():
+          name, sku_list = line.split(':')
+          result[name] = sku_list.split('+')
+      return result
+  BUNDLES
+  printf 'A100,10.0\nB200,25.0\nC300,5.0\nD400,40.0\n' > data/catalog.csv
+  printf 'starter:A100+B200\npro:B200+C300+D400\nmini:A100+C300\n' > data/bundles.txt
+
+goal_tr: >
+  pricing/report.py dosyasini yaz: catalog ve bundles girdilerini
+  kullanarak, tamamen katalogda bulunan SKU'lardan olusan paketlerin
+  adlarini alfabetik sirali bir liste olarak donduren
+  `valid_bundles(catalog_text, bundles_text)` fonksiyonunu ve her SKU'nun
+  kac gecerli pakette yer aldigini donduren `sku_usage(catalog_text,
+  bundles_text)` fonksiyonunu tanimla; sku_usage yalnizca en az bir gecerli
+  pakette gecen SKU'lari icersin.
+
+reference_solution: |
+  cat > pricing/report.py <<'REPORT'
+  from pricing.catalog import load_catalog
+  from pricing.bundles import parse_bundles
+
+
+  def valid_bundles(catalog_text, bundles_text):
+      available = set(load_catalog(catalog_text).keys())
+      bundles = parse_bundles(bundles_text)
+      valid = []
+      for name, members in bundles.items():
+          if set(members) <= available:
+              valid.append(name)
+      return sorted(valid)
+
+
+  def sku_usage(catalog_text, bundles_text):
+      available = set(load_catalog(catalog_text).keys())
+      bundles = parse_bundles(bundles_text)
+      counts = {}
+      for name, members in bundles.items():
+          if set(members) <= available:
+              for sku in set(members):
+                  counts[sku] = counts.get(sku, 0) + 1
+      return counts
+  REPORT
+
+ara_adim: |
+  cat > pricing/report.py <<'REPORT'
+  from pricing.catalog import load_catalog
+  from pricing.bundles import parse_bundles
+
+
+  def valid_bundles(catalog_text, bundles_text):
+      available = set(load_catalog(catalog_text).keys())
+      bundles = parse_bundles(bundles_text)
+      valid = []
+      for name, members in bundles.items():
+          if set(members) <= available:
+              valid.append(name)
+      return sorted(valid)
+  REPORT
+
+outputs:
+  - {path: pricing/report.py, kind: program, run: 'python3 -c ''from pricing.report import valid_bundles as f; c=open("data/catalog.csv").read(); b=open("data/bundles.txt").read(); assert f(c,b)==["mini","pro","starter"], f(c,b); print("TAMAM")'''}
+  - {path: pricing/report.py, kind: program, run: 'python3 -c ''from pricing.report import sku_usage as f; c=open("data/catalog.csv").read(); b=open("data/bundles.txt").read(); assert f(c,b)=={"A100":2,"B200":2,"C300":2,"D400":1}, f(c,b); print("USAGE-TAMAM")'''}
+  - {path: pricing/catalog.py, kind: program, run: 'python3 -c ''from pricing.catalog import skus as f; c=open("data/catalog.csv").read(); assert f(c)=={"A100","B200","C300","D400"}, f(c); print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from pricing.report import valid_bundles as f; c=open("data/catalog.csv").read(); b=open("data/bundles.txt").read(); assert f(c,b)==["mini","pro","starter"], f(c,b); print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from pricing.report import sku_usage as f; c=open("data/catalog.csv").read(); b=open("data/bundles.txt").read(); assert f(c,b)=={"A100":2,"B200":2,"C300":2,"D400":1}, f(c,b); print("USAGE-TAMAM")''', value: USAGE-TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0826
+    bundle: yarisma
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: kolay
+    adim: 7
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kume-islemleri
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

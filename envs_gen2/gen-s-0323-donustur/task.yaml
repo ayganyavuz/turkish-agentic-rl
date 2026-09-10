@@ -1,0 +1,57 @@
+id: gen-s-0323-donustur
+split: single_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 8
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) envanter.txt dosyasındaki her satırı oku; her satırdaki "ad:adet:konum" biçimini "ad adet konum" biçimine dönüştür.
+  2) Dönüştürülen tüm satırları, her satırda bir kayıt olacak şekilde satirlar.txt dosyasına yaz.
+
+setup: |
+  cat > envanter.txt <<'EOF'
+  masa:12:depoA
+  sandalye:4:depoB
+  lamba:7:depoA
+  kablo:30:depoC
+  EOF
+
+goal_tr: >
+  envanter.txt dosyasindaki her satiri "ad:adet:konum" biciminden "ad adet
+  konum" bicimine donusturup satirlar.txt dosyasina yaz
+
+reference_solution: |
+  tee satirlar.txt < envanter.txt > /dev/null; cut -d: -f1,2,3 --output-delimiter=' ' satirlar.txt > gecici.txt && mv gecici.txt satirlar.txt
+
+outputs:
+  - {path: satirlar.txt, kind: lines}
+
+checks:
+  - {op: file_lines_eq, path: satirlar.txt, value: [masa 12 depoA, sandalye 4 depoB, lamba 7 depoA, kablo 30 depoC]}
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0323
+    bundle: dallandir
+    tools:
+    - tee
+    - cut
+    konu: envanter
+    hedef: donustur
+    girdi: duz-metin
+    kaynak: tek-dosya
+    cikti: satir-listesi
+    kesif: yok
+    uslup: numarali-emir
+    direnc: bos-dosya
+    bukulme: yok
+    adim: 1
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

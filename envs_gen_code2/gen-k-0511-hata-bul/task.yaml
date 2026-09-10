@@ -1,0 +1,130 @@
+id: gen-k-0511-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  docs/index.py dosyasındaki find_documents fonksiyonunu, sorgudaki kelimelerin herhangi birini içeren belgelerin kimliklerini artan sırada döndürecek biçimde düzelt. Aynı dosyadaki diğer fonksiyonlara dokunma.
+
+  Şu şartlar sağlanmalı:
+  - Yalnızca docs/index.py değiştirilmeli; docs/records.py ve docs/index.py içindeki diğer fonksiyonlar (index_documents, document_size) aynı kalmalı.
+  - find_documents, sorgudaki kelimelerden en az birini içeren belgelerin kimliklerini döndürmeli.
+  - Döndürülen kimlikler artan sırada olmalı.
+  - Aynı belge kimliği sonuçta yalnızca bir kez yer almalı.
+  - corpus.txt içeriğiyle çalıştırıldığında beklenen davranış korunmalı.
+
+setup: |
+  mkdir -p docs
+  cat > docs/records.py <<'RECORDS'
+  def parse_records(text):
+      rows = []
+      for line in text.splitlines():
+          line = line.strip()
+          if not line:
+              continue
+          doc_id, words = line.split(':', 1)
+          rows.append((doc_id.strip(), words.strip()))
+      return rows
+
+
+  def word_set(words):
+      return set(words.split())
+  RECORDS
+  cat > docs/index.py <<'INDEX'
+  from docs.records import parse_records, word_set
+
+
+  def index_documents(text):
+      index = {}
+      for doc_id, words in parse_records(text):
+          for word in word_set(words):
+              index.setdefault(word, []).append(doc_id)
+      return index
+
+
+  def find_documents(text, query):
+      index = index_documents(text)
+      result = []
+      for word in query.split():
+          result.extend(index[word])
+      return sorted(set(result))
+
+
+  def document_size(text, doc_id):
+      for current_id, words in parse_records(text):
+          if current_id == doc_id:
+              return len(word_set(words))
+      return 0
+  INDEX
+  cat > corpus.txt <<'CORPUS'
+  d1: red apple fruit
+  d2: green apple tree
+  d3: red rose flower
+  CORPUS
+
+goal_tr: >
+  docs/index.py icindeki find_documents fonksiyonunu, sorgudaki kelimelerin
+  herhangi birini iceren belgelerin kimliklerini artan sirada dondurecek
+  bicimde duzelt; diger fonksiyonlara dokunma.
+
+reference_solution: |
+  cat > docs/index.py <<'INDEX'
+  from docs.records import parse_records, word_set
+
+
+  def index_documents(text):
+      index = {}
+      for doc_id, words in parse_records(text):
+          for word in word_set(words):
+              index.setdefault(word, []).append(doc_id)
+      return index
+
+
+  def find_documents(text, query):
+      index = index_documents(text)
+      result = []
+      for word in query.split():
+          result.extend(index.get(word, []))
+      return sorted(set(result))
+
+
+  def document_size(text, doc_id):
+      for current_id, words in parse_records(text):
+          if current_id == doc_id:
+              return len(word_set(words))
+      return 0
+  INDEX
+
+outputs:
+  - {path: docs/index.py, kind: program, run: 'python3 -c ''from docs.index import find_documents as f, document_size as g; t=open("corpus.txt").read(); assert f(t,"apple")==["d1","d2"], f(t,"apple"); assert f(t,"red")==["d1","d3"], f(t,"red"); assert f(t,"apple rose")==["d1","d2","d3"], f(t,"apple rose"); assert f(t,"missing")==[]; assert g(t,"d1")==3; assert g(t,"d3")==3; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from docs.index import find_documents as f, document_size as g; t=open("corpus.txt").read(); assert f(t,"apple")==["d1","d2"], f(t,"apple"); assert f(t,"red")==["d1","d3"], f(t,"red"); assert f(t,"apple rose")==["d1","d2","d3"], f(t,"apple rose"); assert f(t,"missing")==[]; assert g(t,"d1")==3; assert g(t,"d3")==3; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0511
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: tip-karismasi

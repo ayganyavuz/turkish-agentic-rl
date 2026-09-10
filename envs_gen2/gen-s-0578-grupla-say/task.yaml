@@ -1,0 +1,84 @@
+id: gen-s-0578-grupla-say
+split: single_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 8
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  "faturalar 2024" dizinindeki .tsv dosyalarındaki kalem adlarını birleştir; her kalemin kaç kez geçtiğini kalem adına göre artan sırada, her satırda "kalem<TAB>sayı" biçiminde olacak şekilde kalem_sayilari.txt dosyasına yaz. arsiv dizini bu işleme dahil edilmesin.
+
+setup: |
+  mkdir -p "faturalar 2024" arsiv
+  cat > "faturalar 2024/ocak.tsv" <<'TSV'
+  kalem	tutar
+  kira	1000
+  kira	1000
+  su	250
+  TSV
+  cat > "faturalar 2024/subat.tsv" <<'TSV'
+  kalem	tutar
+  kira	1000
+  elektrik	400
+  elektrik	400
+  su	250
+  TSV
+  cat > arsiv/eski.tsv <<'TSV'
+  kalem	tutar
+  kira	1000
+  kira	1000
+  TSV
+
+goal_tr: >
+  "faturalar 2024" dizinindeki .tsv dosyalarindaki kalem adlarini
+  birlestirip her kalemin kac kez gectigini, kalem adina gore artan sirada
+  "kalem<TAB>sayi" biciminde satir listesi olarak kalem_sayilari.txt
+  dosyasina yaz; arsiv dizini dahil edilmesin.
+
+reference_solution: |
+  python3 - <<'PY'
+  import os
+  from collections import Counter
+  c = Counter()
+  for ad in sorted(os.listdir("faturalar 2024")):
+      if ad.endswith(".tsv"):
+          with open(os.path.join("faturalar 2024", ad)) as f:
+              satirlar = f.read().splitlines()
+          for s in satirlar[1:]:
+              if s.strip():
+                  c[s.split("\t")[0]] += 1
+  with open("kalem_sayilari.txt", "w") as f:
+      for kalem in sorted(c):
+          f.write(kalem + "\t" + str(c[kalem]) + "\n")
+  PY
+
+outputs:
+  - {path: kalem_sayilari.txt, kind: lines}
+
+checks:
+  - {op: file_lines_eq, path: kalem_sayilari.txt, value: ["elektrik\t2", "kira\t3", "su\t2"]}
+
+metadata:
+  domain: grupla-say
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0578
+    bundle: python-veri
+    tools:
+    - python3
+    konu: muhasebe-kalemleri
+    hedef: grupla-say
+    girdi: tsv
+    kaynak: dizin-agaci
+    cikti: satir-listesi
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: bosluklu-ad
+    bukulme: olcek
+    adim: 1
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

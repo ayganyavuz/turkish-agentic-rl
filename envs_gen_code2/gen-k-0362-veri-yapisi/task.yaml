@@ -1,0 +1,129 @@
+id: gen-k-0362-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün atölyede sensör verilerini işleyen bir hat üzerinde çalışıyorduk; aynı sensörün ham değerleri tekrar tekrar geldikçe her seferinde baştan normalize etmek can sıkıcı bir israfa dönüşmüştü. Bu yüzden araya küçük bir önbellek koymaya karar verdik, ama önce altyapısını düzgünce oturtmamız gerekiyor.
+
+  sensors/cache.py dosyasındaki LRUCache sınıfını tam bir gerçekleştirmeyle doldurur musun? Sınıf, en son kullanılan öğeyi öne alacak şekilde çalışsın; kapasite aşıldığında ise en eski erişilen öğeyi atsın. Böylece SensorPipeline aynı sensör için tekrar tekrar hesaplama yapmak zorunda kalmaz.
+
+setup: |
+  mkdir -p sensors
+  cat > sensors/__init__.py <<'INIT'
+  INIT
+  cat > sensors/readings.py <<'READINGS'
+  def normalize(reading):
+      return round(reading, 2)
+  READINGS
+  cat > sensors/cache.py <<'CACHE'
+  class LRUCache:
+      def __init__(self, capacity):
+          raise NotImplementedError
+
+      def get(self, key):
+          raise NotImplementedError
+
+      def put(self, key, value):
+          raise NotImplementedError
+
+      def keys(self):
+          raise NotImplementedError
+  CACHE
+  cat > sensors/pipeline.py <<'PIPE'
+  from sensors.cache import LRUCache
+  from sensors.readings import normalize
+
+
+  class SensorPipeline:
+      def __init__(self, capacity):
+          self.cache = LRUCache(capacity)
+          self.calls = 0
+
+      def reading(self, sensor_id, raw):
+          cached = self.cache.get(sensor_id)
+          if cached is not None:
+              return cached
+          self.calls += 1
+          value = normalize(raw)
+          self.cache.put(sensor_id, value)
+          return value
+
+      def cached_ids(self):
+          return self.cache.keys()
+  PIPE
+
+goal_tr: >
+  sensors/cache.py icindeki LRUCache sinifini, en son kullanilan ogeyi one
+  alan ve kapasite asildiginda en eski erisilen ogeyi atan tam bir
+  gerceklestirmeyle doldur; boylece SensorPipeline ayni sensor icin tekrar
+  hesaplama yapmasin.
+
+reference_solution: |
+  cat > sensors/cache.py <<'CACHE'
+  class LRUCache:
+      def __init__(self, capacity):
+          if capacity < 1:
+              raise ValueError("capacity must be positive")
+          self.capacity = capacity
+          self._data = {}
+          self._order = []
+
+      def _touch(self, key):
+          self._order.remove(key)
+          self._order.append(key)
+
+      def get(self, key):
+          if key not in self._data:
+              return None
+          self._touch(key)
+          return self._data[key]
+
+      def put(self, key, value):
+          if key in self._data:
+              self._data[key] = value
+              self._touch(key)
+              return
+          if len(self._data) >= self.capacity:
+              oldest = self._order.pop(0)
+              del self._data[oldest]
+          self._data[key] = value
+          self._order.append(key)
+
+      def keys(self):
+          return list(self._order)
+  CACHE
+
+outputs:
+  - {path: sensors/cache.py, kind: program, run: 'python3 -c ''from sensors.cache import LRUCache; c=LRUCache(2); c.put("a",1); c.put("b",2); assert c.get("a")==1; c.put("c",3); assert c.get("b") is None; assert c.get("a")==1; assert c.get("c")==3; assert c.keys()==["a","c"]; c.put("a",9); assert c.get("a")==9; assert c.keys()==["c","a"]; from sensors.pipeline import SensorPipeline; p=SensorPipeline(2); assert p.reading("s1",1.239)==1.24; assert p.reading("s1",5.0)==1.24; assert p.calls==1; assert p.reading("s2",2.0)==2.0; assert p.cached_ids()==["s1","s2"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensors.cache import LRUCache; c=LRUCache(2); c.put("a",1); c.put("b",2); assert c.get("a")==1; c.put("c",3); assert c.get("b") is None; assert c.get("a")==1; assert c.get("c")==3; assert c.keys()==["a","c"]; c.put("a",9); assert c.get("a")==9; assert c.keys()==["c","a"]; from sensors.pipeline import SensorPipeline; p=SensorPipeline(2); assert p.reading("s1",1.239)==1.24; assert p.reading("s1",5.0)==1.24; assert p.calls==1; assert p.reading("s2",2.0)==2.0; assert p.cached_ids()==["s1","s2"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0362
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: lru-onbellek

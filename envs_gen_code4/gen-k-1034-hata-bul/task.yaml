@@ -1,0 +1,134 @@
+id: gen-k-1034-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün filo takibiyle ilgili birkaç küçük iş üst üste geldi, sonunda asıl sorunun nerede olduğunu netleştirdim. Şirket araçlarının kayıtlarını tuttuğumuz fleet klasöründe bir toplama mantığı var ama ard arda birden fazla dosya işlendiğinde sonuçlar birbirine karışıyor gibi görünüyor.
+
+  Bu yüzden fleet/summary.py dosyasındaki FleetSummary sınıfını düzeltmeni istiyorum. Şu anki davranışında sınıf, build her çağrıldığında önceki çağrılardan kalan toplamları da hesaba katıyor; bu yüzden ikinci ve sonraki çağrılarda sonuçlar şişiyor. İstediğim şu: build her çağrıldığında sadece o çağrıda verilen dosyanın toplam km değerini ve aktif araç sayısını döndürsün, önceki çağrıların toplamları bu sonuca taşınmasın. fleet/records.py ve fleet/store.py dosyaları olduğu gibi kalsın, onlara dokunma; sadece fleet/summary.py üzerinde çalış.
+
+setup: |
+  mkdir -p fleet
+  cat > fleet/records.py <<'RECORDS'
+  from dataclasses import dataclass
+
+
+  @dataclass
+  class Vehicle:
+      plate: str
+      km: float
+      active: bool
+  RECORDS
+  cat > fleet/store.py <<'STORE'
+  from fleet.records import Vehicle
+
+
+  def load_fleet(path):
+      vehicles = []
+      with open(path) as fh:
+          for line in fh:
+              line = line.strip()
+              if not line:
+                  continue
+              plate, km, active = line.split(',')
+              vehicles.append(Vehicle(plate, float(km), active == "1"))
+      return vehicles
+  STORE
+  cat > fleet/summary.py <<'SUMMARY'
+  from fleet.store import load_fleet
+
+
+  class FleetSummary:
+      def __init__(self):
+          self.total_km = 0.0
+          self.active_count = 0
+
+      def add(self, vehicle):
+          self.total_km += vehicle.km
+          if vehicle.active:
+              self.active_count += 1
+
+      def build(self, path):
+          for vehicle in load_fleet(path):
+              self.add(vehicle)
+          return self.total_km, self.active_count
+  SUMMARY
+  cat > fleet.txt <<'DATA'
+  AB12,120.5,1
+  CD34,80.0,0
+  EF56,200.25,1
+  DATA
+
+goal_tr: >
+  fleet/summary.py icindeki FleetSummary sinifini, build her cagrildiginda
+  onceki cagrilarin toplamlarini tasimadan yalnizca o cagridaki dosyanin
+  toplam km ve aktif arac sayisini dondurecek bicimde duzelt
+
+reference_solution: |
+  cat > fleet/summary.py <<'SUMMARY'
+  from fleet.store import load_fleet
+
+
+  class FleetSummary:
+      def __init__(self):
+          self.total_km = 0.0
+          self.active_count = 0
+
+      def add(self, vehicle):
+          self.total_km += vehicle.km
+          if vehicle.active:
+              self.active_count += 1
+
+      def reset(self):
+          self.total_km = 0.0
+          self.active_count = 0
+
+      def build(self, path):
+          self.reset()
+          for vehicle in load_fleet(path):
+              self.add(vehicle)
+          return self.total_km, self.active_count
+  SUMMARY
+
+outputs:
+  - {path: fleet/summary.py, kind: program, run: 'python3 -c ''from fleet.summary import FleetSummary as S; s=S(); assert s.build("fleet.txt")==(400.75,2), s.build("fleet.txt"); assert s.build("fleet.txt")==(400.75,2), s.build("fleet.txt"); assert s.build("fleet.txt")==(400.75,2); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from fleet.summary import FleetSummary as S; s=S(); assert s.build("fleet.txt")==(400.75,2), s.build("fleet.txt"); assert s.build("fleet.txt")==(400.75,2), s.build("fleet.txt"); assert s.build("fleet.txt")==(400.75,2); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1034
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: arac-filosu
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-durum-sifirlama
+      karmasiklik: duz
+      kalip: dataclass-dogrulama
+      akis: dosya-okuma
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

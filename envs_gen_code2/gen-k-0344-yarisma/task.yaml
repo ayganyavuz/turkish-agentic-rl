@@ -1,0 +1,95 @@
+id: gen-k-0344-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  readings.txt dosyasındaki her satırda verilen sensör serisinin en uzun artan alt dizisinin uzunluğunu hesaplayan longest_increasing.py dosyasını oluştur. Program her satır için hesapladığı uzunluğu büyükten küçüğe sıralı olarak tek satırda yazsın; her satırda yalnızca sayı bulunsun.
+
+setup: |
+  cat > readings.txt <<'DATA'
+  1 3 2 4 5 2 1
+  3 1 4 1 5 9 2
+  2 6 5 3 5 8 9
+  7 9 3 2 3 8 4
+  DATA
+
+goal_tr: >
+  readings.txt dosyasindaki her satirda verilen sensor serisinin en uzun
+  artan alt dizisinin uzunlugunu hesaplayip, her satir icin bu uzunlugu
+  buyukten kucuge sirali olarak tek satirda yazan longest_increasing.py
+  dosyasini olustur.
+
+reference_solution: |
+  cat > longest_increasing.py <<'PY'
+  import sys
+
+
+  def lis_length(values):
+      tails = []
+      for value in values:
+          lo, hi = 0, len(tails)
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if tails[mid] < value:
+                  lo = mid + 1
+              else:
+                  hi = mid
+          if lo == len(tails):
+              tails.append(value)
+          else:
+              tails[lo] = value
+      return len(tails)
+
+
+  def main():
+      path = sys.argv[1] if len(sys.argv) > 1 else "readings.txt"
+      results = []
+      with open(path) as handle:
+          for line in handle:
+              parts = line.split()
+              if not parts:
+                  continue
+              results.append(lis_length([int(p) for p in parts]))
+      results.sort(reverse=True)
+      for value in results:
+          print(value)
+
+
+  if __name__ == "__main__":
+      main()
+  PY
+
+outputs:
+  - {path: longest_increasing.py, kind: program, run: 'python3 -c ''import subprocess, tempfile, os; d=tempfile.mkdtemp(); p=os.path.join(d,"a.txt"); open(p,"w").write("1 3 2 4 5 2 1\n3 1 4 1 5 9 2\n2 6 5 3 5 8 9\n7 9 3 2 3 8 4\n"); r=subprocess.run(["python3","longest_increasing.py",p],capture_output=True,text=True); assert r.returncode==0, r.stderr; assert r.stdout.strip().split("\n")==["5","4","4","3"], repr(r.stdout); q=os.path.join(d,"b.txt"); open(q,"w").write("5 4 3 2 1\n1 2 3\n10\n9 1 8 2 7 3\n"); r2=subprocess.run(["python3","longest_increasing.py",q],capture_output=True,text=True); assert r2.returncode==0, r2.stderr; assert r2.stdout.strip().split("\n")==["3","3","1","1"], repr(r2.stdout); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import subprocess, tempfile, os; d=tempfile.mkdtemp(); p=os.path.join(d,"a.txt"); open(p,"w").write("1 3 2 4 5 2 1\n3 1 4 1 5 9 2\n2 6 5 3 5 8 9\n7 9 3 2 3 8 4\n"); r=subprocess.run(["python3","longest_increasing.py",p],capture_output=True,text=True); assert r.returncode==0, r.stderr; assert r.stdout.strip().split("\n")==["5","4","4","3"], repr(r.stdout); q=os.path.join(d,"b.txt"); open(q,"w").write("5 4 3 2 1\n1 2 3\n10\n9 1 8 2 7 3\n"); r2=subprocess.run(["python3","longest_increasing.py",q],capture_output=True,text=True); assert r2.returncode==0, r2.stderr; assert r2.stdout.strip().split("\n")==["3","3","1","1"], repr(r2.stdout); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0344
+    bundle: yarisma
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: yarisma
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: dinamik-programlama

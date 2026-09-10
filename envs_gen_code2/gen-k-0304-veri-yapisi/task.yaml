@@ -1,0 +1,152 @@
+id: gen-k-0304-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) sensor/series.py dosyasındaki SensorSeries sınıfını, değerleri bağlı liste olarak tutacak şekilde yaz; sınıfın append, to_list, max_reading ve count_above metodları doğru çalışsın.
+
+  2) append metodu, verilen değeri bağlı listeye bir düğüm olarak eklesin.
+
+  3) to_list metodu, bağlı listedeki tüm değerleri sırayla bir liste olarak döndürsün.
+
+  4) max_reading metodu, bağlı listedeki en büyük değeri döndürsün.
+
+  5) count_above metodu, bağlı listede verilen eşikten büyük olan değerlerin sayısını döndürsün.
+
+  6) sensor/summary.py dosyasındaki summarize fonksiyonu, SensorSeries sınıfını kullanarak readings, count, max ve above anahtarlarını içeren bir sözlük döndürsün.
+
+setup: |
+  mkdir -p sensor
+  cat > sensor/node.py <<'NODE'
+  class ReadingNode:
+      def __init__(self, value, nxt=None):
+          self.value = value
+          self.next = nxt
+  NODE
+  cat > sensor/series.py <<'SERIES'
+  from sensor.node import ReadingNode
+
+
+  class SensorSeries:
+      def __init__(self):
+          raise NotImplementedError
+
+      def append(self, value):
+          raise NotImplementedError
+
+      def to_list(self):
+          raise NotImplementedError
+
+      def max_reading(self):
+          raise NotImplementedError
+
+      def count_above(self, threshold):
+          raise NotImplementedError
+  SERIES
+  cat > sensor/summary.py <<'SUMMARY'
+  from sensor.series import SensorSeries
+
+
+  def summarize(values, threshold):
+      series = SensorSeries()
+      for v in values:
+          series.append(v)
+      return {
+          "readings": series.to_list(),
+          "count": len(series.to_list()),
+          "max": series.max_reading(),
+          "above": series.count_above(threshold),
+      }
+  SUMMARY
+
+goal_tr: >
+  sensor/series.py icindeki SensorSeries sinifini, degerleri bagli liste
+  olarak tutacak ve append, to_list, max_reading, count_above metodlarini
+  dogru gerceklestirecek bicimde yaz; sensor/summary.py icindeki summarize
+  fonksiyonu bu sinifi kullanarak readings, count, max ve above
+  anahtarlarini dondursun.
+
+reference_solution: |
+  cat > sensor/series.py <<'SERIES'
+  from sensor.node import ReadingNode
+
+
+  class SensorSeries:
+      def __init__(self):
+          self.head = None
+          self.tail = None
+          self.size = 0
+
+      def append(self, value):
+          node = ReadingNode(value)
+          if self.head is None:
+              self.head = node
+              self.tail = node
+          else:
+              self.tail.next = node
+              self.tail = node
+          self.size += 1
+
+      def to_list(self):
+          out = []
+          cur = self.head
+          while cur is not None:
+              out.append(cur.value)
+              cur = cur.next
+          return out
+
+      def max_reading(self):
+          if self.head is None:
+              return None
+          best = self.head.value
+          cur = self.head.next
+          while cur is not None:
+              if cur.value > best:
+                  best = cur.value
+              cur = cur.next
+          return best
+
+      def count_above(self, threshold):
+          total = 0
+          cur = self.head
+          while cur is not None:
+              if cur.value > threshold:
+                  total += 1
+              cur = cur.next
+          return total
+  SERIES
+
+outputs:
+  - {path: sensor/series.py, kind: program, run: 'python3 -c ''from sensor.summary import summarize; r=summarize([3,7,1,9,4],5); assert r["readings"]==[3,7,1,9,4], r; assert r["count"]==5, r; assert r["max"]==9, r; assert r["above"]==2, r; r2=summarize([],5); assert r2["readings"]==[] and r2["count"]==0 and r2["max"] is None and r2["above"]==0, r2; r3=summarize([5,5,5],5); assert r3["above"]==0 and r3["max"]==5, r3; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor.summary import summarize; r=summarize([3,7,1,9,4],5); assert r["readings"]==[3,7,1,9,4], r; assert r["count"]==5, r; assert r["max"]==9, r; assert r["above"]==2, r; r2=summarize([],5); assert r2["readings"]==[] and r2["count"]==0 and r2["max"] is None and r2["above"]==0, r2; r3=summarize([5,5,5],5); assert r3["above"]==0 and r3["max"]==5, r3; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0304
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: bagli-liste

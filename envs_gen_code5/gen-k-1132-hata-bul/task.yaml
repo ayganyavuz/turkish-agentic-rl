@@ -1,0 +1,116 @@
+id: gen-k-1132-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  pkg/history.py içindeki VersionHistory.latest metodunu, sürüm listesindeki en yeni (en büyük) sürümü döndürecek biçimde düzelt. Böylece pkg/report.py içindeki newest_version doğru sonucu versin.
+
+setup: |
+  mkdir -p pkg
+  cat > pkg/__init__.py <<'INIT'
+  INIT
+  cat > pkg/parse.py <<'PARSE'
+  def parse_versions(text):
+      out = []
+      for line in text.strip().splitlines():
+          line = line.strip()
+          if not line:
+              continue
+          out.append(line)
+      return out
+  PARSE
+  cat > pkg/history.py <<'HIST'
+  from pkg.parse import parse_versions
+
+
+  class VersionHistory:
+      def __init__(self, text):
+          self.versions = parse_versions(text)
+
+      def latest(self):
+          return self.versions[0]
+
+      def count(self):
+          return len(self.versions)
+  HIST
+  cat > pkg/report.py <<'REPORT'
+  from pkg.history import VersionHistory
+
+
+  def newest_version(text):
+      h = VersionHistory(text)
+      return h.latest()
+  REPORT
+  cat > versions.txt <<'TXT'
+  1.0.0
+  1.2.0
+  2.0.0
+  TXT
+
+goal_tr: >
+  pkg/history.py icindeki VersionHistory.latest metodunu, surum listesindeki
+  en yeni (en buyuk) surumu dondurecek bicimde duzelt; boylece pkg/report.py
+  icindeki newest_version dogru sonucu versin.
+
+reference_solution: |
+  cat > pkg/history.py <<'HIST'
+  from pkg.parse import parse_versions
+
+
+  def _key(v):
+      return tuple(int(p) for p in v.split("."))
+
+
+  class VersionHistory:
+      def __init__(self, text):
+          self.versions = parse_versions(text)
+
+      def latest(self):
+          return max(self.versions, key=_key)
+
+      def count(self):
+          return len(self.versions)
+  HIST
+
+outputs:
+  - {path: pkg/history.py, kind: program, run: 'python3 -c ''from pkg.report import newest_version as f; t=open("versions.txt").read(); assert f(t)=="2.0.0", f(t); assert f("1.0.0\n1.10.0\n1.9.0\n")=="1.10.0"; assert f("0.9.0\n0.10.0\n")=="0.10.0"; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from pkg.report import newest_version as f; t=open("versions.txt").read(); assert f(t)=="2.0.0", f(t); assert f("1.0.0\n1.10.0\n1.9.0\n")=="1.10.0"; assert f("0.9.0\n0.10.0\n")=="0.10.0"; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1132
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: yazilim-surumleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum
+      karmasiklik: duz
+      kalip: durumlu-sinif
+      akis: bellek-ici
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

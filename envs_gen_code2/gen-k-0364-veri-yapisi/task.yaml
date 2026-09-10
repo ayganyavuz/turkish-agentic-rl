@@ -1,0 +1,128 @@
+id: gen-k-0364-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  price_trie.py dosyasındaki PriceTrie sınıfını gerçekleştir. insert metodu bir ürün adını verdiği fiyatla kaydetsin; aynı ad tekrar eklenirse fiyatı güncellensin. price metodu tam eşleşen adın fiyatını döndürsün, böyle bir ad kayıtlı değilse None döndürsün. names_with_prefix metodu verilen önekle başlayan tüm adları alfabetik sıralı bir liste olarak döndürsün. prefix_total metodu bu adların fiyat toplamını döndürsün. Boş önek tüm kayıtlı adları kapsasın. Kayıtlı olmayan bir ad veya hiçbir adla eşleşmeyen bir önek için hata fırlatılmasın.
+
+  Şu şartlar sağlanmalı:
+  - price_trie.py dosyası PriceTrie sınıfını içermeli ve sınıfın insert, price, names_with_prefix, prefix_total metotları çalışır durumda olmalı.
+  - insert aynı adla tekrar çağrıldığında önceki fiyat yeni fiyatla güncellenmeli, ad ikinci kez listede görünmemeli.
+  - price tam eşleşen adın fiyatını döndürmeli; ad kayıtlı değilse None döndürmeli.
+  - names_with_prefix verilen önekle başlayan adları alfabetik sıralı liste olarak döndürmeli.
+  - prefix_total verilen önekle başlayan adların fiyat toplamını döndürmeli.
+  - Boş önek tüm kayıtlı adları kapsamalı.
+  - Kayıtlı olmayan ad veya eşleşmeyen önek için hata fırlatılmamalı.
+
+setup: |
+  cat > price_trie.py <<'PY'
+  class PriceTrie:
+      """Prefix tree mapping product names to their unit prices (in cents)."""
+
+      def __init__(self):
+          raise NotImplementedError
+
+      def insert(self, name, cents):
+          raise NotImplementedError
+
+      def price(self, name):
+          raise NotImplementedError
+
+      def names_with_prefix(self, prefix):
+          raise NotImplementedError
+
+      def prefix_total(self, prefix):
+          raise NotImplementedError
+  PY
+
+goal_tr: >
+  price_trie.py icindeki PriceTrie sinifini gerceklestir: insert urun adini
+  fiyatla kaydetsin (ayni ad tekrar eklenirse fiyati guncellesin), price tam
+  eslesen adin fiyatini dondursun (yoksa None), names_with_prefix verilen
+  onekle baslayan adlari alfabetik sirali liste olarak dondursun,
+  prefix_total bu adlarin fiyat toplamini dondursun; bos onek tum adlari
+  kapsar ve kayitli olmayan ad icin hata firlatilmasin.
+
+reference_solution: |
+  cat > price_trie.py <<'PY'
+  class PriceTrie:
+      """Prefix tree mapping product names to their unit prices (in cents)."""
+
+      def __init__(self):
+          self.root = {}
+
+      def insert(self, name, cents):
+          node = self.root
+          for ch in name:
+              node = node.setdefault(ch, {})
+          node["$"] = cents
+
+      def _walk(self, prefix):
+          node = self.root
+          for ch in prefix:
+              if ch not in node:
+                  return None
+              node = node[ch]
+          return node
+
+      def price(self, name):
+          node = self._walk(name)
+          if node is None:
+              return None
+          return node.get("$")
+
+      def _collect(self, node, prefix, out):
+          if "$" in node:
+              out.append(prefix)
+          for ch in sorted(k for k in node if k != "$"):
+              self._collect(node[ch], prefix + ch, out)
+
+      def names_with_prefix(self, prefix):
+          node = self._walk(prefix)
+          if node is None:
+              return []
+          out = []
+          self._collect(node, prefix, out)
+          return out
+
+      def prefix_total(self, prefix):
+          total = 0
+          for n in self.names_with_prefix(prefix):
+              total += self.price(n)
+          return total
+  PY
+
+outputs:
+  - {path: price_trie.py, kind: program, run: 'python3 -c ''import price_trie as m; t=m.PriceTrie(); t.insert("aa",10); t.insert("ab",20); t.insert("abc",30); t.insert("b",40); assert t.price("aa")==10; assert t.price("ab")==20; assert t.price("abc")==30; assert t.price("b")==40; assert t.price("zz")==None; assert t.names_with_prefix("a")==["aa","ab","abc"]; assert t.names_with_prefix("ab")==["ab","abc"]; assert t.names_with_prefix("")==["aa","ab","abc","b"]; assert t.names_with_prefix("q")==[]; assert t.prefix_total("a")==60; assert t.prefix_total("ab")==50; assert t.prefix_total("")==100; t.insert("ab",99); assert t.price("ab")==99; assert t.prefix_total("a")==139; print("OK")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import price_trie as m; t=m.PriceTrie(); t.insert("aa",10); t.insert("ab",20); t.insert("abc",30); t.insert("b",40); assert t.price("aa")==10; assert t.price("ab")==20; assert t.price("abc")==30; assert t.price("b")==40; assert t.price("zz")==None; assert t.names_with_prefix("a")==["aa","ab","abc"]; assert t.names_with_prefix("ab")==["ab","abc"]; assert t.names_with_prefix("")==["aa","ab","abc","b"]; assert t.names_with_prefix("q")==[]; assert t.prefix_total("a")==60; assert t.prefix_total("ab")==50; assert t.prefix_total("")==100; t.insert("ab",99); assert t.price("ab")==99; assert t.prefix_total("a")==139; print("OK")''', value: OK}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0364
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: trie

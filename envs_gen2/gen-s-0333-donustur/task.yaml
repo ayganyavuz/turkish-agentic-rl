@@ -1,0 +1,79 @@
+id: gen-s-0333-donustur
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  girdi/siparisler.csv dosyasındaki her masa için ayrı bir alt dizin oluşturup o masaya ait URUN,ADET,FIYAT alanlarını virgülle ayrılmış şekilde cikti/masa_<masa>/siparisler.txt dosyasına yaz.
+
+  Şu şartlar sağlanmalı:
+  - girdi/siparisler.csv dosyası okunmalı ve MASA alanına göre gruplama yapılmalı.
+  - cikti dizini ve her masa için cikti/masa_1, cikti/masa_2, cikti/masa_3, cikti/masa_4 alt dizinleri oluşturulmalı.
+  - Her masa için cikti/masa_<masa>/siparisler.txt dosyası oluşturulmalı; yani cikti/masa_1/siparisler.txt, cikti/masa_2/siparisler.txt, cikti/masa_3/siparisler.txt ve cikti/masa_4/siparisler.txt.
+  - Her siparişler.txt dosyasında o masaya ait satırların URUN,ADET,FIYAT alanları virgülle ayrılmış olarak yazılmalı.
+  - Başlık satırı (MASA|URUN|ADET|FIYAT) çıktı dosyalarına yazılmamalı, yalnızca veri satırları işlenmeli.
+
+setup: |
+  mkdir -p girdi
+  cat > girdi/siparisler.csv <<'CSV'
+  MASA|URUN|ADET|FIYAT
+  1|corba|2|45
+  2|salata|1|60
+  1|kebap|3|120
+  3|ayran|4|15
+  2|kebap|1|120
+  4|corba|1|45
+  CSV
+
+goal_tr: >
+  girdi/siparisler.csv dosyasindaki her masa icin ayri bir alt dizin
+  olusturup o masaya ait URUN,ADET,FIYAT alanlarini virgulle ayrilmis
+  sekilde cikti/masa_<masa>/siparisler.txt dosyasina yaz.
+
+reference_solution: |
+  tail -n +2 girdi/siparisler.csv | cut -d'|' -f1 | sort -u | while read m; do mkdir -p "cikti/masa_$m"; done
+  tail -n +2 girdi/siparisler.csv | cut -d'|' -f1 | sort -u > /tmp/masalar.txt
+  tail -n +2 girdi/siparisler.csv | cut -d'|' -f2-4 | tr '|' ',' > /tmp/satirlar.txt
+  paste -d'|' <(tail -n +2 girdi/siparisler.csv | cut -d'|' -f1) /tmp/satirlar.txt | while IFS='|' read m rest; do printf '%s\n' "$rest" >> "cikti/masa_$m/siparisler.txt"; done
+
+outputs:
+  - {path: cikti, kind: dir}
+  - {path: cikti/masa_1/siparisler.txt, kind: file}
+  - {path: cikti/masa_2/siparisler.txt, kind: file}
+  - {path: cikti/masa_3/siparisler.txt, kind: file}
+  - {path: cikti/masa_4/siparisler.txt, kind: file}
+
+checks:
+  - {op: dir_entries_eq, path: cikti, value: [masa_1, masa_2, masa_3, masa_4]}
+  - {op: file_lines_eq, path: cikti/masa_1/siparisler.txt, value: ['corba,2,45', 'kebap,3,120']}
+  - {op: file_lines_eq, path: cikti/masa_2/siparisler.txt, value: ['salata,1,60', 'kebap,1,120']}
+  - {op: file_content_eq, path: cikti/masa_3/siparisler.txt, value: 'ayran,4,15'}
+  - {op: file_content_eq, path: cikti/masa_4/siparisler.txt, value: 'corba,1,45'}
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0333
+    bundle: sutun
+    tools:
+    - cut
+    - paste
+    konu: restoran-siparisleri
+    hedef: donustur
+    girdi: log-satiri
+    kaynak: tek-dosya
+    cikti: dizin-yapisi
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

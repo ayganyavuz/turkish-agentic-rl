@@ -1,0 +1,85 @@
+id: gen-s-0582-bol
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  kutuphane.tar.gz arşivini aç ve içindeki kitaplar.csv dosyasındaki her satırı, bolum sütununun değerine göre ayır. Sonuç olarak çalışma dizininde cikti/bolum_A/bolum.csv, cikti/bolum_B/bolum.csv ve cikti/bolum_C/bolum.csv dosyaları oluşsun. Her bolum.csv dosyasında kitaplar.csv dosyasındaki başlık satırı korunsun ve yalnızca ilgili bölüme ait satırlar yer alsın. Arşiv açılırken oluşan geçici dosyalar dışında başka bir çıktı kalmasın.
+
+  Şu şartlar sağlanmalı:
+  - kutuphane.tar.gz arşivi açılmış olmalı.
+  - cikti/bolum_A/bolum.csv, cikti/bolum_B/bolum.csv ve cikti/bolum_C/bolum.csv dosyaları var olmalı.
+  - Her bolum.csv dosyasının ilk satırı kitaplar.csv dosyasındaki başlık satırıyla aynı olmalı.
+  - bolum_A/bolum.csv yalnızca bolum değeri A olan satırları, bolum_B/bolum.csv yalnızca B olan satırları, bolum_C/bolum.csv yalnızca C olan satırları içermeli.
+  - Arşiv açılırken oluşan geçici dosyalar dışında çalışma dizininde başka çıktı kalmamalı.
+
+setup: |
+  mkdir -p girdi
+  cat > girdi/kitaplar.csv <<'CSV'
+  id,ad,yazar,yil,bolum
+  1,Kirmizi Kitap,Ahmet Yilmaz,1998,A
+  2,Mavi Deniz,Ayse Kaya,2001,B
+  3,Yesil Vadi,Mehmet Demir,1995,A
+  4,Sari Gunes,Zeynep Arslan,2010,C
+  5,Beyaz Gece,Can Ozturk,1987,B
+  6,Siyah Kus,Elif Sahin,2003,A
+  CSV
+  tar -czf kutuphane.tar.gz -C girdi kitaplar.csv
+  rm -rf girdi
+
+goal_tr: >
+  kutuphane.tar.gz arsivindeki kitaplar.csv dosyasindaki her satiri bolum
+  sutununun degerine gore bolum_A, bolum_B, bolum_C dizinlerine ayir; her
+  dizinde baslik satiri korunmus bolum.csv dosyasi olsun ve arsiv acilirken
+  olusan gecici dosyalar disinda baska cikti kalmasin
+
+reference_solution: |
+  mkdir -p cikti
+  gzip -dc kutuphane.tar.gz | tar -x -C cikti
+  head -n 1 cikti/kitaplar.csv > cikti/baslik.csv
+  for b in A B C; do
+    mkdir -p "cikti/bolum_$b"
+    cat cikti/baslik.csv > "cikti/bolum_$b/bolum.csv"
+    awk -F, -v b="$b" 'NR>1 && $5==b' cikti/kitaplar.csv >> "cikti/bolum_$b/bolum.csv"
+  done
+  rm -f cikti/kitaplar.csv cikti/baslik.csv
+
+outputs:
+  - {path: cikti, kind: dir}
+  - {path: cikti/bolum_A/bolum.csv, kind: file}
+  - {path: cikti/bolum_B/bolum.csv, kind: file}
+  - {path: cikti/bolum_C/bolum.csv, kind: file}
+
+checks:
+  - {op: dir_entries_eq, path: cikti, value: [bolum_A, bolum_B, bolum_C]}
+  - {op: file_lines_eq, path: cikti/bolum_A/bolum.csv, value: ['id,ad,yazar,yil,bolum', '1,Kirmizi Kitap,Ahmet Yilmaz,1998,A', '3,Yesil Vadi,Mehmet Demir,1995,A', '6,Siyah Kus,Elif Sahin,2003,A']}
+  - {op: file_lines_eq, path: cikti/bolum_B/bolum.csv, value: ['id,ad,yazar,yil,bolum', '2,Mavi Deniz,Ayse Kaya,2001,B', '5,Beyaz Gece,Can Ozturk,1987,B']}
+  - {op: file_lines_eq, path: cikti/bolum_C/bolum.csv, value: ['id,ad,yazar,yil,bolum', '4,Sari Gunes,Zeynep Arslan,2010,C']}
+
+metadata:
+  domain: bol
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0582
+    bundle: arsiv
+    tools:
+    - tar
+    - gzip
+    konu: kutuphane-kayitlari
+    hedef: bol
+    girdi: csv
+    kaynak: tarball
+    cikti: dizin-yapisi
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: yok
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

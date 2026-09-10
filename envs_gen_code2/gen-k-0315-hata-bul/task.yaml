@@ -1,0 +1,104 @@
+id: gen-k-0315-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  school/transcript.py içindeki honor_list fonksiyonunu, ortalaması sınır değerine eşit olan öğrencileri de listeye alacak şekilde düzelt.
+
+setup: |
+  mkdir -p school
+  cat > school/courses.py <<'COURSES'
+  def credit_of(course):
+      table = {"MATH101": 4, "PHY101": 3, "CS101": 5}
+      return table[course]
+  COURSES
+  cat > school/transcript.py <<'TRANSCRIPT'
+  from school.courses import credit_of
+
+
+  def weighted_gpa(rows):
+      total_points = 0.0
+      total_credits = 0
+      for course, grade, count in rows:
+          c = credit_of(course) * count
+          total_points += c * grade
+          total_credits += c
+      return round(total_points / total_credits, 2)
+
+
+  def honor_list(rows, limit):
+      names = []
+      for name, grades in rows:
+          gpa = weighted_gpa(grades)
+          if gpa > limit:
+              names.append(name)
+      return names
+  TRANSCRIPT
+  cat > roster.txt <<'ROSTER'
+  ada MATH101 3.5 1
+  ada CS101 4.0 1
+  bora PHY101 2.0 1
+  COSTA
+
+goal_tr: >
+  school/transcript.py icindeki honor_list fonksiyonunu, ortalamasi sinir
+  degerine esit olan ogrencileri de onur listesine katacak bicimde duzelt.
+
+reference_solution: |
+  cat > school/transcript.py <<'TRANSCRIPT'
+  from school.courses import credit_of
+
+
+  def weighted_gpa(rows):
+      total_points = 0.0
+      total_credits = 0
+      for course, grade, count in rows:
+          c = credit_of(course) * count
+          total_points += c * grade
+          total_credits += c
+      return round(total_points / total_credits, 2)
+
+
+  def honor_list(rows, limit):
+      names = []
+      for name, grades in rows:
+          gpa = weighted_gpa(grades)
+          if gpa >= limit:
+              names.append(name)
+      return names
+  TRANSCRIPT
+
+outputs:
+  - {path: school/transcript.py, kind: program, run: 'python3 -c ''from school.transcript import weighted_gpa as g, honor_list as h; rows=[("ada",[("MATH101",3.5,1),("CS101",4.0,1)]),("bora",[("PHY101",2.0,1)])]; assert g(rows[0][1])==3.78, g(rows[0][1]); assert g(rows[1][1])==2.0; assert h(rows,3.78)==["ada"], h(rows,3.78); assert h(rows,2.0)==["ada","bora"]; assert h(rows,4.0)==[]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from school.transcript import weighted_gpa as g, honor_list as h; rows=[("ada",[("MATH101",3.5,1),("CS101",4.0,1)]),("bora",[("PHY101",2.0,1)])]; assert g(rows[0][1])==3.78, g(rows[0][1]); assert g(rows[1][1])==2.0; assert h(rows,3.78)==["ada"], h(rows,3.78); assert h(rows,2.0)==["ada","bora"]; assert h(rows,4.0)==[]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0315
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: off-by-one

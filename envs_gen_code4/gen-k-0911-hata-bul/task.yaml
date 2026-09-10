@@ -1,0 +1,102 @@
+id: gen-k-0911-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  pricing/cart.py dosyasındaki cart_total fonksiyonunu, sepetteki her ürünün tutarını toplayıp toplam sepet tutarını doğru döndürecek biçimde düzelt.
+
+  Şu şartlar sağlanmalı:
+  - pricing/cart.py dosyası düzeltilmiş cart_total fonksiyonunu içermeli.
+  - Fonksiyon, sepetteki her ürünün birim fiyatı ile adedini çarpıp bu tutarları toplayarak toplam sepet tutarını hesaplamalı.
+  - Dönen değer, sepetteki tüm ürünlerin tutarlarının toplamı olmalı; yalnızca son ürünün tutarı değil.
+  - Dönen değer iki ondalık basamağa yuvarlanmış olmalı.
+  - pricing/catalog.py dosyasındaki unit_prices fonksiyonu ve catalog.csv içeriği değiştirilmemeli.
+  - Fonksiyon, pricing/catalog.py içindeki unit_prices fonksiyonunu kullanmaya devam etmeli.
+
+setup: |
+  mkdir -p pricing
+  cat > pricing/catalog.py <<'CATALOG'
+  def unit_prices(text):
+      prices = {}
+      for line in text.strip().splitlines():
+          sku, raw = line.split(',')
+          prices[sku.strip()] = float(raw)
+      return prices
+  CATALOG
+  cat > pricing/cart.py <<'CART'
+  from pricing.catalog import unit_prices
+
+
+  def cart_total(text, items):
+      prices = unit_prices(text)
+      total = 0.0
+      for sku, qty in items:
+          total = qty * prices[sku]
+      return round(total, 2)
+  CART
+  cat > catalog.csv <<'CSV'
+  apple,1.5
+  bread,2.0
+  cheese,4.25
+  milk,3.0
+  CSV
+
+goal_tr: >
+  pricing/cart.py icindeki cart_total fonksiyonunu, sepetteki her urunun
+  tutarini toplayip toplam sepet tutarini dogru dondurecek bicimde duzelt.
+
+reference_solution: |
+  cat > pricing/cart.py <<'CART'
+  from pricing.catalog import unit_prices
+
+
+  def cart_total(text, items):
+      prices = unit_prices(text)
+      total = 0.0
+      for sku, qty in items:
+          total += qty * prices[sku]
+      return round(total, 2)
+  CART
+
+outputs:
+  - {path: pricing/cart.py, kind: program, run: 'python3 -c ''from pricing.cart import cart_total as f; t=open("catalog.csv").read(); assert f(t,[("apple",2),("bread",1)])==5.0, f(t,[("apple",2),("bread",1)]); assert f(t,[("cheese",4),("milk",3)])==26.0, f(t,[("cheese",4),("milk",3)]); assert f(t,[("milk",1)])==3.0, f(t,[("milk",1)]); assert f(t,[("apple",1),("apple",2),("bread",3)])==10.5, f(t,[("apple",1),("apple",2),("bread",3)]); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from pricing.cart import cart_total as f; t=open("catalog.csv").read(); assert f(t,[("apple",2),("bread",1)])==5.0, f(t,[("apple",2),("bread",1)]); assert f(t,[("cheese",4),("milk",3)])==26.0, f(t,[("cheese",4),("milk",3)]); assert f(t,[("milk",1)])==3.0, f(t,[("milk",1)]); assert f(t,[("apple",1),("apple",2),("bread",3)])==10.5, f(t,[("apple",1),("apple",2),("bread",3)]); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0911
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-toplama-sirasi
+      karmasiklik: duz
+      kalip: duz-fonksiyon
+      akis: cok-dosya-birlestirme
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

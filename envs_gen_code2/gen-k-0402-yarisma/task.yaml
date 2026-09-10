@@ -1,0 +1,95 @@
+id: gen-k-0402-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  registrar/transcript.py dosyasını sıfırdan oluştur. Bu dosyanın içinde simulate_gpa(entries) adında bir fonksiyon olsun; entries parametresi (course_code, letter_grade) çiftlerinden oluşan bir liste olarak alınsın. Fonksiyon ağırlıklı not ortalamasını hesaplasın. Kayıtlı olmayan ders kodlarını ve geçersiz harf notlarını sessizce atlamalı, hiçbir geçerli kayıt yoksa 0.0 döndürmeli ve sonucu iki ondalık basamağa yuvarlamalı. Ders kredileri ve harf notu puanları registrar/records.py içindeki tanımlardan alınsın.
+
+setup: |
+  mkdir -p registrar
+  cat > registrar/records.py <<'RECORDS'
+  COURSES = {
+      "MATH101": {"credits": 4, "grades": {"A": 4.0, "B": 3.0, "C": 2.0, "F": 0.0}},
+      "PHYS201": {"credits": 3, "grades": {"A": 4.0, "B": 3.0, "C": 2.0, "F": 0.0}},
+      "CS150":   {"credits": 3, "grades": {"A": 4.0, "B": 3.0, "C": 2.0, "F": 0.0}},
+      "HIST110": {"credits": 2, "grades": {"A": 4.0, "B": 3.0, "C": 2.0, "F": 0.0}},
+  }
+
+
+  def course_credits(code):
+      return COURSES[code]["credits"]
+
+
+  def grade_points(code, letter):
+      return COURSES[code]["grades"][letter]
+  RECORDS
+  cat > enrollments.txt <<'ENR'
+  MATH101 A
+  PHYS201 B
+  CS150 A
+  HIST110 C
+  ENR
+
+goal_tr: >
+  registrar/transcript.py dosyasini sifirdan yaz; icinde
+  simulate_gpa(entries) fonksiyonu (entries: (course_code, letter_grade)
+  ciftlerinden olusan liste) agirlikli not ortalamasini hesaplasin, kayitli
+  olmayan ders kodlarini ve gecersiz harf notlarini sessizce atlatsin,
+  hicbir gecerli kayit yoksa 0.0 dondursun ve sonuc iki ondaliga
+  yuvarlansin.
+
+reference_solution: |
+  cat > registrar/transcript.py <<'TRANSCRIPT'
+  from registrar.records import COURSES, course_credits, grade_points
+
+
+  def simulate_gpa(entries):
+      total_points = 0.0
+      total_credits = 0
+      for code, letter in entries:
+          if code not in COURSES:
+              continue
+          if letter not in COURSES[code]["grades"]:
+              continue
+          c = course_credits(code)
+          total_points += grade_points(code, letter) * c
+          total_credits += c
+      if total_credits == 0:
+          return 0.0
+      return round(total_points / total_credits, 2)
+  TRANSCRIPT
+
+outputs:
+  - {path: registrar/transcript.py, kind: program, run: 'python3 -c ''from registrar.transcript import simulate_gpa as f; e=[("MATH101","A"),("PHYS201","B"),("CS150","A"),("HIST110","C")]; assert f(e)==3.42, f(e); assert f([])==0.0; assert f([("BIO999","A")])==0.0; assert f([("MATH101","X")])==0.0; assert f([("MATH101","A"),("BIO999","A"),("CS150","B")])==3.57, f([("MATH101","A"),("BIO999","A"),("CS150","B")]); assert f([("HIST110","C")])==2.0, f([("HIST110","C")]); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from registrar.transcript import simulate_gpa as f; e=[("MATH101","A"),("PHYS201","B"),("CS150","A"),("HIST110","C")]; assert f(e)==3.42, f(e); assert f([])==0.0; assert f([("BIO999","A")])==0.0; assert f([("MATH101","X")])==0.0; assert f([("MATH101","A"),("BIO999","A"),("CS150","B")])==3.57, f([("MATH101","A"),("BIO999","A"),("CS150","B")]); assert f([("HIST110","C")])==2.0, f([("HIST110","C")]); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0402
+    bundle: yarisma
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: benzetim

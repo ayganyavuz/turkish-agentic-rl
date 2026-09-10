@@ -1,0 +1,108 @@
+id: gen-k-1047-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  arena/table.py içindeki build_table fonksiyonunu, aynı oyuncunun puanlarını doğru toplayacak biçimde düzelt; böylece arena/report.py doğru lideri bildirsin.
+
+setup: |
+  mkdir -p arena
+  cat > arena/scores.py <<'SCORES'
+  def parse_lines(lines):
+      for line in lines:
+          line = line.strip()
+          if not line:
+              continue
+          player, points = line.split(":")
+          yield player.strip(), int(points)
+  SCORES
+  cat > arena/table.py <<'TABLE'
+  from arena.scores import parse_lines
+
+
+  def build_table(lines):
+      table = {}
+      for player, points in parse_lines(lines):
+          table[player] = table[player] + points
+      return table
+
+
+  def leader(lines):
+      table = build_table(lines)
+      best = max(table, key=lambda name: table[name])
+      return best, table[best]
+  TABLE
+  cat > arena/report.py <<'REPORT'
+  from arena.table import leader
+
+
+  def summarize(lines):
+      name, score = leader(lines)
+      return "TOP %s %d" % (name, score)
+  REPORT
+
+goal_tr: >
+  arena/table.py icindeki build_table fonksiyonunu, ayni oyuncunun
+  puanlarini dogru toplayacak bicimde duzelt; boylece arena/report.py dogru
+  lideri bildirir.
+
+reference_solution: |
+  cat > arena/table.py <<'TABLE'
+  from arena.scores import parse_lines
+
+
+  def build_table(lines):
+      table = {}
+      for player, points in parse_lines(lines):
+          table[player] = table.get(player, 0) + points
+      return table
+
+
+  def leader(lines):
+      table = build_table(lines)
+      best = max(table, key=lambda name: table[name])
+      return best, table[best]
+  TABLE
+
+outputs:
+  - {path: arena/table.py, kind: program, run: 'python3 -c ''from arena.report import summarize as s; assert s(["ann:5","bob:9","ann:7"]) == "TOP ann 12", s(["ann:5","bob:9","ann:7"]); assert s(["zoe:1","zoe:1","zoe:1"]) == "TOP zoe 3"; assert s(["kim:4"]) == "TOP kim 4"; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from arena.report import summarize as s; assert s(["ann:5","bob:9","ann:7"]) == "TOP ann 12", s(["ann:5","bob:9","ann:7"]); assert s(["zoe:1","zoe:1","zoe:1"]) == "TOP zoe 3"; assert s(["kim:4"]) == "TOP kim 4"; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1047
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: oyun-skor-tablosu
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sozluk-anahtar-hatasi
+      karmasiklik: duz
+      kalip: generator
+      akis: stdin-boru
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

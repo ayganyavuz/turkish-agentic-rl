@@ -1,0 +1,164 @@
+id: gen-k-1130-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) market/pricing.py dosyasındaki PriceQueue sınıfını tamamla; sınıf enqueue, dequeue, total ve __len__ metotlarına sahip olsun ve ürün-fiyat çiftleri için FIFO mantığıyla çalışsın.
+
+  2) market/pipeline.py dosyasındaki run_pipeline fonksiyonunu tamamla; verilen metindeki ürün-fiyat satırlarından bir kuyruk kurup FIFO sırayla toplam sonucu döndürsün.
+
+  3) market/pipeline.py dosyasındaki merge_pipelines fonksiyonunu tamamla; birden çok metni birleştirip her biri için run_pipeline sonucunu sırayla döndürsün.
+
+setup: |
+  mkdir -p market
+  cat > market/items.py <<'ITEMS'
+  def load_items(text):
+      rows = []
+      for line in text.strip().splitlines():
+          name, price = line.split(',')
+          rows.append((name, float(price)))
+      return rows
+  ITEMS
+  cat > market/pricing.py <<'PRICING'
+  from market.items import load_items
+
+
+  class PriceQueue:
+      def __init__(self):
+          raise NotImplementedError
+
+      def enqueue(self, name, price):
+          raise NotImplementedError
+
+      def dequeue(self):
+          raise NotImplementedError
+
+      def total(self):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+  PRICING
+  cat > market/pipeline.py <<'PIPELINE'
+  from market.pricing import PriceQueue
+
+
+  def run_pipeline(text):
+      raise NotImplementedError
+
+
+  def merge_pipelines(texts):
+      raise NotImplementedError
+  PIPELINE
+  cat > prices.txt <<'DATA'
+  elma,3.5
+  armut,2.0
+  kiraz,10.0
+  DATA
+
+goal_tr: >
+  market/pricing.py icindeki PriceQueue sinifini (enqueue, dequeue, total,
+  __len__) ve market/pipeline.py icindeki run_pipeline ile merge_pipelines
+  fonksiyonlarini, urun-fiyat satirlarindan kuyruk kurup FIFO sirayla
+  toplayacak ve birden cok metni birlestirecek bicimde tamamla.
+
+reference_solution: |
+  cat > market/pricing.py <<'PRICING'
+  from market.items import load_items
+
+
+  class PriceQueue:
+      def __init__(self):
+          self._head = None
+          self._count = 0
+          self._sum = 0.0
+
+      def enqueue(self, name, price):
+          node = {"name": name, "price": price, "next": None}
+          if self._head is None:
+              self._head = node
+          else:
+              cur = self._head
+              while cur["next"] is not None:
+                  cur = cur["next"]
+              cur["next"] = node
+          self._count += 1
+          self._sum += price
+
+      def dequeue(self):
+          if self._head is None:
+              return None
+          node = self._head
+          self._head = node["next"]
+          self._count -= 1
+          self._sum -= node["price"]
+          return (node["name"], node["price"])
+
+      def total(self):
+          return self._sum
+
+      def __len__(self):
+          return self._count
+  PRICING
+  cat > market/pipeline.py <<'PIPELINE'
+  from market.items import load_items
+  from market.pricing import PriceQueue
+
+
+  def run_pipeline(text):
+      q = PriceQueue()
+      for name, price in load_items(text):
+          q.enqueue(name, price)
+      return q
+
+
+  def merge_pipelines(texts):
+      q = PriceQueue()
+      for text in texts:
+          for name, price in load_items(text):
+              q.enqueue(name, price)
+      return q
+  PIPELINE
+
+outputs:
+  - {path: market/pricing.py, kind: program, run: 'python3 -c ''from market.pipeline import run_pipeline as rp, merge_pipelines as mp; t=open("prices.txt").read(); q=rp(t); assert len(q)==3, len(q); assert q.total()==15.5, q.total(); assert q.dequeue()==("elma",3.5); assert len(q)==2; assert q.total()==12.0; assert q.dequeue()==("armut",2.0); assert q.dequeue()==("kiraz",10.0); assert q.dequeue() is None; assert len(q)==0; assert q.total()==0.0; m=mp([t,"muz,1.5"]); assert len(m)==4; assert m.total()==17.0; assert m.dequeue()==("elma",3.5); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from market.pipeline import run_pipeline as rp, merge_pipelines as mp; t=open("prices.txt").read(); q=rp(t); assert len(q)==3, len(q); assert q.total()==15.5, q.total(); assert q.dequeue()==("elma",3.5); assert len(q)==2; assert q.total()==12.0; assert q.dequeue()==("armut",2.0); assert q.dequeue()==("kiraz",10.0); assert q.dequeue() is None; assert len(q)==0; assert q.total()==0.0; m=mp([t,"muz,1.5"]); assert len(m)==4; assert m.total()==17.0; assert m.dequeue()==("elma",3.5); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1130
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kuyruk
+      karmasiklik: duz
+      kalip: ozyineleme
+      akis: cok-dosya-birlestirme
+      topoloji: elmas
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

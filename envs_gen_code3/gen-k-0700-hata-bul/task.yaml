@@ -1,0 +1,157 @@
+id: gen-k-0700-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 18
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) depo/records.py dosyasındaki net_by_sku fonksiyonunu, bir SKU'nun birden fazla hareketi olduğunda her birinin toplama eklenmesini sağlayacak şekilde düzelt; böylece her SKU için sonuç, o SKU'nun tüm hareketlerinin toplamı olsun.
+
+  2) depo/summary.py dosyasındaki report fonksiyonunu, çıktısını her satırda bir SKU olacak şekilde "sku:deger" biçiminde üretecek şekilde düzelt; değer ilgili SKU'nun stok seviyesi olsun ve satırlar SKU'ya göre sıralı kalsın.
+
+setup: |
+  mkdir -p depo
+  cat > depo/__init__.py <<'INIT'
+
+  INIT
+  cat > depo/records.py <<'RECORDS'
+  def parse_moves(text):
+      rows = []
+      for line in text.strip().splitlines():
+          sku, delta = line.split(',')
+          rows.append((sku, int(delta)))
+      return rows
+
+
+  def net_by_sku(text):
+      totals = {}
+      for sku, delta in parse_moves(text):
+          totals[sku] = delta
+      return totals
+  RECORDS
+  cat > depo/summary.py <<'SUMMARY'
+  from depo.records import net_by_sku
+
+
+  def stock_levels(text):
+      levels = {}
+      for sku, net in net_by_sku(text).items():
+          levels[sku] = 100 + net
+      return levels
+
+
+  def report(text):
+      levels = stock_levels(text)
+      lines = []
+      for sku in sorted(levels):
+          lines.append(sku + "=" + str(levels[sku]))
+      return "\n".join(lines)
+  SUMMARY
+  cat > moves.txt <<'MOVES'
+  a,5
+  b,-3
+  a,-2
+  c,10
+  b,4
+  MOVES
+
+goal_tr: >
+  depo/records.py icindeki net_by_sku fonksiyonunu her SKU'nun tum
+  hareketlerini toplayacak sekilde duzelt ve depo/summary.py icindeki report
+  fonksiyonunun ciktisini "sku:deger" biciminde uretecek sekilde duzelt.
+
+reference_solution: |
+  cat > depo/records.py <<'RECORDS'
+  def parse_moves(text):
+      rows = []
+      for line in text.strip().splitlines():
+          sku, delta = line.split(',')
+          rows.append((sku, int(delta)))
+      return rows
+
+
+  def net_by_sku(text):
+      totals = {}
+      for sku, delta in parse_moves(text):
+          if sku not in totals:
+              totals[sku] = 0
+          totals[sku] += delta
+      return totals
+  RECORDS
+  cat > depo/summary.py <<'SUMMARY'
+  from depo.records import net_by_sku
+
+
+  def stock_levels(text):
+      levels = {}
+      for sku, net in net_by_sku(text).items():
+          levels[sku] = 100 + net
+      return levels
+
+
+  def report(text):
+      levels = stock_levels(text)
+      lines = []
+      for sku in sorted(levels):
+          lines.append(sku + ":" + str(levels[sku]))
+      return "\n".join(lines)
+  SUMMARY
+
+ara_adim: |
+  cat > depo/records.py <<'RECORDS'
+  def parse_moves(text):
+      rows = []
+      for line in text.strip().splitlines():
+          sku, delta = line.split(',')
+          rows.append((sku, int(delta)))
+      return rows
+
+
+  def net_by_sku(text):
+      totals = {}
+      for sku, delta in parse_moves(text):
+          if sku not in totals:
+              totals[sku] = 0
+          totals[sku] += delta
+      return totals
+  RECORDS
+
+outputs:
+  - {path: depo/summary.py, kind: program, run: 'python3 -c ''from depo.summary import report as f; t=open("moves.txt").read(); r=f(t); assert r=="a:103\nb:101\nc:110", repr(r); print("TAMAM")'''}
+  - {path: depo/records.py, kind: program, run: 'python3 -c ''from depo.records import net_by_sku as f; t=open("moves.txt").read(); r=f(t); assert r=={"a":3,"b":1,"c":10}, r; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.records import net_by_sku as f; t=open("moves.txt").read(); r=f(t); assert r=={"a":3,"b":1,"c":10}, r; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.summary import report as f; t=open("moves.txt").read(); r=f(t); assert r=="a:103\nb:101\nc:110", repr(r); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0700
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 6
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-toplama-sirasi
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

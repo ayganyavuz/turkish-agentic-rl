@@ -1,0 +1,62 @@
+id: gen-s-0572-ayikla
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün depo tarafında işler biraz karıştı; sabah gelen siparişlerin bir kısmı eski bir sistemden dökülmüş, kiminin ürün adı kiminin numarası farklı yerde duruyor. Elimizde sipariş kayıtlarının tutulduğu "siparis kayitlari/siparisler.txt" dosyası var ama bu dosyadaki satırlar sabit genişlikte yazılmış, yani alanlar hizalı ama ayrılmamış. Bunları düzenli bir listeye çevirip raporlamam gerekiyor.
+
+  "urunler.txt" adında bir dosya oluşturup, "siparis kayitlari/siparisler.txt" içindeki her satırdan sipariş numarasını ve ürün adını çıkararak bu dosyaya yaz. Her satırda sipariş numarası ve ürün adı arasında yalnızca tek bir boşluk olsun ve her kayıt kendi satırında yer alsın.
+
+setup: |
+  mkdir -p "siparis kayitlari"
+  cat > "siparis kayitlari/siparisler.txt" <<'DATA'
+  0001Pizza         2
+  0002Makarna        1
+  0003Salata         3
+  0004Corba          2
+  0005Kofte          1
+  DATA
+
+goal_tr: >
+  "siparis kayitlari/siparisler.txt" dosyasindaki sabit genislikli
+  satirlardan siparis numarasi ve urun adini cikarip "urunler.txt" dosyasina
+  iki alan arasinda tek bosluk olacak sekilde satir listesi olarak yaz
+
+reference_solution: |
+  cd "siparis kayitlari"
+  cut -c1-4,5-19 siparisler.txt | sed 's/[[:space:]]*$//' | paste -d' ' - - > ../urunler.txt
+
+outputs:
+  - {path: urunler.txt, kind: lines}
+
+checks:
+  - {op: file_lines_eq, path: urunler.txt, value: [0001Pizza         2 0002Makarna, 0003Salata 0004Corba, 0005Kofte]}
+
+metadata:
+  domain: ayikla
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0572
+    bundle: sutun
+    tools:
+    - cut
+    - paste
+    konu: restoran-siparisleri
+    hedef: ayikla
+    girdi: sabit-genislik
+    kaynak: tek-dosya
+    cikti: satir-listesi
+    kesif: dosyayi-bul
+    uslup: baglam-gomulu
+    direnc: bosluklu-ad
+    bukulme: yok
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

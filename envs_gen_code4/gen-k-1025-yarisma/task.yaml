@@ -1,0 +1,122 @@
+id: gen-k-1025-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  exams/audit.py dosyasını yaz. Bu dosyada `with_pass_rate` adında bir decorator olsun; sardığı rapor fonksiyonunun döndürdüğü her ders sözlüğüne `pass_rate` anahtarını eklesin ve bu değer geçenlerin yüzdesi olsun, yuvarlanmış tam sayı olarak. Ayrıca `build_report(text)` fonksiyonu olsun; `exams.stats.summarize` çıktısını kullanarak her ders için `passed` ve `failed` öğrenci kümelerini döndürsün. Geçme kararı `exams.policy.passing` ile verilsin.
+
+setup: |
+  mkdir -p exams data
+  cat > exams/records.py <<'RECORDS'
+  def load_scores(text):
+      """Return list of (student, course, score) tuples."""
+      rows = []
+      for line in text.strip().splitlines():
+          student, course, score = line.split(',')
+          rows.append((student.strip(), course.strip(), int(score)))
+      return rows
+  RECORDS
+  cat > exams/policy.py <<'POLICY'
+  PASS_MARK = 60
+
+
+  def passing(score):
+      return score >= PASS_MARK
+  POLICY
+  cat > exams/stats.py <<'STATS'
+  from exams.records import load_scores
+
+
+  def summarize(text):
+      rows = load_scores(text)
+      result = {}
+      for name, course, score in rows:
+          result.setdefault(course, {})[name] = score
+      return result
+  STATS
+  cat > data/scores.txt <<'DATA'
+  ada,math,90
+  bora,math,45
+  ada,physics,72
+  cem,physics,55
+  bora,physics,88
+  cem,math,60
+  DATA
+
+goal_tr: >
+  exams/audit.py dosyasini yaz: `with_pass_rate` decorator'i sardigi rapor
+  fonksiyonunun dondurdugu her ders sozlugune `pass_rate` anahtarini
+  (gecenlerin yuzdesi, yuvarlanmis tam sayi) eklesin; `build_report(text)`
+  fonksiyonu `exams.stats.summarize` ciktisini kullanarak her ders icin
+  `passed` ve `failed` ogrenci kumelerini dondursun, gecme karari
+  `exams.policy.passing` ile verilsin.
+
+reference_solution: |
+  cat > exams/audit.py <<'AUDIT'
+  from exams.policy import passing
+  from exams.stats import summarize
+
+
+  def with_pass_rate(fn):
+      def wrapper(text):
+          report = fn(text)
+          for info in report.values():
+              total = len(info["passed"]) + len(info["failed"])
+              info["pass_rate"] = round(100 * len(info["passed"]) / total) if total else 0
+          return report
+      return wrapper
+
+
+  @with_pass_rate
+  def build_report(text):
+      summary = summarize(text)
+      report = {}
+      for course, scores in summary.items():
+          passed = {name for name, score in scores.items() if passing(score)}
+          failed = set(scores) - passed
+          report[course] = {"passed": passed, "failed": failed}
+      return report
+  AUDIT
+
+outputs:
+  - {path: exams/audit.py, kind: program, run: 'python3 -c ''from exams.audit import build_report as f; t=open("data/scores.txt").read(); r=f(t); assert r["math"]["passed"]=={"ada","cem"}, r["math"]; assert r["math"]["failed"]=={"bora"}; assert r["math"]["pass_rate"]==67, r["math"]; assert r["physics"]["passed"]=={"ada","bora"}; assert r["physics"]["failed"]=={"cem"}; assert r["physics"]["pass_rate"]==67; assert set(r)=={"math","physics"}; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from exams.audit import build_report as f; t=open("data/scores.txt").read(); r=f(t); assert r["math"]["passed"]=={"ada","cem"}, r["math"]; assert r["math"]["failed"]=={"bora"}; assert r["math"]["pass_rate"]==67, r["math"]; assert r["physics"]["passed"]=={"ada","bora"}; assert r["physics"]["failed"]=={"cem"}; assert r["physics"]["pass_rate"]==67; assert set(r)=={"math","physics"}; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1025
+    bundle: yarisma
+    tools:
+    - python3
+    konu: sinav-sonuclari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kume-islemleri
+      karmasiklik: duz
+      kalip: dekorator
+      akis: cok-dosya-birlestirme
+      topoloji: elmas
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

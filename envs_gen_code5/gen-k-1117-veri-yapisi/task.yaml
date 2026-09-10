@@ -1,0 +1,212 @@
+id: gen-k-1117-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Sabah toplantıda ders kayıt sistemi üzerine konuşuyorduk, şu ana kadar öğrenci transkriptlerini sıralamak için kullandığımız yapı iyice dağıldı; her seferinde elle sıralıyoruz ve sonuçlar tutarsız çıkıyor. Artık öğrenci işlerindeki raporlar da bu yapıya bağlı olduğu için bir an önce düzgün bir temel atmamız gerekiyor. Bu işi bugün halletmek istiyorum.
+
+  registrar/transcript.py dosyasının içine, mevcut TranscriptIndex soyut sınıfını gerçekleyen somut bir TranscriptTree sınıfı ekle. Bu sınıf (points, code) anahtarlı ikili arama ağacı tabanlı olsun; yani kayıtlar puan ve ders kodu ikilisi üzerinden ağaçta tutulsun. Amacımız registrar/audit.py içindeki build_report fonksiyonunun döndüğü üçlü doğru şekilde üretilsin: count, top_code ve above_3 değerleri. rank(1) çağrıldığında en yüksek puanlı dersin kodu dönsün.
+
+setup: |
+  mkdir -p registrar
+  cat > registrar/transcript.py <<'TRANSCRIPT'
+  from abc import ABC, abstractmethod
+
+
+  class TranscriptIndex(ABC):
+      """Abstract ordered index over (course_code, grade_point) records."""
+
+      @abstractmethod
+      def insert(self, code, points):
+          ...
+
+      @abstractmethod
+      def rank(self, code):
+          """Return 1-based rank of code by points descending, ties by code ascending."""
+          ...
+
+      @abstractmethod
+      def above(self, threshold):
+          """Return list of codes with points strictly greater than threshold,
+          in ascending code order."""
+          ...
+
+      @abstractmethod
+      def count(self):
+          ...
+  TRANSCRIPT
+  cat > registrar/audit.py <<'AUDIT'
+  from registrar.transcript import TranscriptIndex
+
+
+  def build_report(index, codes):
+      """Insert each code with its length as points, then summarise."""
+      for code in codes:
+          index.insert(code, len(code))
+      top = None
+      if index.count():
+          top = index.rank(1)
+      return index.count(), top, index.above(3)
+  AUDIT
+
+goal_tr: >
+  registrar/transcript.py icine, TranscriptIndex soyut sinifini gercekleyen
+  ve registrar/audit.py'deki build_report'un (count, top_code, above_3)
+  uclusunu dogru uretmesini saglayan, (points, code) anahtarli ikili arama
+  agaci tabanli somut bir TranscriptTree sinifi ekle; rank(1) en yuksek
+  puanli dersin kodunu dondurmeli.
+
+reference_solution: |
+  cat > registrar/transcript.py <<'TRANSCRIPT'
+  from abc import ABC, abstractmethod
+
+
+  class TranscriptIndex(ABC):
+      """Abstract ordered index over (course_code, grade_point) records."""
+
+      @abstractmethod
+      def insert(self, code, points):
+          ...
+
+      @abstractmethod
+      def rank(self, code):
+          """Return 1-based rank of code by points descending, ties by code ascending."""
+          ...
+
+      @abstractmethod
+      def above(self, threshold):
+          """Return list of codes with points strictly greater than threshold,
+          in ascending code order."""
+          ...
+
+      @abstractmethod
+      def count(self):
+          ...
+
+
+  class _Node:
+      __slots__ = ("code", "points", "left", "right")
+
+      def __init__(self, code, points):
+          self.code = code
+          self.points = points
+          self.left = None
+          self.right = None
+
+
+  class TranscriptTree(TranscriptIndex):
+      """BST keyed by (points, code); descending points / ascending code is a
+      reverse in-order traversal."""
+
+      def __init__(self):
+          self._root = None
+          self._size = 0
+
+      def insert(self, code, points):
+          node = _Node(code, points)
+          if self._root is None:
+              self._root = node
+              self._size = 1
+              return
+          cur = self._root
+          while True:
+              if (points, code) < (cur.points, cur.code):
+                  if cur.left is None:
+                      cur.left = node
+                      break
+                  cur = cur.left
+              elif (points, code) > (cur.points, cur.code):
+                  if cur.right is None:
+                      cur.right = node
+                      break
+                  cur = cur.right
+              else:
+                  return
+          self._size += 1
+
+      def _reverse_inorder(self):
+          out = []
+          stack = []
+          cur = self._root
+          while stack or cur is not None:
+              while cur is not None:
+                  stack.append(cur)
+                  cur = cur.right
+              cur = stack.pop()
+              out.append(cur)
+              cur = cur.left
+          return out
+
+      def _nth(self, n):
+          return self._reverse_inorder()[n - 1]
+
+      def rank(self, code):
+          for i, node in enumerate(self._reverse_inorder(), start=1):
+              if node.code == code:
+                  return i
+          raise KeyError(code)
+
+      def above(self, threshold):
+          return sorted(
+              node.code for node in self._reverse_inorder() if node.points > threshold
+          )
+
+      def count(self):
+          return self._size
+  TRANSCRIPT
+  cat > registrar/audit.py <<'AUDIT'
+  from registrar.transcript import TranscriptTree
+
+
+  def build_report(index, codes):
+      """Insert each code with its length as points, then summarise."""
+      for code in codes:
+          index.insert(code, len(code))
+      top = None
+      if index.count():
+          top = index._nth(1).code
+      return index.count(), top, index.above(3)
+  AUDIT
+
+outputs:
+  - {path: registrar/transcript.py, kind: program, run: 'python3 -c ''import registrar.transcript as m; from registrar.transcript import TranscriptIndex, TranscriptTree; from registrar.audit import build_report; assert isinstance(TranscriptTree(), TranscriptIndex); t=TranscriptTree(); t.insert("MATH",75); t.insert("PHYS",90); t.insert("CHEM",90); t.insert("ART",40); assert t.count()==4, t.count(); assert t.rank("PHYS")==1, t.rank("PHYS"); assert t.rank("CHEM")==2, t.rank("CHEM"); assert t.rank("MATH")==3, t.rank("MATH"); assert t.rank("ART")==4, t.rank("ART"); assert t.above(60)==["CHEM","MATH","PHYS"], t.above(60); assert t.above(89)==["PHYS","CHEM"] or t.above(89)==["CHEM","PHYS"], t.above(89); c,top,ab=build_report(TranscriptTree(),["AA","BBB","CCCC"]); assert (c,top,ab)==(3,"CCCC",["CCCC"]), (c,top,ab); c2,t2,ab2=build_report(TranscriptTree(),["A","BBBB","CC"]); assert (c2,t2,ab2)==(3,"BBBB",["BBBB"]), (c2,t2,ab2); assert hasattr(TranscriptTree,"_nth"), "missing _nth"; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import registrar.transcript as m; from registrar.transcript import TranscriptIndex, TranscriptTree; from registrar.audit import build_report; assert isinstance(TranscriptTree(), TranscriptIndex); t=TranscriptTree(); t.insert("MATH",75); t.insert("PHYS",90); t.insert("CHEM",90); t.insert("ART",40); assert t.count()==4, t.count(); assert t.rank("PHYS")==1, t.rank("PHYS"); assert t.rank("CHEM")==2, t.rank("CHEM"); assert t.rank("MATH")==3, t.rank("MATH"); assert t.rank("ART")==4, t.rank("ART"); assert t.above(60)==["CHEM","MATH","PHYS"], t.above(60); assert t.above(89)==["PHYS","CHEM"] or t.above(89)==["CHEM","PHYS"], t.above(89); c,top,ab=build_report(TranscriptTree(),["AA","BBB","CCCC"]); assert (c,top,ab)==(3,"CCCC",["CCCC"]), (c,top,ab); c2,t2,ab2=build_report(TranscriptTree(),["A","BBBB","CC"]); assert (c2,t2,ab2)==(3,"BBBB",["BBBB"]), (c2,t2,ab2); assert hasattr(TranscriptTree,"_nth"), "missing _nth"; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1117
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: ikili-arama-agaci
+      karmasiklik: duz
+      kalip: abc-protokol
+      akis: bellek-ici
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

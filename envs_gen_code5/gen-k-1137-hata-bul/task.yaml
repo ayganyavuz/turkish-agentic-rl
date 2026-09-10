@@ -1,0 +1,117 @@
+id: gen-k-1137-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) orders/pipeline.py dosyasındaki report fonksiyonunu, girdide sıfır tutarlı bir kalem bulunsa bile hiçbir kalemi atlamayacak şekilde düzelt.
+
+  2) Düzeltilen report fonksiyonu, sıfır tutarlı kalemler dahil tüm kalemleri ve her zaman toplamı döndürsün; toplam satırı hiçbir durumda eksik kalmasın.
+
+setup: |
+  mkdir -p orders
+  cat > orders/normalize.py <<'NORM'
+  def normalize(text):
+      rows = []
+      for line in text.strip().splitlines():
+          name, qty, price = line.split(',')
+          rows.append((name.strip(), int(qty), float(price)))
+      return rows
+  NORM
+  cat > orders/summarize.py <<'SUM'
+  from orders.normalize import normalize
+
+
+  def summarize(text):
+      rows = normalize(text)
+      total = 0.0
+      for _, qty, price in rows:
+          total += qty * price
+      return round(total, 2)
+
+
+  def item_totals(text):
+      rows = normalize(text)
+      out = {}
+      for name, qty, price in rows:
+          out[name] = round(qty * price, 2)
+      return out
+  SUM
+  cat > orders/pipeline.py <<'PIPE'
+  from orders.summarize import summarize, item_totals
+
+
+  def report(text):
+      lines = []
+      for name, amount in item_totals(text).items():
+          if amount == 0.0:
+              return lines
+          lines.append(name + ":" + str(amount))
+      lines.append("TOTAL:" + str(summarize(text)))
+      return lines
+  PIPE
+  cat > input.txt <<'TXT'
+  widget,3,4.0
+  gadget,1,50.0
+  bolt,10,0.5
+  TXT
+
+goal_tr: >
+  orders/pipeline.py icindeki report fonksiyonunu, sifir tutarli bir kalem
+  gorulse bile hicbir kalemi atlamadan ve toplami her zaman ekleyerek tum
+  kalemleri ve toplami dondurecek bicimde duzelt.
+
+reference_solution: |
+  cat > orders/pipeline.py <<'PIPE'
+  from orders.summarize import summarize, item_totals
+
+
+  def report(text):
+      lines = []
+      for name, amount in item_totals(text).items():
+          lines.append(name + ":" + str(amount))
+      lines.append("TOTAL:" + str(summarize(text)))
+      return lines
+  PIPE
+
+outputs:
+  - {path: orders/pipeline.py, kind: program, run: 'python3 -c ''import sys; from orders.pipeline import report as f; t=open("input.txt").read(); assert f(t)==["widget:12.0","gadget:50.0","bolt:5.0","TOTAL:67.0"], f(t); assert f("free,2,0.0\npaid,1,3.0")==["free:0.0","paid:3.0","TOTAL:3.0"], f("free,2,0.0\npaid,1,3.0"); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import sys; from orders.pipeline import report as f; t=open("input.txt").read(); assert f(t)==["widget:12.0","gadget:50.0","bolt:5.0","TOTAL:67.0"], f(t); assert f("free,2,0.0\npaid,1,3.0")==["free:0.0","paid:3.0","TOTAL:3.0"], f("free,2,0.0\npaid,1,3.0"); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1137
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: erken-donus
+      karmasiklik: duz
+      kalip: duz-fonksiyon
+      akis: stdin-boru
+      topoloji: elmas
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

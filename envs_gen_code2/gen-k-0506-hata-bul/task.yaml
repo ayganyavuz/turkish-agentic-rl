@@ -1,0 +1,85 @@
+id: gen-k-0506-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Depoda oturum kayıtlarını inceleyen küçük bir yardımcı modül var ve son zamanlarda ekip olarak buna epey bel bağladık. Özellikle aynı saniyede birden çok olayın düşebildiği yoğun saatlerde, geçmişe dönük incelemelerde sıralamanın güvenilir olması kritik hale geldi; çünkü bir kullanıcının giriş mi yoksa çıkış mı yaptığını doğru sırayla görmek bazen tek ipucumuz oluyor.
+
+  sessions/audit.py dosyasındaki latest_actions fonksiyonu şu an eşit zaman damgalarında beklenmedik sonuçlar veriyor. Bu fonksiyonu, girdi metninde geçen olayları zaman damgasına göre sıralarken eşit zaman damgalarında dosyadaki giriş sırasını koruyacak ve en son k olayın (kullanıcı, eylem) ikililerinden oluşan listesini doğru biçimde döndürecek şekilde düzeltmeni istiyorum. Yani fonksiyon, kronolojik olarak en sondaki k olayı, aralarındaki eşitlik durumunda orijinal dosya sırasına sadık kalarak vermeli.
+
+setup: |
+  mkdir -p sessions
+  cat > sessions/store.py <<'STORE'
+  def load_events(text):
+      events = []
+      for line in text.strip().splitlines():
+          user, ts, action = line.split(',')
+          events.append((user, int(ts), action))
+      return events
+  STORE
+  cat > sessions/audit.py <<'AUDIT'
+  from sessions.store import load_events
+
+
+  def latest_actions(text, k):
+      events = load_events(text)
+      events.sort(key=lambda e: e[1])
+      return [(u, a) for (u, t, a) in events[:k]]
+  AUDIT
+  cat > events.csv <<'CSV'
+  alice,100,login
+  bob,100,logout
+  carol,100,login
+  dave,100,logout
+  CSV
+
+goal_tr: >
+  sessions/audit.py icindeki latest_actions fonksiyonunu, esit zaman
+  damgalarinda dosyadaki giris sirasini koruyarak en son k olayin
+  (kullanici, eylem) listesini dogru dondurecek bicimde duzelt
+
+reference_solution: |
+  cat > sessions/audit.py <<'AUDIT'
+  from sessions.store import load_events
+
+
+  def latest_actions(text, k):
+      events = load_events(text)
+      events.sort(key=lambda e: e[1])
+      return [(u, a) for (u, t, a) in events[-k:]]
+  AUDIT
+
+outputs:
+  - {path: sessions/audit.py, kind: program, run: 'python3 -c ''from sessions.audit import latest_actions as f; t=open("events.csv").read(); assert f(t,2)==[("carol","login"),("dave","logout")], f(t,2); assert f(t,1)==[("dave","logout")], f(t,1); assert f(t,4)==[("alice","login"),("bob","logout"),("carol","login"),("dave","logout")], f(t,4); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sessions.audit import latest_actions as f; t=open("events.csv").read(); assert f(t,2)==[("carol","login"),("dave","logout")], f(t,2); assert f(t,1)==[("dave","logout")], f(t,1); assert f(t,4)==[("alice","login"),("bob","logout"),("carol","login"),("dave","logout")], f(t,4); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0506
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: siralama-kararsizligi

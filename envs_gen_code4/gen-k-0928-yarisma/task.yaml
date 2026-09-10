@@ -1,0 +1,141 @@
+id: gen-k-0928-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  bistro/parse/reader.py dosyasına, read_orders fonksiyonunun çıktısını tüketen bir generator fonksiyonu olan iter_orders(text) ekle. Bu fonksiyon her siparişi iç içe bir sözlüğe çevirsin; her sözlük {"item": str, "qty": int, "mods": list, "note": str|None} şeklinde olsun. Bir sipariş için qty belirtilmemişse 1 olarak alınsın ve üretilen sözlükler girdi sırasını korusun.
+
+setup: |
+  mkdir -p bistro bistro/parse
+  cat > bistro/parse/lexer.py <<'LEXER'
+  def tokenize(line):
+      """Yield (kind, value) tokens from one menu line.
+
+      Kinds: 'item', 'qty', 'note', 'mod'.
+      """
+      line = line.strip()
+      if not line:
+          return
+      # split off a trailing note in parentheses
+      note = None
+      if line.endswith(')') and '(' in line:
+          line, note = line.rsplit('(', 1)
+          note = note[:-1].strip()
+          line = line.strip()
+      parts = line.split()
+      if not parts:
+          return
+      item = parts[0]
+      yield ('item', item)
+      for chunk in parts[1:]:
+          if chunk.startswith('x') and chunk[1:].isdigit():
+              yield ('qty', int(chunk[1:]))
+          elif chunk.startswith('+'):
+              yield ('mod', chunk[1:])
+      if note is not None:
+          yield ('note', note)
+  LEXER
+  cat > bistro/parse/reader.py <<'READER'
+  from bistro.parse.lexer import tokenize
+
+
+  def read_orders(text):
+      """Return list of dicts, one per non-empty line."""
+      orders = []
+      for raw in text.splitlines():
+          tokens = list(tokenize(raw))
+          if tokens:
+              orders.append(tokens)
+      return orders
+  READER
+  cat > bistro/parse/__init__.py <<'INIT'
+  INIT
+  cat > bistro/__init__.py <<'INIT'
+  INIT
+  cat > menu.txt <<'MENU'
+  pizza x2 +cheese (no onion)
+  salad x1
+  pasta x3 +pesto (extra garlic)
+  soup x1
+  MENU
+
+goal_tr: >
+  bistro/parse/reader.py icine, read_orders ciktisini tuketen ve her
+  siparisi ic-ice bir sozluge ceviren bir generator fonksiyonu
+  `iter_orders(text)` ekle; her sozluk `{"item": str, "qty": int, "mods":
+  list, "note": str|None}` seklinde olsun, qty belirtilmemisse 1 olsun ve
+  sozlukler girdi sirasini korusun.
+
+reference_solution: |
+  cat > bistro/parse/reader.py <<'READER'
+  from bistro.parse.lexer import tokenize
+
+
+  def read_orders(text):
+      """Return list of dicts, one per non-empty line."""
+      orders = []
+      for raw in text.splitlines():
+          tokens = list(tokenize(raw))
+          if tokens:
+              orders.append(tokens)
+      return orders
+
+
+  def iter_orders(text):
+      """Yield one order dict per line, preserving input order."""
+      for tokens in read_orders(text):
+          order = {"item": None, "qty": 1, "mods": [], "note": None}
+          for kind, value in tokens:
+              if kind == 'item':
+                  order["item"] = value
+              elif kind == 'qty':
+                  order["qty"] = value
+              elif kind == 'mod':
+                  order["mods"].append(value)
+              elif kind == 'note':
+                  order["note"] = value
+          yield order
+  READER
+
+outputs:
+  - {path: bistro/parse/reader.py, kind: program, run: 'python3 -c ''from bistro.parse.reader import iter_orders as f; t=open("menu.txt").read(); g=f(t); assert not isinstance(g, list); r=list(g); assert [o["item"] for o in r]==["pizza","salad","pasta","soup"], r; assert r[0]=={"item":"pizza","qty":2,"mods":["cheese"],"note":"no onion"}, r[0]; assert r[1]=={"item":"salad","qty":1,"mods":[],"note":None}, r[1]; assert r[2]=={"item":"pasta","qty":3,"mods":["pesto"],"note":"extra garlic"}, r[2]; assert r[3]=={"item":"soup","qty":1,"mods":[],"note":None}, r[3]; assert list(f(""))==[]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bistro.parse.reader import iter_orders as f; t=open("menu.txt").read(); g=f(t); assert not isinstance(g, list); r=list(g); assert [o["item"] for o in r]==["pizza","salad","pasta","soup"], r; assert r[0]=={"item":"pizza","qty":2,"mods":["cheese"],"note":"no onion"}, r[0]; assert r[1]=={"item":"salad","qty":1,"mods":[],"note":None}, r[1]; assert r[2]=={"item":"pasta","qty":3,"mods":["pesto"],"note":"extra garlic"}, r[2]; assert r[3]=={"item":"soup","qty":1,"mods":[],"note":None}, r[3]; assert list(f(""))==[]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0928
+    bundle: yarisma
+    tools:
+    - python3
+    konu: restoran-siparisleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: metin-ayristirma
+      karmasiklik: duz
+      kalip: generator
+      akis: ic-ice-yapi
+      topoloji: paket-alt-paket
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

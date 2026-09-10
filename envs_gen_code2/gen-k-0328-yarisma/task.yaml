@@ -1,0 +1,128 @@
+id: gen-k-0328-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  transcript/gpa.py dosyasını sıfırdan yaz. load ile katalog ve notları okuyup her dönem için ağırlıklı not ortalamasını hesaplayan, dönemleri artan sırada döndüren ve her dönemin kümülatif ağırlıklı ortalamasını da içeren cumulative_gpa(term_text, grade_text) fonksiyonunu; her dönem için sonucu (term, term_gpa, cumulative_gpa) üçlüsü olarak, float yuvarlamadan döndürsün.
+
+setup: |
+  mkdir -p transcript
+  cat > transcript/courses.py <<'COURSES'
+  def parse_catalog(text):
+      """Return list of (code, credit, term) tuples."""
+      out = []
+      for line in text.strip().splitlines():
+          code, credit, term = line.split(':')
+          out.append((code.strip(), int(credit), int(term)))
+      return out
+
+
+  def parse_grades(text):
+      """Return list of (code, grade) tuples."""
+      out = []
+      for line in text.strip().splitlines():
+          code, grade = line.split(':')
+          out.append((code.strip(), int(grade)))
+      return out
+  COURSES
+  cat > transcript/loader.py <<'LOADER'
+  from transcript.courses import parse_catalog, parse_grades
+
+
+  def load(term_text, grade_text):
+      catalog = parse_catalog(term_text)
+      grades = parse_grades(grade_text)
+      return catalog, grades
+  LOADER
+  cat > catalog.txt <<'CAT'
+  MATH101:4:1
+  PHYS101:3:1
+  CS101:3:2
+  CS102:4:2
+  MATH201:4:3
+  CS201:3:3
+  CS202:3:4
+  STAT201:3:4
+  CAT
+  cat > grades.txt <<'GR'
+  MATH101:80
+  PHYS101:55
+  CS101:90
+  CS102:70
+  MATH201:65
+  CS201:85
+  CS202:40
+  STAT201:75
+  GR
+
+goal_tr: >
+  transcript/gpa.py dosyasini sifirdan yaz: load ile katalog ve notlari
+  okuyup her donem icin agirlikli not ortalamasini (credit*grade toplami /
+  credit toplami) hesaplayan, donemleri artan sirada donduren ve her donemin
+  kumulatif (o doneme kadar olan) agirlikli ortalamasini da iceren
+  cumulative_gpa(term_text, grade_text) fonksiyonunu, donem basina sonucu
+  (term, term_gpa, cumulative_gpa) uclusu olarak float yuvarlamadan
+  dondurecek bicimde gerceklestir.
+
+reference_solution: |
+  cat > transcript/gpa.py <<'GPA'
+  from transcript.loader import load
+
+
+  def cumulative_gpa(term_text, grade_text):
+      catalog, grades = load(term_text, grade_text)
+      grade_of = dict(grades)
+      by_term = {}
+      for code, credit, term in catalog:
+          if code not in grade_of:
+              continue
+          by_term.setdefault(term, []).append((credit, grade_of[code]))
+      result = []
+      cum_pts = 0.0
+      cum_cr = 0
+      for term in sorted(by_term):
+          entries = by_term[term]
+          t_pts = sum(c * g for c, g in entries)
+          t_cr = sum(c for c, _ in entries)
+          cum_pts += t_pts
+          cum_cr += t_cr
+          term_gpa = t_pts / t_cr if t_cr else 0.0
+          cum_gpa = cum_pts / cum_cr if cum_cr else 0.0
+          result.append((term, term_gpa, cum_gpa))
+      return result
+  GPA
+
+outputs:
+  - {path: transcript/gpa.py, kind: program, run: 'python3 -c ''from transcript.gpa import cumulative_gpa as f; t=open("catalog.txt").read(); g=open("grades.txt").read(); r=f(t,g); assert [x[0] for x in r]==[1,2,3,4], r; assert abs(r[0][1]-(4*80+3*55)/7)<1e-9, r; assert abs(r[1][1]-(3*90+4*70)/7)<1e-9, r; assert abs(r[1][2]-(4*80+3*55+3*90+4*70)/14)<1e-9, r; assert abs(r[3][2]-(4*80+3*55+3*90+4*70+4*65+3*85+3*40+3*75)/27)<1e-9, r; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from transcript.gpa import cumulative_gpa as f; t=open("catalog.txt").read(); g=open("grades.txt").read(); r=f(t,g); assert [x[0] for x in r]==[1,2,3,4], r; assert abs(r[0][1]-(4*80+3*55)/7)<1e-9, r; assert abs(r[1][1]-(3*90+4*70)/7)<1e-9, r; assert abs(r[1][2]-(4*80+3*55+3*90+4*70)/14)<1e-9, r; assert abs(r[3][2]-(4*80+3*55+3*90+4*70+4*65+3*85+3*40+3*75)/27)<1e-9, r; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0328
+    bundle: yarisma
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: onek-toplam

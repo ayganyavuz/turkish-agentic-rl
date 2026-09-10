@@ -1,0 +1,76 @@
+id: gen-s-0593-grupla-say
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  kayitlar dizini agacindaki tüm .tsv dosyalarindaki olay sütununu olay adina göre gruplayip her olayin kac satirda geçtigini olay_sayilari.json dosyasina JSON nesnesi olarak yaz; bu sayimi yaparken baslik satirini ve .tsv uzantili olmayan dosyalari sayma.
+
+setup: |
+  mkdir -p kayitlar/arsiv
+  cat > kayitlar/istanbul.tsv <<'TSV'
+  sehir	tarih	olay
+  istanbul	2024-01-01	yagmur
+  istanbul	2024-01-02	gunesli
+  istanbul	2024-01-03	yagmur
+  TSV
+  cat > kayitlar/ankara.tsv <<'TSV'
+  sehir	tarih	olay
+  ankara	2024-01-01	kar
+  ankara	2024-01-02	kar
+  ankara	2024-01-03	gunesli
+  TSV
+  cat > kayitlar/arsiv/eski.tsv <<'TSV'
+  sehir	tarih	olay
+  izmir	2024-01-01	yagmur
+  izmir	2024-01-02	yagmur
+  TSV
+  cat > kayitlar/arsiv/notlar.txt <<'TXT'
+  bu dosya tsv degil, atlanmali
+  yagmur kar gunesli
+  TXT
+
+goal_tr: >
+  kayitlar dizini agacindaki tum .tsv dosyalarindaki olay sutununu olay
+  adina gore gruplayip her olayin kac satirda gectigini olay_sayilari.json
+  dosyasina JSON nesnesi olarak yaz; baslik satirini ve .tsv olmayan
+  dosyalari sayma
+
+reference_solution: |
+  find kayitlar -type f -name '*.tsv' -exec tail -n +2 {} \; | cut -f3 | sort | uniq -c | awk '{printf "\"%s\": %s,\n", $2, $1}' | sed '$ s/,$//' > govde.txt
+  { echo '{'; cat govde.txt; echo '}'; } > olay_sayilari.json
+  wc -l olay_sayilari.json
+
+outputs:
+  - {path: olay_sayilari.json, kind: json}
+
+checks:
+  - {op: json_eq, path: olay_sayilari.json, value: {gunesli: 2, kar: 2, yagmur: 4}}
+
+metadata:
+  domain: grupla-say
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0593
+    bundle: dizin-istatistik
+    tools:
+    - wc
+    - find
+    konu: hava-durumu-kayitlari
+    hedef: grupla-say
+    girdi: tsv
+    kaynak: dizin-agaci
+    cikti: json
+    kesif: dolayli-hedef
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: tuzak-dosya
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

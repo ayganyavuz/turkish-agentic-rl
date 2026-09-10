@@ -1,0 +1,163 @@
+id: gen-k-1011-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  stock/queue.py dosyasındaki MovementQueue sınıfını çalışır hale getir. Sınıfın push, pop, __len__, __bool__, __lt__ ve __eq__ metotlarını gerçekleştir. push ile verilen (öncelik, sku, kind) demetlerini, en küçük öncelikli olan önce çıkacak şekilde sakla; aynı önceliğe sahip demetlerde ise önce push edilen önce pop edilsin. pop çağrıldığında boş kuyrukta IndexError yükseltilsin. İki kuyruk __lt__ ve __eq__ ile karşılaştırılırken sırasıyla öncelik ve sıraya göre değerlendirilsin.
+
+setup: |
+  mkdir -p stock
+  cat > stock/__init__.py <<'INIT'
+  INIT
+  cat > stock/events.py <<'EVENTS'
+  def parse_event(line):
+      kind, sku, qty = line.split()
+      return (kind, sku, int(qty))
+
+
+  def load_events(text):
+      return [parse_event(ln) for ln in text.strip().splitlines() if ln.strip()]
+  EVENTS
+  cat > stock/queue.py <<'QUEUE'
+  class MovementQueue:
+      """Priority queue of stock movements keyed by (priority, seq).
+
+      Movements are (priority, sku, kind) tuples.  The queue is ordered by
+      ascending priority, ties broken by insertion order.
+      """
+
+      def __init__(self):
+          self._heap = []
+          self._seq = 0
+
+      def push(self, movement):
+          raise NotImplementedError
+
+      def pop(self):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+
+      def __bool__(self):
+          raise NotImplementedError
+
+      def __lt__(self, other):
+          raise NotImplementedError
+
+      def __eq__(self, other):
+          raise NotImplementedError
+  QUEUE
+  cat > stock/report.py <<'REPORT'
+  from stock.events import load_events
+  from stock.queue import MovementQueue
+
+
+  def drain(text):
+      q = MovementQueue()
+      for kind, sku, qty in load_events(text):
+          q.push((qty, sku, kind))
+      out = []
+      while q:
+          out.append(q.pop())
+      return out
+  REPORT
+  cat > movements.txt <<'MOV'
+  in SKU-A 5
+  out SKU-B 12
+  in SKU-C 3
+  out SKU-A 7
+  in SKU-B 9
+  MOV
+
+goal_tr: >
+  stock/queue.py icindeki MovementQueue sinifini,
+  push/pop/__len__/__bool__/__lt__/__eq__ metotlarini calisir bicimde
+  gerceklestir; push ile verilen (oncelik, sku, kind) demetlerini en kucuk
+  oncelikli once cikacak sekilde sakla, esit onceliklerde once push edilen
+  once pop edilsin, pop bos kuyrukta IndexError yukseltsin ve iki kuyruk
+  __lt__/__eq__ ile sirasiyla oncelik-ve-siraya gore karsilastirilsin.
+
+reference_solution: |
+  cat > stock/queue.py <<'QUEUE'
+  import heapq
+
+
+  class MovementQueue:
+      """Priority queue of stock movements keyed by (priority, seq).
+
+      Movements are (priority, sku, kind) tuples.  The queue is ordered by
+      ascending priority, ties broken by insertion order.
+      """
+
+      def __init__(self):
+          self._heap = []
+          self._seq = 0
+
+      def push(self, movement):
+          heapq.heappush(self._heap, (movement[0], self._seq, movement))
+          self._seq += 1
+
+      def pop(self):
+          if not self._heap:
+              raise IndexError("pop from empty MovementQueue")
+          return heapq.heappop(self._heap)[2]
+
+      def __len__(self):
+          return len(self._heap)
+
+      def __bool__(self):
+          return bool(self._heap)
+
+      def _keys(self):
+          return [(p, s) for p, s, _ in self._heap]
+
+      def __lt__(self, other):
+          return self._keys() < other._keys()
+
+      def __eq__(self, other):
+          return self._keys() == other._keys()
+  QUEUE
+
+outputs:
+  - {path: stock/queue.py, kind: program, run: 'python3 -c ''import unittest; from stock.queue import MovementQueue as Q; from stock.report import drain; t=open("movements.txt").read(); tc=unittest.TestCase(); tc.assertEqual(len(Q()),0); tc.assertFalse(Q()); q=Q(); q.push((5,"SKU-A","in")); q.push((1,"SKU-Z","out")); tc.assertEqual(len(q),2); tc.assertTrue(q); tc.assertEqual(q.pop(),(1,"SKU-Z","out")); q.push((5,"SKU-B","in")); tc.assertEqual(q.pop(),(5,"SKU-A","in")); tc.assertEqual(q.pop(),(5,"SKU-B","in")); tc.assertFalse(q); tc.assertRaises(IndexError, Q().pop); a=Q(); a.push((2,"X","in")); a.push((2,"Y","in")); b=Q(); b.push((2,"X","in")); b.push((2,"Y","in")); c=Q(); c.push((1,"X","in")); tc.assertEqual(a,b); tc.assertFalse(a<c); tc.assertTrue(c<a); tc.assertNotEqual(a,c); tc.assertEqual(drain(t),[(3,"SKU-C","in"),(5,"SKU-A","in"),(7,"SKU-A","out"),(9,"SKU-B","in"),(12,"SKU-B","out")]); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import unittest; from stock.queue import MovementQueue as Q; from stock.report import drain; t=open("movements.txt").read(); tc=unittest.TestCase(); tc.assertEqual(len(Q()),0); tc.assertFalse(Q()); q=Q(); q.push((5,"SKU-A","in")); q.push((1,"SKU-Z","out")); tc.assertEqual(len(q),2); tc.assertTrue(q); tc.assertEqual(q.pop(),(1,"SKU-Z","out")); q.push((5,"SKU-B","in")); tc.assertEqual(q.pop(),(5,"SKU-A","in")); tc.assertEqual(q.pop(),(5,"SKU-B","in")); tc.assertFalse(q); tc.assertRaises(IndexError, Q().pop); a=Q(); a.push((2,"X","in")); a.push((2,"Y","in")); b=Q(); b.push((2,"X","in")); b.push((2,"Y","in")); c=Q(); c.push((1,"X","in")); tc.assertEqual(a,b); tc.assertFalse(a<c); tc.assertTrue(c<a); tc.assertNotEqual(a,c); tc.assertEqual(drain(t),[(3,"SKU-C","in"),(5,"SKU-A","in"),(7,"SKU-A","out"),(9,"SKU-B","in"),(12,"SKU-B","out")]); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1011
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: stok-hareketleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: oncelik-kuyrugu
+      karmasiklik: duz
+      kalip: operator-asiri-yukleme
+      akis: cok-dosya-birlestirme
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

@@ -1,0 +1,100 @@
+id: gen-k-0336-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depot/alerts.py dosyasındaki low_stock ve deficit fonksiyonlarını düzelt. Miktarı yeniden sipariş eşiğine eşit olan ürünler de düşük stok olarak sayılmalı; yani hem eşit hem de eşiğin altındaki miktarlar düşük stok kabul edilmeli. Düzeltmeden sonra low_stock, miktarı yeniden sipariş eşiğine eşit ya da ondan az olan ürünlerin sku'larını girdi sırasına göre döndürmeli; deficit ise her düşük stoklu ürünü yeniden sipariş eşiğinin üzerine çıkarmak için gereken toplam birim sayısını hesaplamalı.
+
+setup: |
+  mkdir -p depot
+  cat > depot/stock.py <<'STOCK'
+  def parse_lines(text):
+      """Return list of (sku, qty, reorder_at) tuples."""
+      rows = []
+      for line in text.strip().splitlines():
+          sku, qty, reorder_at = line.split(',')
+          rows.append((sku, int(qty), int(reorder_at)))
+      return rows
+
+
+  def total_units(text):
+      return sum(q for _, q, _ in parse_lines(text))
+  STOCK
+  cat > depot/alerts.py <<'ALERTS'
+  from depot.stock import parse_lines
+
+
+  def low_stock(text):
+      """Return skus whose qty is at or below reorder_at, in input order."""
+      rows = parse_lines(text)
+      return [sku for sku, qty, reorder_at in rows if qty < reorder_at]
+
+
+  def deficit(text):
+      """Total units needed to bring each low sku back above reorder_at."""
+      rows = parse_lines(text)
+      return sum(reorder_at - qty for _, qty, reorder_at in rows if qty < reorder_at)
+  ALERTS
+  cat > inventory.csv <<'CSV'
+  bolt,4,5
+  nut,10,10
+  washer,0,3
+  screw,7,6
+  CSV
+
+goal_tr: >
+  depot/alerts.py icindeki low_stock ve deficit fonksiyonlarini, miktari
+  yeniden siparis esigine esit olan urunleri de dusuk stok sayacak bicimde
+  duzelt
+
+reference_solution: |
+  cat > depot/alerts.py <<'ALERTS'
+  from depot.stock import parse_lines
+
+
+  def low_stock(text):
+      """Return skus whose qty is at or below reorder_at, in input order."""
+      rows = parse_lines(text)
+      return [sku for sku, qty, reorder_at in rows if qty <= reorder_at]
+
+
+  def deficit(text):
+      """Total units needed to bring each low sku back above reorder_at."""
+      rows = parse_lines(text)
+      return sum(reorder_at - qty for _, qty, reorder_at in rows if qty <= reorder_at)
+  ALERTS
+
+outputs:
+  - {path: depot/alerts.py, kind: program, run: 'python3 -c ''from depot.alerts import low_stock as ls, deficit as df; t=open("inventory.csv").read(); assert ls(t)==["bolt","nut","washer"], ls(t); assert df(t)==4, df(t); assert ls("a,2,2\nb,3,1\n")==["a"], ls("a,2,2\nb,3,1\n"); assert df("a,2,2\nb,3,1\n")==0, df("a,2,2\nb,3,1\n"); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depot.alerts import low_stock as ls, deficit as df; t=open("inventory.csv").read(); assert ls(t)==["bolt","nut","washer"], ls(t); assert df(t)==4, df(t); assert ls("a,2,2\nb,3,1\n")==["a"], ls("a,2,2\nb,3,1\n"); assert df("a,2,2\nb,3,1\n")==0, df("a,2,2\nb,3,1\n"); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0336
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: zor
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: off-by-one

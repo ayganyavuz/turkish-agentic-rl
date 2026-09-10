@@ -1,0 +1,100 @@
+id: gen-k-0549-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) school/transcript.py dosyasındaki gpa fonksiyonunu düzelt: fonksiyon her çağrıldığında toplamlar sıfırdan başlasın ve dışarıdaki durum sözlüğüne bağlı kalmasın.
+
+  2) gpa fonksiyonu, verilen taken listesindeki derslerin ağırlıklı not ortalamasını doğru biçimde hesaplayıp döndürsün; farklı çağrılar birbirinin sonucunu etkilemesin.
+
+setup: |
+  mkdir -p school
+  cat > school/__init__.py <<'INIT'
+  INIT
+  cat > school/courses.py <<'COURSES'
+  def parse_courses(text):
+      courses = {}
+      for line in text.strip().splitlines():
+          code, credit, grade = line.split(',')
+          courses[code] = (int(credit), grade)
+      return courses
+  COURSES
+  cat > school/transcript.py <<'TRANSCRIPT'
+  from school.courses import parse_courses
+
+  POINTS = {'A': 4.0, 'B': 3.0, 'C': 2.0, 'D': 1.0, 'F': 0.0}
+
+  STATE = {'points': 0.0, 'credits': 0}
+
+
+  def gpa(course_text, taken):
+      courses = parse_courses(course_text)
+      for code in taken:
+          credit, grade = courses[code]
+          STATE['points'] += credit * POINTS[grade]
+          STATE['credits'] += credit
+      return round(STATE['points'] / STATE['credits'], 2)
+  TRANSCRIPT
+  cat > data.csv <<'CSV'
+  MATH101,3,A
+  PHYS201,4,B
+  CHEM110,2,C
+  CSV
+
+goal_tr: >
+  school/transcript.py dosyasini, gpa fonksiyonu her cagrida toplamlari
+  sifirdan baslatip verilen taken listesindeki derslerin agirlikli not
+  ortalamasini dogru dondurecek sekilde duzelt
+
+reference_solution: |
+  cat > school/transcript.py <<'TRANSCRIPT'
+  from school.courses import parse_courses
+
+  POINTS = {'A': 4.0, 'B': 3.0, 'C': 2.0, 'D': 1.0, 'F': 0.0}
+
+
+  def gpa(course_text, taken):
+      courses = parse_courses(course_text)
+      total_points = 0.0
+      total_credits = 0
+      for code in taken:
+          credit, grade = courses[code]
+          total_points += credit * POINTS[grade]
+          total_credits += credit
+      return round(total_points / total_credits, 2)
+  TRANSCRIPT
+
+outputs:
+  - {path: school/transcript.py, kind: program, run: 'python3 -c ''from school.transcript import gpa as g; t=open("data.csv").read(); assert g(t,["MATH101","PHYS201"])==3.43, g(t,["MATH101","PHYS201"]); assert g(t,["CHEM110"])==2.0, g(t,["CHEM110"]); assert g(t,["MATH101"])==4.0, g(t,["MATH101"]); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from school.transcript import gpa as g; t=open("data.csv").read(); assert g(t,["MATH101","PHYS201"])==3.43, g(t,["MATH101","PHYS201"]); assert g(t,["CHEM110"])==2.0, g(t,["CHEM110"]); assert g(t,["MATH101"])==4.0, g(t,["MATH101"]); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0549
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-durum-sifirlama

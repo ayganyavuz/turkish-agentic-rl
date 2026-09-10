@@ -1,0 +1,208 @@
+id: gen-k-0858-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 18
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depo/chain.py içindeki OrderChain sınıfını, depo/node.py dosyasındaki OrderNode ile bağlı liste kurarak tamamla. take_top, en yüksek tutarlı k siparişin kimliğini büyükten küçüğe döndürsün. depo/audit.py içindeki audit fonksiyonu bu sınıfı kullanarak doğru özet üretsin; mevcut append, total ve len davranışları bozulmadan kalsın.
+
+setup: |
+  mkdir -p depo
+  cat > depo/node.py <<'NODE'
+  class OrderNode:
+      __slots__ = ("oid", "amount", "next")
+
+      def __init__(self, oid, amount, next=None):
+          self.oid = oid
+          self.amount = amount
+          self.next = next
+  NODE
+  cat > depo/chain.py <<'CHAIN'
+  from depo.node import OrderNode
+
+
+  class OrderChain:
+      def __init__(self):
+          self.head = None
+          self.tail = None
+          self._size = 0
+
+      def append(self, oid, amount):
+          node = OrderNode(oid, amount)
+          if self.head is None:
+              self.head = node
+              self.tail = node
+          else:
+              self.tail.next = node
+              self.tail = node
+          self._size += 1
+          return self
+
+      def total(self):
+          acc = 0
+          cur = self.head
+          while cur is not None:
+              acc += cur.amount
+              cur = cur.next
+          return acc
+
+      def take_top(self, k):
+          raise NotImplementedError
+
+      def __len__(self):
+          return self._size
+  CHAIN
+  cat > depo/audit.py <<'AUDIT'
+  from depo.chain import OrderChain
+
+
+  def audit(records):
+      chain = OrderChain()
+      for oid, amount in records:
+          chain.append(oid, amount)
+      return {
+          "count": len(chain),
+          "total": chain.total(),
+          "top": chain.take_top(2),
+      }
+  AUDIT
+  cat > girdi.txt <<'TXT'
+  A1,10
+  B2,25
+  C3,5
+  D4,40
+  TXT
+
+goal_tr: >
+  depo/chain.py icindeki OrderChain sinifini, depo/node.py'deki OrderNode
+  ile bagli liste kurarak tamamla: take_top en yuksek tutarli k siparisin
+  kimligini buyukten kucuge dondursun ve depo/audit.py'deki audit bu sinifi
+  kullanarak dogru ozet uretsin; append, total ve len davranislari
+  bozulmadan kalsin.
+
+reference_solution: |
+  cat > depo/chain.py <<'CHAIN'
+  from depo.node import OrderNode
+
+
+  class OrderChain:
+      def __init__(self):
+          self.head = None
+          self.tail = None
+          self._size = 0
+
+      def append(self, oid, amount):
+          node = OrderNode(oid, amount)
+          if self.head is None:
+              self.head = node
+              self.tail = node
+          else:
+              self.tail.next = node
+              self.tail = node
+          self._size += 1
+          return self
+
+      def total(self):
+          acc = 0
+          cur = self.head
+          while cur is not None:
+              acc += cur.amount
+              cur = cur.next
+          return acc
+
+      def take_top(self, k):
+          items = []
+          cur = self.head
+          while cur is not None:
+              items.append((cur.amount, cur.oid))
+              cur = cur.next
+          items.sort(key=lambda p: (-p[0], p[1]))
+          return [oid for _, oid in items[:k]]
+
+      def __len__(self):
+          return self._size
+  CHAIN
+
+ara_adim: |
+  cat > depo/chain.py <<'CHAIN'
+  from depo.node import OrderNode
+
+
+  class OrderChain:
+      def __init__(self):
+          self.head = None
+          self.tail = None
+          self._size = 0
+
+      def append(self, oid, amount):
+          node = OrderNode(oid, amount)
+          if self.head is None:
+              self.head = node
+              self.tail = node
+          else:
+              self.tail.next = node
+              self.tail = node
+          self._size += 1
+          return self
+
+      def total(self):
+          acc = 0
+          cur = self.head
+          while cur is not None:
+              acc += cur.amount
+              cur = cur.next
+          return acc
+
+      def take_top(self, k):
+          items = []
+          cur = self.head
+          while cur is not None:
+              items.append((cur.amount, cur.oid))
+              cur = cur.next
+          items.sort(key=lambda p: (-p[0], p[1]))
+          return [oid for _, oid in items[:k + 1]]
+
+      def __len__(self):
+          return self._size
+  CHAIN
+
+outputs:
+  - {path: depo/chain.py, kind: program, run: 'python3 -c ''from depo.audit import audit as f; r=[("A1",10),("B2",25),("C3",5),("D4",40)]; out=f(r); assert out["count"]==4, out; assert out["total"]==80, out; assert out["top"]==["D4","B2"], out; print("TAMAM")'''}
+  - {path: depo/chain.py, kind: program, run: 'python3 -c ''from depo.chain import OrderChain as C; c=C(); assert len(c)==0; c.append("X",7); assert len(c)==1; assert c.total()==7; assert c.take_top(1)==["X"]; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.audit import audit as f; r=[("A1",10),("B2",25),("C3",5),("D4",40)]; out=f(r); assert out["count"]==4, out; assert out["total"]==80, out; assert out["top"]==["D4","B2"], out; print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.chain import OrderChain as C; c=C(); assert len(c)==0; c.append("X",7); assert len(c)==1; assert c.total()==7; assert c.take_top(1)==["X"]; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0858
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: orta
+    adim: 6
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: bagli-liste
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

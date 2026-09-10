@@ -1,0 +1,120 @@
+id: gen-k-1017-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  grid/planner.py dosyasını sıfırdan oluştur. Bu dosyada `UsagePlanner` adında bir sınıf tanımla; sınıf, dosyadan okunan sayac verilerini kurucusunda yüklesin. Sınıfın `peak_window(meter, hours)` metodu, verilen sayacın ardışık `hours` saatlik dilimdeki en yüksek toplam tüketimini döndürsün. `rolling_peaks()` metodu ise her sayacın 2 saatlik en yüksek toplamını bir sözlük olarak döndürsün. Sayac verileri grid/usage.txt dosyasından okunmalı ve bu dosyaya dokunulmamalı; veri yükleme için grid/readings.py içindeki `load_readings`, sayac adlarını almak için grid/meters.py içindeki `meter_names` kullanılabilir.
+
+setup: |
+  mkdir -p grid
+  cat > grid/readings.py <<'READINGS'
+  def load_readings(path):
+      rows = []
+      with open(path) as fh:
+          for line in fh:
+              line = line.strip()
+              if not line:
+                  continue
+              meter, hour, watts = line.split(',')
+              rows.append((meter, int(hour), int(watts)))
+      return rows
+  READINGS
+  cat > grid/meters.py <<'METERS'
+  def meter_names(rows):
+      seen = []
+      for meter, _, _ in rows:
+          if meter not in seen:
+              seen.append(meter)
+      return seen
+  METERS
+  cat > grid/usage.txt <<'USAGE'
+  m1,0,10
+  m1,1,20
+  m1,2,5
+  m2,0,3
+  m2,1,40
+  m3,0,7
+  m3,1,1
+  m3,2,2
+  USAGE
+
+goal_tr: >
+  grid/planner.py dosyasini sifirdan yaz; `UsagePlanner` sinifi dosyadan
+  okunan sayac verilerini kursun ve `peak_window(meter, hours)` metodu o
+  sayacin ardisik `hours` saatlik dilimdeki en yuksek toplam tuketimini,
+  `rolling_peaks()` metodu her sayac icin 2 saatlik en yuksek toplami sozluk
+  olarak dondursun.
+
+reference_solution: |
+  cat > grid/planner.py <<'PLANNER'
+  from grid.readings import load_readings
+  from grid.meters import meter_names
+
+
+  class UsagePlanner:
+      def __init__(self, path):
+          self.rows = load_readings(path)
+          self.meters = meter_names(self.rows)
+          self.series = {}
+          for meter in self.meters:
+              values = [w for m, _, w in self.rows if m == meter]
+              self.series[meter] = values
+
+      def peak_window(self, meter, hours):
+          values = self.series[meter]
+          if hours <= 0 or hours > len(values):
+              return 0
+          window = sum(values[:hours])
+          best = window
+          for i in range(hours, len(values)):
+              window += values[i] - values[i - hours]
+              if window > best:
+                  best = window
+          return best
+
+      def rolling_peaks(self):
+          return {m: self.peak_window(m, 2) for m in self.meters}
+  PLANNER
+
+outputs:
+  - {path: grid/planner.py, kind: program, run: 'python3 -c ''from grid.planner import UsagePlanner as P; p=P("grid/usage.txt"); assert p.peak_window("m1",1)==20, p.peak_window("m1",1); assert p.peak_window("m1",2)==30, p.peak_window("m1",2); assert p.peak_window("m1",3)==35, p.peak_window("m1",3); assert p.peak_window("m2",2)==43, p.peak_window("m2",2); assert p.peak_window("m3",2)==8, p.peak_window("m3",2); assert p.rolling_peaks()=={"m1":30,"m2":43,"m3":8}, p.rolling_peaks(); assert p.peak_window("m1",9)==0; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from grid.planner import UsagePlanner as P; p=P("grid/usage.txt"); assert p.peak_window("m1",1)==20, p.peak_window("m1",1); assert p.peak_window("m1",2)==30, p.peak_window("m1",2); assert p.peak_window("m1",3)==35, p.peak_window("m1",3); assert p.peak_window("m2",2)==43, p.peak_window("m2",2); assert p.peak_window("m3",2)==8, p.peak_window("m3",2); assert p.rolling_peaks()=={"m1":30,"m2":43,"m3":8}, p.rolling_peaks(); assert p.peak_window("m1",9)==0; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1017
+    bundle: yarisma
+    tools:
+    - python3
+    konu: elektrik-sayaclari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: zor
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: dinamik-programlama
+      karmasiklik: duz
+      kalip: durumlu-sinif
+      akis: dosya-okuma
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

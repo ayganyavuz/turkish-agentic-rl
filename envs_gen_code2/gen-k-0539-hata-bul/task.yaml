@@ -1,0 +1,118 @@
+id: gen-k-0539-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  inventory/totals.py dosyasındaki sku_totals fonksiyonunu düzelt; aynı SKU birden fazla satırda geçtiğinde miktarlar ve tutarlar doğru şekilde biriktirilsin ve fonksiyon her SKU için doğru toplamı döndürsün. Bu düzeltmeyle birlikte aynı dosyadaki grand_total ve highest_sku fonksiyonları da doğru sonuç versin; grand_total tüm satırların tutarını doğru toplasın, highest_sku ise toplamı en yüksek olan SKU'yu doğru döndürsün.
+
+setup: |
+  mkdir -p inventory
+  cat > inventory/parse.py <<'PARSE'
+  def parse_lines(text):
+      rows = []
+      for line in text.strip().splitlines():
+          sku, qty, price = line.split(',')
+          rows.append((sku, int(qty), float(price)))
+      return rows
+  PARSE
+  cat > inventory/totals.py <<'TOTALS'
+  from inventory.parse import parse_lines
+
+
+  def sku_totals(text):
+      totals = {}
+      for sku, qty, price in parse_lines(text):
+          totals[sku] = qty * price
+      return totals
+
+
+  def grand_total(text):
+      result = 0.0
+      for sku, qty, price in parse_lines(text):
+          result += qty * price
+      return result
+
+
+  def highest_sku(text):
+      totals = sku_totals(text)
+      best = None
+      for sku in totals:
+          if best is None or totals[sku] > totals[best]:
+              best = sku
+      return best
+  TOTALS
+  cat > orders.txt <<'DATA'
+  A1,2,10.0
+  B2,1,5.0
+  A1,3,10.0
+  C3,4,2.5
+  B2,1,5.0
+  DATA
+
+goal_tr: >
+  inventory/totals.py icindeki sku_totals fonksiyonunu, ayni SKU birden
+  fazla satirda gectiginde miktarlari ve tutarlari dogru biriktirecek
+  sekilde duzelt; grand_total ve highest_sku dogru sonucu versin.
+
+reference_solution: |
+  cat > inventory/totals.py <<'TOTALS'
+  from inventory.parse import parse_lines
+
+
+  def sku_totals(text):
+      totals = {}
+      for sku, qty, price in parse_lines(text):
+          totals[sku] = totals.get(sku, 0.0) + qty * price
+      return totals
+
+
+  def grand_total(text):
+      result = 0.0
+      for sku, qty, price in parse_lines(text):
+          result += qty * price
+      return result
+
+
+  def highest_sku(text):
+      totals = sku_totals(text)
+      best = None
+      for sku in totals:
+          if best is None or totals[sku] > totals[best]:
+              best = sku
+      return best
+  TOTALS
+
+outputs:
+  - {path: inventory/totals.py, kind: program, run: 'python3 -c ''from inventory.totals import sku_totals as st, grand_total as gt, highest_sku as hs; t=open("orders.txt").read(); d=st(t); assert d=={"A1":50.0,"B2":10.0,"C3":10.0}, d; assert abs(gt(t)-70.0)<1e-9, gt(t); assert hs(t)=="A1", hs(t); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from inventory.totals import sku_totals as st, grand_total as gt, highest_sku as hs; t=open("orders.txt").read(); d=st(t); assert d=={"A1":50.0,"B2":10.0,"C3":10.0}, d; assert abs(gt(t)-70.0)<1e-9, gt(t); assert hs(t)=="A1", hs(t); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0539
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: erken-donus

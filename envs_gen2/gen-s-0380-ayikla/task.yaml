@@ -1,0 +1,69 @@
+id: gen-s-0380-ayikla
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Dün akşam elime eski bir defter kaldı, içinde bir sürü ürün yorumu birikmiş. Sabah da patron "bu dağılmış listeyi bir an önce düzenle, her ürün kendi başına bir dosya olsun" diye tutturdu. Bir yandan kahvemi yudumlarken bir yandan da /workspace içindeki yorumlar.tsv dosyasını açtım; içinde ürün, yorum ve puan sütunları var.
+
+  Senden istediğim şu: yorumlar.tsv içindeki her ürün için, o ürüne ait yorum ve puan sütunlarını sekme ile ayırıp ürün adıyla aynı isimde bir .txt dosyasına yaz. Yani kalem için kalem.txt, defter için defter.txt, silgi için silgi.txt oluşturulsun. Dosya adında ve dosya içeriğinde Türkçe karakter kullanılmasın.
+
+setup: |
+  cat > yorumlar.tsv <<'TSV'
+  urun	yorum	puan
+  kalem	harika bir urun	5
+  defter	idare eder	3
+  kalem	kargo hizli geldi	4
+  silgi	kullanissiz	1
+  defter	sayfalar ince	2
+  kalem	murekkep guzel	5
+  silgi	fiyat uygun	4
+  TSV
+
+goal_tr: >
+  yorumlar.tsv dosyasindaki her urun icin, o urune ait yorum ve puan
+  sutunlarini sekme ile ayirip urun adiyla ayni isimde bir .txt dosyasina
+  yaz; dosya adinda ve icerikte Turkce karakter kullanma.
+
+reference_solution: |
+  sed '1d' yorumlar.tsv | tr '\t' '|' | while IFS='|' read -r urun yorum puan; do
+    printf '%s\t%s\n' "$yorum" "$puan" >> "$urun.txt"
+  done
+
+outputs:
+  - {path: kalem.txt, kind: file}
+  - {path: defter.txt, kind: file}
+  - {path: silgi.txt, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: defter.txt, value: ["idare eder\t3", "sayfalar ince\t2"]}
+  - {op: file_lines_eq, path: kalem.txt, value: ["harika bir urun\t5", "kargo hizli geldi\t4", "murekkep guzel\t5"]}
+  - {op: file_lines_eq, path: silgi.txt, value: ["kullanissiz\t1", "fiyat uygun\t4"]}
+
+metadata:
+  domain: ayikla
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0380
+    bundle: metin-duzenle
+    tools:
+    - sed
+    - tr
+    konu: urun-yorumlari
+    hedef: ayikla
+    girdi: tsv
+    kaynak: tek-dosya
+    cikti: birden-cok-dosya
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: bos-dosya
+    bukulme: yok
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

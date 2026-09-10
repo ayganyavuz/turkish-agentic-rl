@@ -1,0 +1,59 @@
+id: gen-s-0383-donustur
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) hava.txt dosyasındaki her satırın son 4 hanesindeki sıcaklık değerlerini topla.
+  2) Toplamı sonuc.txt dosyasına sadece sayı olarak yaz.
+
+setup: |
+  printf '%s\n' 'ANKARA  0025' 'ISTANBUL0031' 'IZMIR   0038' 'BURSA   0022' > hava.txt
+  seq 1 4 > satir_sayisi.txt
+
+goal_tr: >
+  hava.txt dosyasindaki her satirin son 4 hanesindeki sicaklik degerlerini
+  toplayip toplami sonuc.txt dosyasina sadece sayi olarak yaz
+
+reference_solution: |
+  toplam=0
+  while read -r satir; do
+    deger=$(printf '%s' "$satir" | cut -c9-12 | sed 's/^0*//')
+    toplam=$((toplam + deger))
+  done < hava.txt
+  printf '%d\n' "$toplam" > sonuc.txt
+  seq 1 0 > /dev/null
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '116'}
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0383
+    bundle: uret
+    tools:
+    - printf
+    - seq
+    konu: hava-durumu-kayitlari
+    hedef: donustur
+    girdi: sabit-genislik
+    kaynak: tek-dosya
+    cikti: tek-sayi
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: yok
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

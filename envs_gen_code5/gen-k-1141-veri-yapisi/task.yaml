@@ -1,0 +1,200 @@
+id: gen-k-1141-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  tracking/tree.py ve tracking/registry.py dosyalarındaki NotImplementedError bırakan tüm metotları gerçek ikili arama ağacı mantığıyla doldur. tracking/tree.py içindeki BST sınıfının insert, search ve inorder metotları ile tracking/registry.py içindeki ShipmentRegistry sınıfının add, find ve sorted_codes metotları çalışır hale gelsin; böylece tracking/loader.py içindeki load fonksiyonu shipments.csv dosyasının içeriğini yükleyip kodları artan sırada döndürsün.
+
+setup: |
+  mkdir -p tracking
+  cat > tracking/tree.py <<'TREE'
+  class Node:
+      def __init__(self, key, value):
+          self.key = key
+          self.value = value
+          self.left = None
+          self.right = None
+
+
+  class BST:
+      def __init__(self):
+          self.root = None
+
+      def insert(self, key, value):
+          raise NotImplementedError
+
+      def search(self, key):
+          raise NotImplementedError
+
+      def inorder(self):
+          raise NotImplementedError
+  TREE
+  cat > tracking/registry.py <<'REGISTRY'
+  from tracking.tree import BST
+
+
+  class ShipmentRegistry:
+      def __init__(self):
+          self._tree = BST()
+
+      def add(self, code, destination):
+          raise NotImplementedError
+
+      def find(self, code):
+          raise NotImplementedError
+
+      def sorted_codes(self):
+          raise NotImplementedError
+
+
+  registry = ShipmentRegistry()
+  REGISTRY
+  cat > tracking/loader.py <<'LOADER'
+  from tracking.registry import registry
+
+
+  def _with_registry(func):
+      def wrapper(text):
+          for line in text.strip().splitlines():
+              code, destination = line.split(',')
+              registry.add(code, destination)
+          return func(text)
+      return wrapper
+
+
+  @_with_registry
+  def load(text):
+      return registry.sorted_codes()
+  LOADER
+  cat > shipments.csv <<'CSV'
+  S300,Ankara
+  S100,Izmir
+  S200,Bursa
+  S150,Adana
+  CSV
+
+goal_tr: >
+  tracking/tree.py ve tracking/registry.py icindeki NotImplementedError
+  birakan tum metotlari gercek ikili arama agaci mantigiyla doldur; boylece
+  tracking/loader.py load fonksiyonu shipments.csv icerigini yukleyip
+  kodlari artan sirada dondursun.
+
+reference_solution: |
+  cat > tracking/tree.py <<'TREE'
+  class Node:
+      def __init__(self, key, value):
+          self.key = key
+          self.value = value
+          self.left = None
+          self.right = None
+
+
+  class BST:
+      def __init__(self):
+          self.root = None
+
+      def insert(self, key, value):
+          if self.root is None:
+              self.root = Node(key, value)
+              return
+          node = self.root
+          while True:
+              if key < node.key:
+                  if node.left is None:
+                      node.left = Node(key, value)
+                      return
+                  node = node.left
+              elif key > node.key:
+                  if node.right is None:
+                      node.right = Node(key, value)
+                      return
+                  node = node.right
+              else:
+                  node.value = value
+                  return
+
+      def search(self, key):
+          node = self.root
+          while node is not None:
+              if key == node.key:
+                  return node.value
+              node = node.left if key < node.key else node.right
+          return None
+
+      def inorder(self):
+          result = []
+          stack = []
+          node = self.root
+          while stack or node is not None:
+              while node is not None:
+                  stack.append(node)
+                  node = node.left
+              node = stack.pop()
+              result.append((node.key, node.value))
+              node = node.right
+          return result
+  TREE
+  cat > tracking/registry.py <<'REGISTRY'
+  from tracking.tree import BST
+
+
+  class ShipmentRegistry:
+      def __init__(self):
+          self._tree = BST()
+
+      def add(self, code, destination):
+          self._tree.insert(code, destination)
+
+      def find(self, code):
+          return self._tree.search(code)
+
+      def sorted_codes(self):
+          return [key for key, value in self._tree.inorder()]
+
+
+  registry = ShipmentRegistry()
+  REGISTRY
+
+outputs:
+  - {path: tracking/tree.py, kind: program, run: 'python3 -c ''from tracking.loader import load; r=load(open("shipments.csv").read()); assert r==["S100","S150","S200","S300"], r; from tracking.registry import registry; assert registry.find("S200")=="Bursa"; assert registry.find("S999") is None; registry.add("S050","Konya"); assert registry.sorted_codes()[0]=="S050"; print("TAMAM")'''}
+  - {path: tracking/registry.py, kind: program, run: 'python3 -c ''from tracking.loader import load; r=load(open("shipments.csv").read()); assert r==["S100","S150","S200","S300"], r; from tracking.registry import registry; assert registry.find("S200")=="Bursa"; assert registry.find("S999") is None; registry.add("S050","Konya"); assert registry.sorted_codes()[0]=="S050"; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from tracking.loader import load; r=load(open("shipments.csv").read()); assert r==["S100","S150","S200","S300"], r; from tracking.registry import registry; assert registry.find("S200")=="Bursa"; assert registry.find("S999") is None; registry.add("S050","Konya"); assert registry.sorted_codes()[0]=="S050"; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1141
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: kargo-takibi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: ikili-arama-agaci
+      karmasiklik: duz
+      kalip: dekorator
+      akis: cok-dosya-birlestirme
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

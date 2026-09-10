@@ -1,0 +1,115 @@
+id: gen-k-0526-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Küçük bir rota planlama aracı üzerinde çalışıyoruz; dün akşam grafik tarafını kabaca oturttum ve bugün de kuyruk kısmını toparlamam gerekiyor. İşin büyük kısmı bitti sayılır, bir tek öncelik mantığını doğru kurmak kaldı ki aracın geri kalanı anlamlı sonuç verebilsin.
+
+  Bu kapsamda nav/queue.py dosyasındaki RouteQueue sınıfını gerçek bir öncelik kuyruğu olarak gerçekleştirmeni istiyorum: kuyruktan her zaman en küçük maliyetli öğe önce çıkmalı. Ayrıca nav/router.py içindeki router.cheapest_route fonksiyonunun en kısa yol maliyetini doğru şekilde döndürmesini sağlamak için bu kuyruk yapısı sorunsuz çalışmalı. nav/queue.py dışında bir dosyayı değiştirmene gerek yok; mevcut sınıfın push, pop ve __len__ davranışlarını bu amaca uygun hale getirmen yeterli.
+
+setup: |
+  mkdir -p nav
+  cat > nav/__init__.py <<'INIT'
+  INIT
+  cat > nav/graph.py <<'GRAPH'
+  def build_graph(edges):
+      g = {}
+      for a, b, w in edges:
+          g.setdefault(a, []).append((b, w))
+          g.setdefault(b, []).append((a, w))
+      return g
+  GRAPH
+  cat > nav/queue.py <<'QUEUE'
+  class RouteQueue:
+      def __init__(self):
+          raise NotImplementedError
+
+      def push(self, item):
+          raise NotImplementedError
+
+      def pop(self):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+  QUEUE
+  cat > nav/router.py <<'ROUTER'
+  from nav.graph import build_graph
+  from nav.queue import RouteQueue
+
+
+  def cheapest_route(edges, start, goal):
+      graph = build_graph(edges)
+      if start not in graph or goal not in graph:
+          return None
+      q = RouteQueue()
+      q.push((0, start))
+      best = {start: 0}
+      while len(q) > 0:
+          cost, node = q.pop()
+          if node == goal:
+              return cost
+          for nxt, w in graph[node]:
+              nc = cost + w
+              if nxt not in best or nc < best[nxt]:
+                  best[nxt] = nc
+                  q.push((nc, nxt))
+      return None
+  ROUTER
+
+goal_tr: >
+  nav/queue.py icindeki RouteQueue sinifini, en kucuk maliyetli ogeyi once
+  cikaran ve router.cheapest_route'un en kisa yol maliyetini dogru
+  dondurmesini saglayan bir oncelik kuyrugu olarak gerceklestir.
+
+reference_solution: |
+  cat > nav/queue.py <<'QUEUE'
+  class RouteQueue:
+      def __init__(self):
+          self._items = []
+
+      def push(self, item):
+          self._items.append(item)
+          self._items.sort(key=lambda x: x[0], reverse=True)
+
+      def pop(self):
+          return self._items.pop()
+
+      def __len__(self):
+          return len(self._items)
+  QUEUE
+
+outputs:
+  - {path: nav/queue.py, kind: program, run: 'python3 -c ''from nav.router import cheapest_route as f; e=[("A","B",4),("A","C",1),("C","B",1),("B","D",2),("C","D",7),("A","D",20)]; assert f(e,"A","D")==4, f(e,"A","D"); assert f(e,"A","B")==2; assert f(e,"A","A")==0; assert f(e,"A","Z") is None; assert f([("X","Y",5)],"X","Y")==5; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from nav.router import cheapest_route as f; e=[("A","B",4),("A","C",1),("C","B",1),("B","D",2),("C","D",7),("A","D",20)]; assert f(e,"A","D")==4, f(e,"A","D"); assert f(e,"A","B")==2; assert f(e,"A","A")==0; assert f(e,"A","Z") is None; assert f([("X","Y",5)],"X","Y")==5; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0526
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kuyruk

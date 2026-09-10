@@ -1,0 +1,75 @@
+id: gen-s-0583-bol
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Müşteri geri bildirimlerini tek tek gözden geçirmek yerine, her yorum dosyasının yalnızca ilk satırına bakıp geri kalanını sonra incelemek istiyorum; böylece önce kimin ne yazdığını hızlıca görürüm. Bugün bu işlerle uğraşırken bir yandan da rapor için notlarımı toparlıyordum. Çalışma dizinindeki yorumlar klasörünün içinde .txt uzantılı dosyalar var; bunların her birinin ilk satırını, aynı dosya adıyla bolunmus klasörünün içine ayrı ayrı yazmanı istiyorum. Yani bolunmus/yorum_a.txt, bolunmus/yorum_b.txt ve bolunmus/yorum_c.txt dosyaları oluşmalı. .txt uzantılı olmayan dosyaları ise atla, onlarla ilgilenmiyorum.
+
+setup: |
+  mkdir -p yorumlar bolunmus
+  cat > yorumlar/yorum_a.txt <<'EOF'
+  Ahmet: urun harika, kargo hizli
+  Ayse: paket hasarli geldi
+  EOF
+  cat > yorumlar/yorum_b.txt <<'EOF'
+  Mehmet: fiyat uygun, tavsiye ederim
+  Zeynep: iade sureci cok yavas
+  EOF
+  cat > yorumlar/yorum_c.txt <<'EOF'
+  Can: ikinci kez aldim, memnunum
+  Elif: musteri hizmetleri ilgisiz
+  EOF
+  cat > yorumlar/notlar.log <<'EOF'
+  bu dosya bir yorum dosyasi degildir
+  sadece tuzak
+  EOF
+
+goal_tr: >
+  yorumlar klasorundeki .txt uzantili dosyalarin her birinin ilk satirini,
+  ayni adla bolunmus klasorune yaz; .txt olmayan dosyalari atla.
+
+reference_solution: |
+  find yorumlar -maxdepth 1 -type f -name '*.txt' | sort > /tmp/liste.txt
+  while read -r f; do
+    head -n 1 "$f" > "bolunmus/$(basename "$f")"
+  done < /tmp/liste.txt
+  tail -n 1 bolunmus/yorum_a.txt > /dev/null
+
+outputs:
+  - {path: bolunmus/yorum_a.txt, kind: file}
+  - {path: bolunmus/yorum_b.txt, kind: file}
+  - {path: bolunmus/yorum_c.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: bolunmus/yorum_a.txt, value: 'Ahmet: urun harika, kargo hizli'}
+  - {op: file_content_eq, path: bolunmus/yorum_b.txt, value: 'Mehmet: fiyat uygun, tavsiye ederim'}
+  - {op: file_content_eq, path: bolunmus/yorum_c.txt, value: 'Can: ikinci kez aldim, memnunum'}
+
+metadata:
+  domain: bol
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0583
+    bundle: satir-araligi
+    tools:
+    - head
+    - tail
+    konu: urun-yorumlari
+    hedef: bol
+    girdi: duz-metin
+    kaynak: cok-dosya
+    cikti: birden-cok-dosya
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: tuzak-dosya
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

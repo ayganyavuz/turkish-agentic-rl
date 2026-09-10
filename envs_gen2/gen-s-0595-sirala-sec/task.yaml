@@ -1,0 +1,65 @@
+id: gen-s-0595-sirala-sec
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Dükkandaki stok sayımı işi yine bana kaldı; akşamüstü rafları sayarken bir yandan da elime geçen eski envanter kaydını düzeltmeye çalışıyorum. Depoda işler karıştı, hangi üründen ne kadar kaldığını bir türlü net göremiyorum. /workspace altındaki envanter.json dosyasındaki ürünlerden adet değeri sıfırdan büyük olanları adet alanına göre büyükten küçüğe sırala ve ilk üç ürünün ad, adet, fiyat alanlarını virgülle ayrılmış olarak, başlık satırı koymadan stok.csv dosyasına yaz.
+
+setup: |
+  cat > envanter.json <<'JSON'
+  {"urunler":[
+   {"ad":"kablo","adet":12,"fiyat":5},
+   {"ad":"adaptor","adet":3,"fiyat":40},
+   {"ad":"priz","adet":7,"fiyat":15},
+   {"ad":"anahtar","adet":0,"fiyat":9},
+   {"ad":"sigorta","adet":25,"fiyat":2},
+   {"ad":"role","adet":4,"fiyat":18}
+  ]}
+  JSON
+
+goal_tr: >
+  envanter.json icindeki urunler arasindan adet degeri sifirdan buyuk
+  olanlari adet alanina gore buyukten kucuge sirala ve ilk uc urunun
+  ad,adet,fiyat alanlarini virgulle ayrilmis olarak baslik satiri olmadan
+  stok.csv dosyasina yaz
+
+reference_solution: |
+  sed -e 's/[{}]//g' -e 's/\[//' -e 's/\]//' -e 's/"urunler"://' envanter.json |
+  tr ',' '\n' | sed -e 's/^ *//' -e 's/ *$//' | grep -v '^$' |
+  awk -F: '/"ad"/{gsub(/"/,"",$2); ad=$2} /"adet"/{adet=$2} /"fiyat"/{fiyat=$2; if(adet+0>0) print ad","adet","fiyat}' |
+  sort -t, -k2,2nr | uniq | head -n 3 > stok.csv
+
+outputs:
+  - {path: stok.csv, kind: file, run: cat stok.csv}
+
+checks:
+  - {op: file_lines_eq, path: stok.csv, value: ['sigorta,25,2', 'kablo,12,5', 'priz,7,15']}
+
+metadata:
+  domain: sirala-sec
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0595
+    bundle: sirala
+    tools:
+    - sort
+    - uniq
+    konu: envanter
+    hedef: sirala-sec
+    girdi: json
+    kaynak: tek-dosya
+    cikti: csv
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: bos-dosya
+    bukulme: tuzak-dosya
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

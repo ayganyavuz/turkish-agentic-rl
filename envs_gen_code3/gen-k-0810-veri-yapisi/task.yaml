@@ -1,0 +1,150 @@
+id: gen-k-0810-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 18
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Depoda aralık (interval) temelli zaman penceresi hesaplarıyla ilgili bir katman yarım kalmış; rapor üretimi bu yüzden ilerlemiyor. Ekip, store/ altındaki yardımcı modülleri tamamlayıp örnek girdilerle uçtan uca doğrulama yapmayı bekliyor.
+
+  store/intervals.py içindeki merge_spans ve clip_spans fonksiyonlarını gerçekleştir. merge_spans yarım açık [s,e) aralıklarını küçükten büyüğe birleştirsin; örtüşen ve bitişik aralıkları tek aralık yapsın. clip_spans ise her aralığı verilen [lo,hi] penceresine kırpsın ve tamamen dışarıda kalan aralıkları atsın. Bu iki fonksiyon sayesinde store/ledger.py ve store/audit.py üzerinden üretilen rapor doğru sonuç versin; sample_entries.py içindeki örnek girdilerle çalıştırıldığında pencereler ve toplam süre tutarlı çıksın.
+
+setup: |
+  mkdir -p store
+  cat > store/intervals.py <<'PY'
+  def merge_spans(spans):
+      raise NotImplementedError
+
+
+  def clip_spans(spans, lo, hi):
+      raise NotImplementedError
+  PY
+  cat > store/ledger.py <<'PY'
+  from store.intervals import merge_spans, clip_spans
+
+
+  def active_windows(entries, lo, hi):
+      spans = [(s, e) for (s, e, _tag) in entries]
+      return merge_spans(clip_spans(spans, lo, hi))
+
+
+  def total_covered(entries, lo, hi):
+      return sum(e - s for (s, e) in active_windows(entries, lo, hi))
+  PY
+  cat > store/audit.py <<'PY'
+  from store.ledger import active_windows, total_covered
+
+
+  def audit_report(entries, lo, hi):
+      windows = active_windows(entries, lo, hi)
+      total = total_covered(entries, lo, hi)
+      return {"windows": windows, "total": total}
+  PY
+  cat > sample_entries.py <<'PY'
+  ENTRIES = [
+      (1, 5, "a"),
+      (3, 9, "b"),
+      (12, 14, "c"),
+      (13, 20, "d"),
+      (22, 24, "e"),
+  ]
+  PY
+
+goal_tr: >
+  store/intervals.py icindeki merge_spans ve clip_spans fonksiyonlarini
+  gerceklestir: merge_spans yarim acik [s,e) araliklarini kucukten buyuge
+  birlestirip ortusmeyen ve bitisik araliklari tek aralik yapsin, clip_spans
+  ise her araligi [lo,hi] penceresine kirpip tamamen disarida kalanlari
+  atsin; boylece store/ledger.py ve store/audit.py uzerinden uretilen rapor
+  dogru olsun.
+
+reference_solution: |
+  cat > store/intervals.py <<'PY'
+  def clip_spans(spans, lo, hi):
+      out = []
+      for (s, e) in spans:
+          s2 = max(s, lo)
+          e2 = min(e, hi)
+          if s2 < e2:
+              out.append((s2, e2))
+      return out
+
+
+  def merge_spans(spans):
+      if not spans:
+          return []
+      ordered = sorted(spans)
+      merged = [ordered[0]]
+      for (s, e) in ordered[1:]:
+          ls, le = merged[-1]
+          if s <= le:
+              if e > le:
+                  merged[-1] = (ls, e)
+          else:
+              merged.append((s, e))
+      return merged
+  PY
+
+ara_adim: |
+  # (Bu bolum yalnizca 1. hatayi giderir; 2. dosyaya DOKUNULMAZ.)
+  # 1. hata: store/intervals.py hic gerceklestirilmemis (NotImplementedError).
+  # Bu adimda yalnizca merge_spans yazilir, clip_spans NotImplementedError kalir.
+  cat > store/intervals.py <<'PY'
+  def merge_spans(spans):
+      if not spans:
+          return []
+      ordered = sorted(spans)
+      merged = [ordered[0]]
+      for (s, e) in ordered[1:]:
+          ls, le = merged[-1]
+          if s <= le:
+              if e > le:
+                  merged[-1] = (ls, e)
+          else:
+              merged.append((s, e))
+      return merged
+
+
+  def clip_spans(spans, lo, hi):
+      raise NotImplementedError
+  PY
+
+outputs:
+  - {path: store/intervals.py, kind: program, run: 'python3 -c ''from store.audit import audit_report as f; E=[(1,5,"a"),(3,9,"b"),(12,14,"c"),(13,20,"d"),(22,24,"e")]; r=f(E,0,15); assert r["windows"]==[(1,9),(12,15)], r; assert r["total"]==11, r; r2=f(E,4,13); assert r2["windows"]==[(4,9),(12,13)], r2; assert r2["total"]==6, r2; print("TAMAM")'''}
+  - {path: store/intervals.py, kind: program, run: 'python3 -c ''from store.intervals import merge_spans as m; assert m([(1,3),(3,5),(7,8)])==[(1,5),(7,8)], m([(1,3),(3,5),(7,8)]); assert m([])==[]; assert m([(5,6),(1,2)])==[(1,2),(5,6)]; assert m([(1,10),(2,3),(4,5)])==[(1,10)]; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from store.audit import audit_report as f; E=[(1,5,"a"),(3,9,"b"),(12,14,"c"),(13,20,"d"),(22,24,"e")]; r=f(E,0,15); assert r["windows"]==[(1,9),(12,15)], r; assert r["total"]==11, r; r2=f(E,4,13); assert r2["windows"]==[(4,9),(12,13)], r2; assert r2["total"]==6, r2; print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from store.intervals import merge_spans as m; assert m([(1,3),(3,5),(7,8)])==[(1,5),(7,8)], m([(1,3),(3,5),(7,8)]); assert m([])==[]; assert m([(5,6),(1,2)])==[(1,2),(5,6)]; assert m([(1,10),(2,3),(4,5)])==[(1,10)]; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0810
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: zor
+    adim: 6
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: aralik-birlestirme
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

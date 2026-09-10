@@ -1,0 +1,111 @@
+id: gen-k-0538-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) depo/rapor.py dosyasını aç ve low_stock fonksiyonunu, bir kalemin miktarı yeniden sipariş eşiğine ulaştığında veya altına düştüğünde o kalemi sonuca ekleyecek şekilde düzelt.
+
+  2) depo/rapor.py içindeki total_reorder fonksiyonunu, miktarı yeniden sipariş eşiğine ulaşan veya altına düşen kalemler için eşik ile miktar arasındaki farkı toplayacak şekilde düzelt.
+
+  3) depo/rapor.py dosyasını kaydet ve envanter.csv verisiyle her iki fonksiyonun eşiğe ulaşma durumunu doğru yakaladığını kontrol et.
+
+setup: |
+  mkdir -p depo
+  cat > depo/kayit.py <<'KAYIT'
+  def parse_items(text):
+      rows = []
+      for line in text.strip().splitlines():
+          code, qty, reorder = line.split(',')
+          rows.append((code, int(qty), int(reorder)))
+      return rows
+  KAYIT
+  cat > depo/rapor.py <<'RAPOR'
+  from depo.kayit import parse_items
+
+
+  def low_stock(text, threshold):
+      rows = parse_items(text)
+      result = []
+      for code, qty, reorder in rows:
+          if qty - reorder < threshold:
+              result.append(code)
+      return result
+
+
+  def total_reorder(text):
+      rows = parse_items(text)
+      total = 0
+      for code, qty, reorder in rows:
+          if qty < reorder:
+              total += reorder - qty
+      return total
+  RAPOR
+  cat > envanter.csv <<'CSV'
+  A100,4,10
+  B200,12,5
+  C300,7,7
+  D400,0,3
+  CSV
+
+goal_tr: >
+  depo/rapor.py icindeki low_stock ve total_reorder fonksiyonlarini, bir
+  kalemin yeniden siparis esigine ulasmasi/altina dusmesi durumunu dogru
+  yakalayacak bicimde duzelt.
+
+reference_solution: |
+  cat > depo/rapor.py <<'RAPOR'
+  from depo.kayit import parse_items
+
+
+  def low_stock(text, threshold):
+      rows = parse_items(text)
+      result = []
+      for code, qty, reorder in rows:
+          if qty - reorder <= threshold:
+              result.append(code)
+      return result
+
+
+  def total_reorder(text):
+      rows = parse_items(text)
+      total = 0
+      for code, qty, reorder in rows:
+          if qty <= reorder:
+              total += reorder - qty
+      return total
+  RAPOR
+
+outputs:
+  - {path: depo/rapor.py, kind: program, run: 'python3 -c ''from depo.rapor import low_stock as ls, total_reorder as tr; t=open("envanter.csv").read(); assert ls(t,0)==["A100","C300","D400"], ls(t,0); assert ls(t,3)==["A100","C300","D400"], ls(t,3); assert tr(t)==9, tr(t); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.rapor import low_stock as ls, total_reorder as tr; t=open("envanter.csv").read(); assert ls(t,0)==["A100","C300","D400"], ls(t,0); assert ls(t,3)==["A100","C300","D400"], ls(t,3); assert tr(t)==9, tr(t); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0538
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: off-by-one

@@ -1,0 +1,164 @@
+id: gen-k-0360-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  orderflow/queue_base.py dosyasındaki OrderQueue sınıfını tam bir FIFO kuyruğu olarak gerçekleştir. push metodu yeni kaydı kuyruğun sonuna eklesin, pop metodu kuyruğun başındaki kaydı çıkarıp döndürsün, peek metodu kuyruğun başındaki kaydı çıkarmadan döndürsün. size kuyruktaki kayıt sayısını, is_empty kuyruğun boş olup olmadığını döndürsün. total_amount kuyrukta bulunan tüm kayıtların amount değerlerinin toplamını döndürsün. Ayrıca orderflow/batch.py dosyasındaki drain_batches ve total_revenue fonksiyonları bu sınıf üzerinde doğru şekilde çalışsın.
+
+  Şu şartlar sağlanmalı:
+  - orderflow/queue_base.py dosyasında OrderQueue sınıfı, hiçbir metodu NotImplementedError fırlatmayacak şekilde tam olarak gerçekleştirilmiş olmalı.
+  - push, kaydı kuyruğun sonuna eklemeli.
+  - pop, kuyruğun başındaki kaydı çıkarıp döndürmeli; kuyruk FIFO sırasını korumalı.
+  - peek, kuyruğun başındaki kaydı çıkarmadan döndürmeli ve kuyruk değişmemeli.
+  - size, kuyrukta bulunan kayıt sayısını döndürmeli.
+  - is_empty, kuyruk boşken doğru, doluyken yanlış değer döndürmeli.
+  - total_amount, kuyrukta bulunan tüm kayıtların amount değerlerinin toplamını döndürmeli.
+  - orderflow/batch.py içindeki drain_batches fonksiyonu bu sınıf üzerinde doğru çalışmalı; batch_size kadar kaydı gruplayıp liste listesi döndürmeli, son parti daha kısa olabilmeli, kuyruk boşken boş liste döndürmeli.
+  - orderflow/batch.py içindeki total_revenue fonksiyonu bu sınıf üzerinde doğru çalışmalı; kuyruktaki tüm amount değerlerini toplayıp kuyruğu boşaltmalı.
+
+setup: |
+  mkdir -p orderflow
+  cat > orderflow/queue_base.py <<'BASE'
+  class OrderQueue:
+      """FIFO queue of order records.
+
+      Each record is a tuple (order_id, customer, amount).
+      """
+
+      def __init__(self):
+          raise NotImplementedError
+
+      def push(self, order_id, customer, amount):
+          raise NotImplementedError
+
+      def pop(self):
+          raise NotImplementedError
+
+      def peek(self):
+          raise NotImplementedError
+
+      def size(self):
+          raise NotImplementedError
+
+      def is_empty(self):
+          raise NotImplementedError
+
+      def total_amount(self):
+          raise NotImplementedError
+  BASE
+  cat > orderflow/batch.py <<'BATCH'
+  from orderflow.queue_base import OrderQueue
+
+
+  def drain_batches(queue, batch_size):
+      """Pop orders from queue and group them into batches.
+
+      Returns a list of lists. The final batch may be shorter than
+      batch_size. If the queue is empty, returns an empty list.
+      """
+      batches = []
+      while not queue.is_empty():
+          batch = []
+          for _ in range(batch_size):
+              if queue.is_empty():
+                  break
+              batch.append(queue.pop())
+          batches.append(batch)
+      return batches
+
+
+  def total_revenue(queue):
+      """Sum the amount field of every order in the queue, leaving it empty."""
+      total = 0.0
+      while not queue.is_empty():
+          order = queue.pop()
+          total += order[2]
+      return total
+  BATCH
+  cat > orderflow/__init__.py <<'INIT'
+  INIT
+
+goal_tr: >
+  orderflow/queue_base.py icindeki OrderQueue sinifini FIFO kuyruk olarak
+  tam gerceklestir; push sona eklesin, pop bastan cikarsin, peek cikarmadan
+  basi dondursun, size ve is_empty dogru olsun, total_amount kuyruktaki tum
+  amount degerlerinin toplamini dondursun ve orderflow/batch.py icindeki
+  drain_batches ile total_revenue bu sinif uzerinde dogru calissin.
+
+reference_solution: |
+  cat > orderflow/queue_base.py <<'BASE'
+  class OrderQueue:
+      """FIFO queue of order records.
+
+      Each record is a tuple (order_id, customer, amount).
+      """
+
+      def __init__(self):
+          self._items = []
+          self._head = 0
+
+      def push(self, order_id, customer, amount):
+          self._items.append((order_id, customer, amount))
+
+      def pop(self):
+          if self.is_empty():
+              raise IndexError("pop from empty OrderQueue")
+          order = self._items[self._head]
+          self._head += 1
+          if self._head > 64 and self._head * 2 >= len(self._items):
+              self._items = self._items[self._head:]
+              self._head = 0
+          return order
+
+      def peek(self):
+          if self.is_empty():
+              raise IndexError("peek from empty OrderQueue")
+          return self._items[self._head]
+
+      def size(self):
+          return len(self._items) - self._head
+
+      def is_empty(self):
+          return self.size() == 0
+
+      def total_amount(self):
+          total = 0.0
+          for i in range(self._head, len(self._items)):
+              total += self._items[i][2]
+          return total
+  BASE
+
+outputs:
+  - {path: orderflow/queue_base.py, kind: program, run: 'python3 -c ''from orderflow.queue_base import OrderQueue as Q; from orderflow.batch import drain_batches as d, total_revenue as r; q=Q(); assert q.is_empty() and q.size()==0; q.push("o1","ada",10.0); q.push("o2","bora",2.5); q.push("o3","cem",7.5); assert q.size()==3 and not q.is_empty(); assert q.peek()==("o1","ada",10.0); assert q.size()==3; assert q.total_amount()==20.0; assert q.pop()==("o1","ada",10.0); assert q.pop()==("o2","bora",2.5); assert q.size()==1; q.push("o4","deniz",1.0); assert q.pop()==("o3","cem",7.5); assert q.pop()==("o4","deniz",1.0); assert q.is_empty(); q2=Q(); [q2.push("x%d"%i,"c",float(i)) for i in range(10)]; assert d(q2,3)==[[("x0","c",0.0),("x1","c",1.0),("x2","c",2.0)],[("x3","c",3.0),("x4","c",4.0),("x5","c",5.0)],[("x6","c",6.0),("x7","c",7.0),("x8","c",8.0)],[("x9","c",9.0)]]; assert q2.is_empty(); q3=Q(); [q3.push("y%d"%i,"c",float(i)) for i in range(5)]; assert r(q3)==10.0 and q3.is_empty(); assert d(Q(),2)==[]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from orderflow.queue_base import OrderQueue as Q; from orderflow.batch import drain_batches as d, total_revenue as r; q=Q(); assert q.is_empty() and q.size()==0; q.push("o1","ada",10.0); q.push("o2","bora",2.5); q.push("o3","cem",7.5); assert q.size()==3 and not q.is_empty(); assert q.peek()==("o1","ada",10.0); assert q.size()==3; assert q.total_amount()==20.0; assert q.pop()==("o1","ada",10.0); assert q.pop()==("o2","bora",2.5); assert q.size()==1; q.push("o4","deniz",1.0); assert q.pop()==("o3","cem",7.5); assert q.pop()==("o4","deniz",1.0); assert q.is_empty(); q2=Q(); [q2.push("x%d"%i,"c",float(i)) for i in range(10)]; assert d(q2,3)==[[("x0","c",0.0),("x1","c",1.0),("x2","c",2.0)],[("x3","c",3.0),("x4","c",4.0),("x5","c",5.0)],[("x6","c",6.0),("x7","c",7.0),("x8","c",8.0)],[("x9","c",9.0)]]; assert q2.is_empty(); q3=Q(); [q3.push("y%d"%i,"c",float(i)) for i in range(5)]; assert r(q3)==10.0 and q3.is_empty(); assert d(Q(),2)==[]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0360
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kuyruk

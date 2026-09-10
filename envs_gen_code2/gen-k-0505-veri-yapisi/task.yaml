@@ -1,0 +1,105 @@
+id: gen-k-0505-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) orders/queue.py dosyasında OrderQueue sınıfını gerçekleştir. Sınıfın push metodu bir siparişi önceliğiyle kuyruğa eklesin ve aynı öncelikteki siparişlerin gönderim sırasını (FIFO) korusun.
+
+  2) Aynı sınıfın pop metodu en yüksek öncelikli elemanı döndürsün.
+
+  3) Aynı sınıfın size metodu kuyruktaki eleman sayısını versin.
+
+setup: |
+  mkdir -p orders
+  cat > orders/__init__.py <<'INIT'
+  INIT
+  cat > orders/queue.py <<'QUEUE'
+  class OrderQueue:
+      def __init__(self):
+          raise NotImplementedError
+
+      def push(self, order_id, priority):
+          raise NotImplementedError
+
+      def pop(self):
+          raise NotImplementedError
+
+      def size(self):
+          raise NotImplementedError
+  QUEUE
+  cat > orders/dispatch.py <<'DISPATCH'
+  from orders.queue import OrderQueue
+
+
+  def dispatch_order(events):
+      q = OrderQueue()
+      for order_id, priority in events:
+          q.push(order_id, priority)
+      out = []
+      while q.size() > 0:
+          out.append(q.pop())
+      return out
+  DISPATCH
+
+goal_tr: >
+  orders/queue.py icindeki OrderQueue sinifini gerceklestir: push ayni
+  oncelikte gonderim sirasini (FIFO) korusun, pop en yuksek oncelikli
+  elemani dondursun, size eleman sayisini versin.
+
+reference_solution: |
+  cat > orders/queue.py <<'QUEUE'
+  class OrderQueue:
+      def __init__(self):
+          self._items = []
+          self._counter = 0
+
+      def push(self, order_id, priority):
+          self._items.append((priority, self._counter, order_id))
+          self._counter += 1
+
+      def pop(self):
+          best = 0
+          for i in range(1, len(self._items)):
+              if self._items[i][0] > self._items[best][0]:
+                  best = i
+          priority, seq, order_id = self._items.pop(best)
+          return order_id
+
+      def size(self):
+          return len(self._items)
+  QUEUE
+
+outputs:
+  - {path: orders/queue.py, kind: program, run: 'python3 -c ''from orders.queue import OrderQueue as Q; from orders.dispatch import dispatch_order as d; q=Q(); assert q.size()==0; q.push("a",1); q.push("b",5); q.push("c",5); q.push("d",0); assert q.size()==4; assert q.pop()=="b"; assert q.pop()=="c"; assert q.pop()=="a"; assert q.pop()=="d"; assert q.size()==0; assert d([("x",2),("y",2),("z",7)])==["z","x","y"]; assert d([])==[]; assert d([("p",0),("q",0)])==["p","q"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from orders.queue import OrderQueue as Q; from orders.dispatch import dispatch_order as d; q=Q(); assert q.size()==0; q.push("a",1); q.push("b",5); q.push("c",5); q.push("d",0); assert q.size()==4; assert q.pop()=="b"; assert q.pop()=="c"; assert q.pop()=="a"; assert q.pop()=="d"; assert q.size()==0; assert d([("x",2),("y",2),("z",7)])==["z","x","y"]; assert d([])==[]; assert d([("p",0),("q",0)])==["p","q"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0505
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: oncelik-kuyrugu

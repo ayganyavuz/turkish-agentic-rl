@@ -1,0 +1,71 @@
+id: gen-s-0374-denetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Depo ekibiyle sabah toplantısında sevkiyat takibinin ne kadar dağınık ilerlediğinden konuştuk; herkes kendi dosyasında not tutunca hangi kargonun hâlâ yolda olduğunu görmek zorlaşıyor. Bugün de bu işi biraz toparlamak için bilgisayarın başına oturdum. Çalışma dizinindeki sevkiyat klasörünün içindeki .json uzantılı dosyalara bakmam gerekiyor, ama arsiv alt dizinindekileri işe katmayacağım. Bu dosyalardaki kayıtlardan durum alanı "yolda" olanların kargo değerlerini, dosya başına bir satır olacak şekilde yolda_kargolar.txt dosyasına yaz; dosyanın sonunda yeni satır karakteri olmasın.
+
+setup: |
+  mkdir -p sevkiyat/arsiv
+  cat > sevkiyat/kargo_a.json <<'EOF'
+  {"kargo":"K001","durum":"yolda","sehir":"Ankara"}
+  {"kargo":"K002","durum":"teslim","sehir":"Izmir"}
+  {"kargo":"K003","durum":"yolda","sehir":"Bursa"}
+  EOF
+  cat > sevkiyat/kargo_b.json <<'EOF'
+  {"kargo":"K004","durum":"teslim","sehir":"Adana"}
+  {"kargo":"K005","durum":"iptal","sehir":"Konya"}
+  EOF
+  cat > sevkiyat/arsiv/kargo_eski.json <<'EOF'
+  {"kargo":"K900","durum":"yolda","sehir":"Antalya"}
+  EOF
+  printf '{"kargo":"K006","durum":"yolda","sehir":"Trabzon"}' > sevkiyat/kargo_c.json
+  printf 'bu bir tuzak dosyadir, json degil\n' > sevkiyat/notlar.txt
+
+goal_tr: >
+  sevkiyat dizini altindaki (arsiv alt dizini haric) .json uzantili
+  dosyalarda durum alani "yolda" olan her kaydin kargo degerini, dosya
+  basina bir satir olacak sekilde ve dosya sonu yeni satir karakteri olmadan
+  yolda_kargolar.txt dosyasina yaz
+
+reference_solution: |
+  find sevkiyat -maxdepth 1 -type f -name '*.json' | sort > /tmp/dosyalar.txt
+  while read -r f; do grep '"durum":"yolda"' "$f" | sed 's/.*"kargo":"\([^"]*\)".*/\1/'; done < /tmp/dosyalar.txt > /tmp/ham.txt
+  tr -d '\n' < /tmp/ham.txt > /tmp/birlesik.txt
+  awk 'BEGIN{RS="K";ORS=""} NR>1{print "K"$0}' /tmp/birlesik.txt > yolda_kargolar.txt
+  wc -l < yolda_kargolar.txt > /tmp/satir_sayisi.txt
+
+outputs:
+  - {path: yolda_kargolar.txt, kind: lines, run: wc -l < yolda_kargolar.txt}
+
+checks:
+  - {op: file_content_eq, path: yolda_kargolar.txt, value: K001K003K006}
+
+metadata:
+  domain: denetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0374
+    bundle: dizin-istatistik
+    tools:
+    - wc
+    - find
+    konu: kargo-takibi
+    hedef: denetle
+    girdi: json
+    kaynak: cok-dosya
+    cikti: satir-listesi
+    kesif: dosyayi-bul
+    uslup: baglam-gomulu
+    direnc: son-newline-yok
+    bukulme: tuzak-dosya
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

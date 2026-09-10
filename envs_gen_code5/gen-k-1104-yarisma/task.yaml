@@ -1,0 +1,113 @@
+id: gen-k-1104-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) fleet/summary.py dosyasını oluştur.
+
+  2) Bu dosyada make_counter_factory() adında bir closure fabrikası tanımla; fabrika, fleet.registry.fleet_snapshot() çıktısını kullanarak her araç için toplam olay sayısını hesaplasın.
+
+  3) Fabrika her çağrıldığında bağımsız bir sayac closure döndürsün.
+
+  4) Closure bir araç kimliği alsın ve o aracın toplam olay sayısını döndürsün.
+
+  5) Aynı araç için closure tekrar çağrıldığında sayım yeniden hesaplanmasın, önbellekten dönsün.
+
+setup: |
+  mkdir -p fleet
+  cat > fleet/telemetry.py <<'TELEMETRY'
+  def vehicle_events():
+      return [
+          ("v1", "moving"),
+          ("v2", "idle"),
+          ("v1", "moving"),
+          ("v3", "moving"),
+          ("v2", "idle"),
+          ("v1", "idle"),
+          ("v3", "moving"),
+          ("v4", "moving"),
+          ("v5", "idle"),
+      ]
+  TELEMETRY
+  cat > fleet/registry.py <<'REGISTRY'
+  from fleet.telemetry import vehicle_events
+
+
+  def fleet_snapshot():
+      counts = {}
+      for vid, state in vehicle_events():
+          counts.setdefault(vid, {})
+          counts[vid][state] = counts[vid].get(state, 0) + 1
+      return counts
+  REGISTRY
+
+goal_tr: >
+  fleet/summary.py dosyasini yaz: fleet.registry.fleet_snapshot() ciktisini
+  kullanarak her arac icin toplam olay sayisini hesaplayan bir closure
+  fabrikasi olan make_counter_factory() tanimla; fabrika her cagrildiginda
+  bagimsiz bir sayac closure dondursun, closure bir arac kimligi alip o
+  aracin toplam olay sayisini dondursun ve ayni arac icin tekrar cagrilirsa
+  sayim tekrar hesaplanmasin (onbellekten donsun).
+
+reference_solution: |
+  cat > fleet/summary.py <<'SUMMARY'
+  from fleet.registry import fleet_snapshot
+
+
+  def make_counter_factory():
+      cache = {}
+
+      def counter(vehicle_id):
+          if vehicle_id not in cache:
+              snap = fleet_snapshot()
+              total = 0
+              for state, n in snap.get(vehicle_id, {}).items():
+                  total += n
+              cache[vehicle_id] = total
+          return cache[vehicle_id]
+
+      return counter
+  SUMMARY
+
+outputs:
+  - {path: fleet/summary.py, kind: program, run: 'python3 -c ''from fleet.summary import make_counter_factory as M; c1=M(); c2=M(); assert c1("v1")==3; assert c1("v2")==2; assert c1("v3")==2; assert c1("v4")==1; assert c1("v5")==1; assert c1("v1")==3; assert c2("v1")==3; assert c2("v3")==2; import fleet.summary as s; assert hasattr(s,"make_counter_factory"); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from fleet.summary import make_counter_factory as M; c1=M(); c2=M(); assert c1("v1")==3; assert c1("v2")==2; assert c1("v3")==2; assert c1("v4")==1; assert c1("v5")==1; assert c1("v1")==3; assert c2("v1")==3; assert c2("v3")==2; import fleet.summary as s; assert hasattr(s,"make_counter_factory"); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1104
+    bundle: yarisma
+    tools:
+    - python3
+    konu: arac-filosu
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sayma
+      karmasiklik: duz
+      kalip: closure-fabrika
+      akis: bellek-ici
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

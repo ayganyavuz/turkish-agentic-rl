@@ -1,0 +1,136 @@
+id: gen-k-0520-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depot/report.py dosyasını sıfırdan yaz. Bu dosya, depot/inventory.py içindeki load_inventory fonksiyonunu kullanarak stock.txt gibi bir envanter metnini okuyup zone alanına göre toplam miktarları hesaplayan iki fonksiyon içersin: zone_totals(text) ve busiest_zone(text). zone_totals, zone adlarını toplam miktarlara eşleyen bir sözlük döndürsün; busiest_zone ise toplamı en yüksek olan zone'un adını döndürsün.
+
+setup: |
+  mkdir -p depot
+  cat > depot/records.py <<'REC'
+  def split_blocks(text):
+      blocks = []
+      current = []
+      for raw in text.splitlines():
+          line = raw.rstrip()
+          if line.strip() == "":
+              if current:
+                  blocks.append(current)
+                  current = []
+              continue
+          current.append(line)
+      if current:
+          blocks.append(current)
+      return blocks
+
+
+  def parse_field(line):
+      key, _, value = line.partition(":")
+      return key.strip(), value.strip()
+
+
+  def parse_block(lines):
+      header = lines[0]
+      fields = {}
+      for line in lines[1:]:
+          key, value = parse_field(line)
+          fields[key] = value
+      return header, fields
+  REC
+  cat > depot/inventory.py <<'INV'
+  from depot.records import split_blocks, parse_block
+
+
+  def load_inventory(text):
+      items = {}
+      for block in split_blocks(text):
+          header, fields = parse_block(block)
+          name = header.split()[0]
+          qty = int(fields.get("qty", "0"))
+          items[name] = qty
+      return items
+  INV
+  cat > stock.txt <<'TXT'
+  crate A-1
+  qty: 12
+  zone: north
+
+  crate B-2
+  qty: 5
+  zone: south
+
+  crate C-3
+  qty: 30
+  zone: north
+  TXT
+
+goal_tr: >
+  depot/report.py dosyasini sifirdan yaz: load_inventory ile envanteri
+  okuyup zone alanina gore toplam miktarlari hesaplayan zone_totals(text) ve
+  toplami en yuksek olan zone'u donduren busiest_zone(text) fonksiyonlarini
+  icersin; zone_totals sozluk, busiest_zone ise zone adi dondurur.
+
+reference_solution: |
+  cat > depot/report.py <<'REP'
+  from depot.records import split_blocks, parse_block
+
+
+  def _rows(text):
+      rows = []
+      for block in split_blocks(text):
+          header, fields = parse_block(block)
+          name = header.split()[0]
+          qty = int(fields.get("qty", "0"))
+          zone = fields.get("zone", "")
+          rows.append((name, qty, zone))
+      return rows
+
+
+  def zone_totals(text):
+      totals = {}
+      for name, qty, zone in _rows(text):
+          totals[zone] = totals.get(zone, 0) + qty
+      return totals
+
+
+  def busiest_zone(text):
+      totals = zone_totals(text)
+      if not totals:
+          return None
+      return max(sorted(totals), key=lambda z: totals[z])
+  REP
+
+outputs:
+  - {path: depot/report.py, kind: program, run: 'python3 -c ''from depot.report import zone_totals as zt, busiest_zone as bz; t=open("stock.txt").read(); assert zt(t)=={"north":42,"south":5}, zt(t); assert bz(t)=="north", bz(t); t2="crate X-9\nqty: 3\nzone: east\n\ncrate Y-1\nqty: 7\nzone: west"; assert zt(t2)=={"east":3,"west":7}, zt(t2); assert bz(t2)=="west", bz(t2); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depot.report import zone_totals as zt, busiest_zone as bz; t=open("stock.txt").read(); assert zt(t)=={"north":42,"south":5}, zt(t); assert bz(t)=="north", bz(t); t2="crate X-9\nqty: 3\nzone: east\n\ncrate Y-1\nqty: 7\nzone: west"; assert zt(t2)=={"east":3,"west":7}, zt(t2); assert bz(t2)=="west", bz(t2); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0520
+    bundle: yarisma
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: zor
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: metin-ayristirma

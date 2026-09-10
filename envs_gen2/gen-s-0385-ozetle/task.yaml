@@ -1,0 +1,82 @@
+id: gen-s-0385-ozetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  veri/istasyonlar dizinindeki yalnızca .csv ile biten dosyalardaki sıcaklık değerlerini şehre göre toplayıp, şehir ve toplam_sıcaklık başlıklarını içeren bir CSV olarak ozet.csv dosyasına yaz.
+
+  Şu şartlar sağlanmalı:
+  - veri/istasyonlar dizinindeki yalnızca .csv ile biten dosyalar okunmalı; .txt ve .csv.bak uzantılı dosyalar dikkate alınmamalı.
+  - Sıcaklık değerleri şehre göre toplanmalı.
+  - Sonuç, çalışma dizinindeki ozet.csv dosyasına yazılmalı.
+  - ozet.csv dosyasının ilk satırı şehir,toplam_sıcaklık başlığını içermeli.
+  - Toplamlar yalnızca sayı olarak yazılmalı.
+
+setup: |
+  mkdir -p veri/istasyonlar
+  cat > veri/istasyonlar/ist1.csv <<'CSV'
+  tarih,sehir,sicaklik
+  2024-01-01,ankara,3
+  2024-01-02,ankara,5
+  CSV
+  cat > veri/istasyonlar/ist2.csv <<'CSV'
+  tarih,sehir,sicaklik
+  2024-01-01,izmir,12
+  2024-01-02,izmir,14
+  CSV
+  cat > veri/istasyonlar/okubeni.txt <<'TXT'
+  tarih,sehir,sicaklik
+  2024-01-01,ankara,3
+  TXT
+  cat > veri/istasyonlar/ist3.csv.bak <<'CSV'
+  tarih,sehir,sicaklik
+  2024-01-01,ankara,999
+  CSV
+
+goal_tr: >
+  veri/istasyonlar dizinindeki yalnizca .csv ile biten dosyalardaki sicaklik
+  degerlerini sehre gore toplayip sehir,toplam_sicaklik baslikli CSV olarak
+  ozet.csv dosyasina yaz
+
+reference_solution: |
+  find veri/istasyonlar -maxdepth 1 -type f -name '*.csv' | sort | xargs tail -n +2 | sort -t, -k2,2 > gecici_sirali.csv
+  awk -F, '{t[$2]+=$3} END{for(s in t) print s","t[s]}' gecici_sirali.csv | sort -t, -k1,1 > gecici_toplam.csv
+  printf 'sehir,toplam_sicaklik\n' > ozet_baslik.csv
+  join -t, -1 1 -2 1 <(sort -t, -k1,1 ozet_baslik.csv) <(cat gecici_toplam.csv) > /dev/null 2>&1 || true
+  { cat ozet_baslik.csv; cat gecici_toplam.csv; } > ozet.csv
+  rm -f gecici_sirali.csv gecici_toplam.csv ozet_baslik.csv
+
+outputs:
+  - {path: ozet.csv, kind: csv}
+
+checks:
+  - {op: file_lines_eq, path: ozet.csv, value: ['sehir,toplam_sicaklik', ',0', 'ankara,8', 'izmir,26']}
+
+metadata:
+  domain: ozetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0385
+    bundle: birlestir
+    tools:
+    - join
+    - sort
+    konu: hava-durumu-kayitlari
+    hedef: ozetle
+    girdi: csv
+    kaynak: dizin-agaci
+    cikti: csv
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: tuzak-dosya
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

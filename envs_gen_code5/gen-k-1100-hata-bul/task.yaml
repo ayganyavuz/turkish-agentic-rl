@@ -1,0 +1,134 @@
+id: gen-k-1100-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) callcenter/streams/batches.py dosyasındaki BatchReader sınıfını, girdi akışının son parçası tam bölünmediğinde de kalan o parçayı döndürecek biçimde düzelt.
+
+  2) Düzeltme sonrasında BatchReader, akışı başta olduğu gibi aynı boyutlu parçalara bölmeye devam etsin; yalnızca sonda artan kayıtlar da bir parça olarak döndürülsün.
+
+  3) callcenter/streams/batches.py dışındaki dosyalara dokunma; değişiklik yalnızca bu dosyada olsun.
+
+setup: |
+  mkdir -p callcenter/streams
+  cat > callcenter/streams/records.py <<'RECORDS'
+  def parse_line(line):
+      parts = line.strip().split('|')
+      if len(parts) != 3:
+          return None
+      agent, kind, dur = parts
+      return (agent, kind, int(dur))
+
+
+  def iter_records(lines):
+      for line in lines:
+          rec = parse_line(line)
+          if rec is not None:
+              yield rec
+  RECORDS
+  cat > callcenter/streams/batches.py <<'BATCHES'
+  from callcenter.streams.records import iter_records
+
+
+  class BatchReader:
+      def __init__(self, lines, size):
+          self.lines = lines
+          self.size = size
+
+      def __iter__(self):
+          batch = []
+          for rec in iter_records(self.lines):
+              batch.append(rec)
+              if len(batch) == self.size:
+                  yield batch
+                  batch = []
+  BATCHES
+  cat > callcenter/streams/totals.py <<'TOTALS'
+  from callcenter.streams.batches import BatchReader
+
+
+  def total_minutes(lines, size):
+      reader = BatchReader(lines, size)
+      total = 0
+      for batch in reader:
+          for agent, kind, dur in batch:
+              if kind == 'call':
+                  total += dur
+      return total
+  TOTALS
+  cat > calls.txt <<'CALLS'
+  ayse|call|5
+  mehmet|note|2
+  ayse|call|7
+  zeynep|call|3
+  mehmet|call|4
+  zeynep|note|1
+  CALLS
+
+goal_tr: >
+  callcenter/streams/batches.py icindeki BatchReader sinifini, akisin son
+  parcasi tam bolunmediginde de o parcayi dondurecek bicimde duzelt.
+
+reference_solution: |
+  cat > callcenter/streams/batches.py <<'BATCHES'
+  from callcenter.streams.records import iter_records
+
+
+  class BatchReader:
+      def __init__(self, lines, size):
+          self.lines = lines
+          self.size = size
+
+      def __iter__(self):
+          batch = []
+          for rec in iter_records(self.lines):
+              batch.append(rec)
+              if len(batch) == self.size:
+                  yield batch
+                  batch = []
+          if batch:
+              yield batch
+  BATCHES
+
+outputs:
+  - {path: callcenter/streams/batches.py, kind: program, run: 'python3 -c ''from callcenter.streams.batches import BatchReader as B; lines=open("calls.txt").read().splitlines(); got=list(B(lines,4)); assert len(got)==2, got; assert got[0]==[("ayse","call",5),("mehmet","note",2),("ayse","call",7),("zeynep","call",3)], got[0]; assert got[1]==[("mehmet","call",4),("zeynep","note",1)], got[1]; got2=list(B(lines,2)); assert len(got2)==3, got2; assert got2[2]==[("mehmet","call",4),("zeynep","note",1)], got2[2]; got3=list(B(lines,7)); assert len(got3)==1, got3; assert got3[0]==[("ayse","call",5),("mehmet","note",2),("ayse","call",7),("zeynep","call",3),("mehmet","call",4),("zeynep","note",1)], got3[0]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from callcenter.streams.batches import BatchReader as B; lines=open("calls.txt").read().splitlines(); got=list(B(lines,4)); assert len(got)==2, got; assert got[0]==[("ayse","call",5),("mehmet","note",2),("ayse","call",7),("zeynep","call",3)], got[0]; assert got[1]==[("mehmet","call",4),("zeynep","note",1)], got[1]; got2=list(B(lines,2)); assert len(got2)==3, got2; assert got2[2]==[("mehmet","call",4),("zeynep","note",1)], got2[2]; got3=list(B(lines,7)); assert len(got3)==1, got3; assert got3[0]==[("ayse","call",5),("mehmet","note",2),("ayse","call",7),("zeynep","call",3),("mehmet","call",4),("zeynep","note",1)], got3[0]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1100
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: cagri-merkezi-kayitlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum
+      karmasiklik: duz
+      kalip: iterator-protokolu
+      akis: parcali-akis
+      topoloji: paket-alt-paket
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

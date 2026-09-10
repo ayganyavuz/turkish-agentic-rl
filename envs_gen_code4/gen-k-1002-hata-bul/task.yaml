@@ -1,0 +1,131 @@
+id: gen-k-1002-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  fleet/dispatch.py içindeki largest_active fonksiyonu şu an yanlış çalışıyor: aktif araçlardan kapasitesi en yüksek olanları seçerken sonuncuyu listeye katmıyor. Bu fonksiyonu, yalnızca aktif araçlar arasından kapasitesi en yüksek k aracın plakasını, kapasitesi büyükten küçüğe azalan sırada döndürecek biçimde düzelt. Dönen değer bir plaka listesi olsun ve fleet/registry.py ile fleet/vehicles.py dosyaları olduğu gibi kalsın; yalnızca fleet/dispatch.py üzerinde çalış.
+
+setup: |
+  mkdir -p fleet
+  cat > fleet/vehicles.py <<'VEH'
+  from dataclasses import dataclass
+
+
+  @dataclass
+  class Vehicle:
+      plate: str
+      capacity: int
+      active: bool = True
+  VEH
+  cat > fleet/registry.py <<'REG'
+  from fleet.vehicles import Vehicle
+
+
+  class Registry:
+      def __init__(self):
+          self._vehicles = []
+
+      def add(self, plate, capacity, active=True):
+          self._vehicles.append(Vehicle(plate, capacity, active))
+
+      def all(self):
+          return list(self._vehicles)
+  REG
+  cat > fleet/dispatch.py <<'DIS'
+  from fleet.registry import Registry
+
+
+  def build_registry(rows):
+      reg = Registry()
+      for row in rows:
+          reg.add(row[0], row[1], row[2] if len(row) > 2 else True)
+      return reg
+
+
+  def total_capacity(reg):
+      total = 0
+      for v in reg.all():
+          if v.active:
+              total += v.capacity
+      return total
+
+
+  def largest_active(reg, k):
+      active = [v for v in reg.all() if v.active]
+      active.sort(key=lambda v: v.capacity, reverse=True)
+      return [v.plate for v in active[:k - 1]]
+  DIS
+
+goal_tr: >
+  fleet/dispatch.py icindeki largest_active fonksiyonunu, aktif araclardan
+  kapasitesi en yuksek k tanesinin plakasini azalan sirada dogru dondurecek
+  bicimde duzelt.
+
+reference_solution: |
+  cat > fleet/dispatch.py <<'DIS'
+  from fleet.registry import Registry
+
+
+  def build_registry(rows):
+      reg = Registry()
+      for row in rows:
+          reg.add(row[0], row[1], row[2] if len(row) > 2 else True)
+      return reg
+
+
+  def total_capacity(reg):
+      total = 0
+      for v in reg.all():
+          if v.active:
+              total += v.capacity
+      return total
+
+
+  def largest_active(reg, k):
+      active = [v for v in reg.all() if v.active]
+      active.sort(key=lambda v: v.capacity, reverse=True)
+      return [v.plate for v in active[:k]]
+  DIS
+
+outputs:
+  - {path: fleet/dispatch.py, kind: program, run: 'python3 -c ''from fleet.dispatch import build_registry as b, total_capacity as tc, largest_active as la; rows=[("A1",10,True),("B2",50,True),("C3",30,False),("D4",40,True)]; r=b(rows); assert tc(r)==100, tc(r); assert la(r,2)==["B2","D4"], la(r,2); assert la(r,1)==["B2"]; assert la(r,3)==["B2","D4","A1"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from fleet.dispatch import build_registry as b, total_capacity as tc, largest_active as la; rows=[("A1",10,True),("B2",50,True),("C3",30,False),("D4",40,True)]; r=b(rows); assert tc(r)==100, tc(r); assert la(r,2)==["B2","D4"], la(r,2); assert la(r,1)==["B2"]; assert la(r,3)==["B2","D4","A1"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1002
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: arac-filosu
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: off-by-one
+      karmasiklik: duz
+      kalip: dataclass-dogrulama
+      akis: bellek-ici
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

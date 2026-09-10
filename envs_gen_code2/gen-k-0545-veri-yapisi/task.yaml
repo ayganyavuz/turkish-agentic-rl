@@ -1,0 +1,102 @@
+id: gen-k-0545-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  route_net.py içindeki RouteStack sınıfını tamamla; push, pop, peek ve depth çalışsın, resolve(target) yığın üzerinden hedefe giden düğüm zincirini yol listesi olarak döndürsün.
+
+setup: |
+  cat > route_net.py <<'PY'
+  class RouteStack:
+      def __init__(self):
+          raise NotImplementedError
+
+      def push(self, node):
+          raise NotImplementedError
+
+      def pop(self):
+          raise NotImplementedError
+
+      def peek(self):
+          raise NotImplementedError
+
+      def depth(self):
+          raise NotImplementedError
+
+      def resolve(self, target):
+          raise NotImplementedError
+  PY
+  cat > net.txt <<'TXT'
+  A B
+  B C
+  B D
+  C E
+  D E
+  E F
+  TXT
+
+goal_tr: >
+  route_net.py icindeki RouteStack sinifini; push/pop/peek/depth calissin ve
+  resolve(target) hedefe giden dugum zincirini yigin uzerinden bulup yol
+  listesi dondursun diye tamamla.
+
+reference_solution: |
+  cat > route_net.py <<'PY'
+  class RouteStack:
+      def __init__(self):
+          self._items = []
+
+      def push(self, node):
+          self._items.append(node)
+
+      def pop(self):
+          if not self._items:
+              raise IndexError("empty stack")
+          return self._items.pop()
+
+      def peek(self):
+          if not self._items:
+              raise IndexError("empty stack")
+          return self._items[-1]
+
+      def depth(self):
+          return len(self._items)
+
+      def resolve(self, target):
+          return self._items[:self._items.index(target) + 1]
+  PY
+
+outputs:
+  - {path: route_net.py, kind: program, run: 'python3 -c ''from route_net import RouteStack as R; s=R(); assert s.depth()==0; s.push("A"); s.push("B"); s.push("C"); assert s.peek()=="C"; assert s.depth()==3; assert s.resolve("B")==["A","B"]; assert s.pop()=="C"; assert s.depth()==2; assert s.resolve("A")==["A"]; s.push("D"); assert s.resolve("D")==["A","B","D"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from route_net import RouteStack as R; s=R(); assert s.depth()==0; s.push("A"); s.push("B"); s.push("C"); assert s.peek()=="C"; assert s.depth()==3; assert s.resolve("B")==["A","B"]; assert s.pop()=="C"; assert s.depth()==2; assert s.resolve("A")==["A"]; s.push("D"); assert s.resolve("D")==["A","B","D"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0545
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: terse
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yigin

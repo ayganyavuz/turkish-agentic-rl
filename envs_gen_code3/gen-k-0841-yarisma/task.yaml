@@ -1,0 +1,181 @@
+id: gen-k-0841-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 20
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) cal/stack.py dosyasını oluştur; içinde bir metni etkinliklere (ad, başlangıç, bitiş) çeviren parse_events fonksiyonu ve etkinlikleri başlangıca göre sıralı tutup her adımda yığını güncelleyerek aynı anda en fazla kaç etkinliğin çakıştığını döndüren max_overlap fonksiyonu bulunsun.
+
+  2) cal/overlap.py içindeki max_overlap fonksiyonunu, cal.stack.max_overlap'ı çağırıp sonucu aynen döndürecek şekilde değiştir.
+
+  3) cal/report.py dosyasını oluştur; içinde cal.overlap.max_overlap'ı kullanarak en yoğun çakışma sayısını ve o anda açık olan etkinlik adlarını alfabetik sıralı bir liste olarak döndüren busiest fonksiyonu bulunsun.
+
+setup: |
+  mkdir -p cal
+  cat > cal/events.py <<'EVENTS'
+  def parse_events(text):
+      out = []
+      for line in text.strip().splitlines():
+          name, start, end = line.split(',')
+          out.append((name, int(start), int(end)))
+      return out
+  EVENTS
+  cat > cal/overlap.py <<'OVERLAP'
+  from cal.events import parse_events
+
+
+  def max_overlap(text):
+      events = parse_events(text)
+      events.sort(key=lambda e: e[1])
+      best = 0
+      for i in range(len(events)):
+          count = 0
+          for j in range(len(events)):
+              if events[j][1] < events[i][2] and events[i][1] < events[j][2]:
+                  count += 1
+          if count > best:
+              best = count
+      return best
+  OVERLAP
+  cat > data.txt <<'DATA'
+  standup,9,10
+  review,10,11
+  lunch,12,13
+  DATA
+
+goal_tr: >
+  1) cal/stack.py dosyasini yaz: bir metin alip etkinlikleri (ad, baslangic,
+  bitis) uclulerine ceviren parse_events fonksiyonu ile, etkinlikleri
+  baslangica gore sirali tutup her adimda yigini (stack) guncelleyerek ayni
+  anda en fazla kac etkinligin cakistigini donduren max_overlap fonksiyonunu
+  icsin. 2) cal/overlap.py icindeki max_overlap'i cal.stack.max_overlap'i
+  cagirip sonucu aynen dondurecek sekilde degistir. 3) cal/report.py
+  dosyasini yaz: cal.overlap.max_overlap'i kullanarak en yogun cakisma
+  sayisini ve o anda acik olan etkinlik adlarini alfabetik sirali bir liste
+  olarak donduren busiest fonksiyonunu icsin.
+
+reference_solution: |
+  cat > cal/stack.py <<'STACK'
+  def parse_events(text):
+      out = []
+      for line in text.strip().splitlines():
+          name, start, end = line.split(',')
+          out.append((name, int(start), int(end)))
+      return out
+
+
+  def max_overlap(text):
+      events = parse_events(text)
+      points = []
+      for name, start, end in events:
+          points.append((start, 1, name))
+          points.append((end, -1, name))
+      points.sort(key=lambda p: (p[0], p[1]))
+      best = 0
+      current = 0
+      stack = []
+      for pos, delta, name in points:
+          if delta == 1:
+              stack.append(name)
+              current += 1
+              if current > best:
+                  best = current
+          else:
+              stack.remove(name)
+              current -= 1
+      return best
+  STACK
+  cat > cal/overlap.py <<'OVERLAP'
+  from cal.stack import max_overlap
+  OVERLAP
+  cat > cal/report.py <<'REPORT'
+  from cal.overlap import max_overlap
+  from cal.stack import parse_events
+
+
+  def busiest(text):
+      events = parse_events(text)
+      peak = max_overlap(text)
+      names = []
+      for name, start, end in events:
+          count = 0
+          for other, s2, e2 in events:
+              if s2 < end and start < e2:
+                  count += 1
+          if count == peak:
+              names.append(name)
+      return (peak, sorted(names))
+  REPORT
+
+ara_adim: |
+  cat > cal/stack.py <<'STACK'
+  def parse_events(text):
+      out = []
+      for line in text.strip().splitlines():
+          name, start, end = line.split(',')
+          out.append((name, int(start), int(end)))
+      return out
+
+
+  def max_overlap(text):
+      events = parse_events(text)
+      points = []
+      for name, start, end in events:
+          points.append((start, 1, name))
+          points.append((end, -1, name))
+      points.sort(key=lambda p: (p[0], p[1]))
+      best = 0
+      current = 0
+      stack = []
+      for pos, delta, name in points:
+          if delta == 1:
+              stack.append(name)
+              current += 1
+              if current > best:
+                  best = current
+          else:
+              stack.remove(name)
+              current -= 1
+      return best
+  STACK
+
+outputs:
+  - {path: cal/report.py, kind: program, run: 'python3 -c ''from cal.report import busiest as f; t="a,1,5\nb,2,6\nc,7,8\n"; r=f(t); assert r[0]==2, r; assert r[1]==["a","b"], r; print("TAMAM")'''}
+  - {path: cal/report.py, kind: program, run: 'python3 -c ''from cal.stack import parse_events as f; assert f("a,1,2")==[("a",1,2)], f("a,1,2"); assert f("x,5,7\ny,6,9")==[("x",5,7),("y",6,9)]; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from cal.report import busiest as f; t="a,1,5\nb,2,6\nc,7,8\n"; r=f(t); assert r[0]==2, r; assert r[1]==["a","b"], r; print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from cal.stack import parse_events as f; assert f("a,1,2")==[("a",1,2)], f("a,1,2"); assert f("x,5,7\ny,6,9")==[("x",5,7),("y",6,9)]; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0841
+    bundle: yarisma
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 7
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yigin-kullanimi
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

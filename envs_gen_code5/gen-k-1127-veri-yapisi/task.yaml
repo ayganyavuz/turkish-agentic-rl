@@ -1,0 +1,122 @@
+id: gen-k-1127-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Sabah toplantıda depo izleme panelinin son denemelerde takıldığını konuştuk; bazı uyarı kayıtları ekranda belirmeden kayboluyor. Bunun üzerine sensör tarafındaki kural katmanını gözden geçirmeye karar verdik ve önce alarm kuyruğunu düzgün bir hale getirmemiz gerektiği ortaya çıktı.
+
+  Bu doğrultuda sensors/rules.py dosyasındaki AlarmQueue sınıfını, her zaman en yüksek öncelikli kaydın önce çıktığı bir öncelik kuyruğu olacak şekilde iterator protokolüyle baştan yaz. Kuyruk push ile beslenmeli, len ile içindeki kayıt sayısını vermeli ve iter ile kayıtları öncelik sırasına göre tek tek döndürmeli; bu üç davranış da sensors/monitor.py dosyasındaki collect fonksiyonunun kullanımıyla uyumlu çalışmalı. Kayıtlar öncelik değeri, ad ve değer bilgisini taşımaya devam etsin.
+
+setup: |
+  mkdir -p sensors
+  cat > sensors/stream.py <<'STREAM'
+  def readings(chunks):
+      for chunk in chunks:
+          for line in chunk.strip().splitlines():
+              name, value = line.split('=')
+              yield name.strip(), float(value)
+  STREAM
+  cat > sensors/rules.py <<'RULES'
+  class AlarmQueue:
+      def __init__(self):
+          raise NotImplementedError
+
+      def push(self, priority, name, value):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+
+      def __iter__(self):
+          raise NotImplementedError
+  RULES
+  cat > sensors/monitor.py <<'MONITOR'
+  from sensors.stream import readings
+  from sensors.rules import AlarmQueue
+
+
+  def collect(chunks, threshold):
+      q = AlarmQueue()
+      for name, value in readings(chunks):
+          if value >= threshold:
+              q.push(value, name, value)
+      return q
+  MONITOR
+  cat > data.txt <<'DATA'
+  temp=12.5
+  temp=99.0
+  press=50.0
+  press=140.0
+  temp=101.5
+  DATA
+
+goal_tr: >
+  sensors/rules.py icindeki AlarmQueue sinifini, en yuksek oncelikli kaydin
+  once ciktigi bir oncelik kuyrugu olarak iterator protokoluyle
+  gerceklestir; push, len ve iter davranislari sensors/monitor.py ile uyumlu
+  olmali.
+
+reference_solution: |
+  cat > sensors/rules.py <<'RULES'
+  import heapq
+
+
+  class AlarmQueue:
+      def __init__(self):
+          self._heap = []
+          self._counter = 0
+
+      def push(self, priority, name, value):
+          heapq.heappush(self._heap, (-priority, self._counter, name, value))
+          self._counter += 1
+
+      def __len__(self):
+          return len(self._heap)
+
+      def __iter__(self):
+          for neg_priority, _counter, name, value in sorted(self._heap):
+              yield (name, value)
+  RULES
+
+outputs:
+  - {path: sensors/rules.py, kind: program, run: 'python3 -c ''from sensors.monitor import collect as c; t=open("data.txt").read(); q=c([t],100.0); assert len(q)==2, len(q); assert list(q)==[("press",140.0),("temp",101.5)], list(q); q2=c([t],0.0); assert len(q2)==5, len(q2); assert list(q2)==[("press",140.0),("temp",101.5),("temp",99.0),("press",50.0),("temp",12.5)], list(q2); q3=c([t],200.0); assert len(q3)==0 and list(q3)==[], list(q3); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensors.monitor import collect as c; t=open("data.txt").read(); q=c([t],100.0); assert len(q)==2, len(q); assert list(q)==[("press",140.0),("temp",101.5)], list(q); q2=c([t],0.0); assert len(q2)==5, len(q2); assert list(q2)==[("press",140.0),("temp",101.5),("temp",99.0),("press",50.0),("temp",12.5)], list(q2); q3=c([t],200.0); assert len(q3)==0 and list(q3)==[], list(q3); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1127
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: sensor-alarm-kurallari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: oncelik-kuyrugu
+      karmasiklik: duz
+      kalip: iterator-protokolu
+      akis: parcali-akis
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

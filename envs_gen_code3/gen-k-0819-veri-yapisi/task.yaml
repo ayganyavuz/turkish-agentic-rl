@@ -1,0 +1,238 @@
+id: gen-k-0819-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 22
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bazen bir oturum akışını işlerken aynı anda birden fazla kullanıcı birikiyor ve kimin önce alınacağına karar vermek gerekiyor; ağırlıklı bir öncelik sırası olmadan bu iş elle yapıldığında kaçınılmaz olarak karışıyor. Bugün de sessionq dizinindeki yarım kalmış sınıflarla uğraşıyordum; sessionq/events.py ve stream.txt hazır duruyor ama işin kalbi hâlâ eksik. senden sessionq/heap.py içindeki SessionHeap sınıfını ve sessionq/queue.py içindeki SessionQueue sınıfını tam olarak çalışır hale getirmeni istiyorum. SessionQueue, en yüksek öncelikli oturumu önce verecek; öncelikler eşit olduğunda ise önce eklenen kullanıcı kazanacak. Ayrıca pending() çağrıldığında bekleyen kullanıcı adlarını öncelik sırasına göre döndürmeli. stream.txt içindeki satırlar user:kind:weight biçiminde olduğunu ve events.py'nin bu veriyi (user, kind, weight) üçlüsüne çevirdiğini unutma.
+
+setup: |
+  mkdir -p sessionq
+  cat > sessionq/events.py <<'EVENTS'
+  def normalize(event):
+      """Bir olay sozlugunu (user, kind, weight) uclusune cevirir."""
+      return (event["user"], event["kind"], int(event["weight"]))
+
+
+  def parse_stream(lines):
+      """Her satir 'user:kind:weight' bicimindedir."""
+      out = []
+      for line in lines:
+          line = line.strip()
+          if not line:
+              continue
+          user, kind, weight = line.split(":")
+          out.append(normalize({"user": user, "kind": kind, "weight": weight}))
+      return out
+  EVENTS
+  cat > sessionq/heap.py <<'HEAP'
+  class SessionHeap:
+      def __init__(self):
+          raise NotImplementedError
+
+      def push(self, priority, item):
+          raise NotImplementedError
+
+      def pop(self):
+          raise NotImplementedError
+
+      def peek(self):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+  HEAP
+  cat > sessionq/queue.py <<'QUEUE'
+  from sessionq.heap import SessionHeap
+
+
+  class SessionQueue:
+      def __init__(self):
+          raise NotImplementedError
+
+      def add(self, user, kind, weight):
+          raise NotImplementedError
+
+      def next_user(self):
+          raise NotImplementedError
+
+      def pending(self):
+          raise NotImplementedError
+  QUEUE
+  cat > stream.txt <<'STREAM'
+  ada:login:5
+  bora:login:9
+  ada:message:7
+  bora:message:2
+  cengiz:login:9
+  STREAM
+
+goal_tr: >
+  sessionq/heap.py icindeki SessionHeap sinifini ve sessionq/queue.py
+  icindeki SessionQueue sinifini; SessionQueue en yuksek oncelikli oturumu
+  once verecek, esitlikte once eklenen kazanacak ve pending() bekleyen
+  kullanici adlarini oncelik sirasina gore dondurecek bicimde gerceklestir.
+
+reference_solution: |
+  cat > sessionq/heap.py <<'HEAP'
+  class SessionHeap:
+      def __init__(self):
+          self._data = []
+          self._seq = 0
+
+      def push(self, priority, item):
+          entry = (-priority, self._seq, item)
+          self._seq += 1
+          self._data.append(entry)
+          i = len(self._data) - 1
+          while i > 0:
+              parent = (i - 1) // 2
+              if self._data[parent] <= self._data[i]:
+                  break
+              self._data[parent], self._data[i] = self._data[i], self._data[parent]
+              i = parent
+
+      def pop(self):
+          if not self._data:
+              raise IndexError("pop from empty heap")
+          top = self._data[0]
+          last = self._data.pop()
+          if self._data:
+              self._data[0] = last
+              i = 0
+              n = len(self._data)
+              while True:
+                  left = 2 * i + 1
+                  right = 2 * i + 2
+                  smallest = i
+                  if left < n and self._data[left] < self._data[smallest]:
+                      smallest = left
+                  if right < n and self._data[right] < self._data[smallest]:
+                      smallest = right
+                  if smallest == i:
+                      break
+                  self._data[i], self._data[smallest] = self._data[smallest], self._data[i]
+                  i = smallest
+          return top[2]
+
+      def peek(self):
+          if not self._data:
+              raise IndexError("peek from empty heap")
+          return self._data[0][2]
+
+      def __len__(self):
+          return len(self._data)
+  HEAP
+  cat > sessionq/queue.py <<'QUEUE'
+  from sessionq.heap import SessionHeap
+
+
+  class SessionQueue:
+      def __init__(self):
+          self._heap = SessionHeap()
+          self._order = {}
+
+      def add(self, user, kind, weight):
+          self._heap.push(weight, user)
+
+      def next_user(self):
+          user = self._heap.pop()
+          return user
+
+      def pending(self):
+          items = list(self._heap._data)
+          items.sort()
+          return [entry[2] for entry in items]
+  QUEUE
+
+ara_adim: |
+  cat > sessionq/heap.py <<'HEAP'
+  class SessionHeap:
+      def __init__(self):
+          self._data = []
+          self._seq = 0
+
+      def push(self, priority, item):
+          entry = (-priority, self._seq, item)
+          self._seq += 1
+          self._data.append(entry)
+          i = len(self._data) - 1
+          while i > 0:
+              parent = (i - 1) // 2
+              if self._data[parent] <= self._data[i]:
+                  break
+              self._data[parent], self._data[i] = self._data[i], self._data[parent]
+              i = parent
+
+      def pop(self):
+          if not self._data:
+              raise IndexError("pop from empty heap")
+          top = self._data[0]
+          last = self._data.pop()
+          if self._data:
+              self._data[0] = last
+              i = 0
+              n = len(self._data)
+              while True:
+                  left = 2 * i + 1
+                  right = 2 * i + 2
+                  smallest = i
+                  if left < n and self._data[left] < self._data[smallest]:
+                      smallest = left
+                  if right < n and self._data[right] < self._data[smallest]:
+                      smallest = right
+                  if smallest == i:
+                      break
+                  self._data[i], self._data[smallest] = self._data[smallest], self._data[i]
+                  i = smallest
+          return top[2]
+
+      def peek(self):
+          if not self._data:
+              raise IndexError("peek from empty heap")
+          return self._data[0][2]
+
+      def __len__(self):
+          return len(self._data)
+  HEAP
+
+outputs:
+  - {path: sessionq/queue.py, kind: program, run: 'python3 -c ''from sessionq.queue import SessionQueue as Q; q=Q(); q.add("ada","login",5); q.add("bora","login",9); q.add("ada","message",7); q.add("bora","message",2); q.add("cengiz","login",9); assert q.next_user()=="bora"; assert q.next_user()=="cengiz"; assert q.next_user()=="ada"; assert q.pending()==["ada","bora"], q.pending(); print("TAMAM")'''}
+  - {path: sessionq/queue.py, kind: program, run: 'python3 -c ''from sessionq.heap import SessionHeap as H; h=H(); h.push(3,"x"); h.push(1,"y"); h.push(2,"z"); assert len(h)==3; assert h.peek()=="x"; assert h.pop()=="x"; assert h.pop()=="z"; assert h.pop()=="y"; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sessionq.queue import SessionQueue as Q; q=Q(); q.add("ada","login",5); q.add("bora","login",9); q.add("ada","message",7); q.add("bora","message",2); q.add("cengiz","login",9); assert q.next_user()=="bora"; assert q.next_user()=="cengiz"; assert q.next_user()=="ada"; assert q.pending()==["ada","bora"], q.pending(); print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sessionq.heap import SessionHeap as H; h=H(); h.push(3,"x"); h.push(1,"y"); h.push(2,"z"); assert len(h)==3; assert h.peek()=="x"; assert h.pop()=="x"; assert h.pop()=="z"; assert h.pop()=="y"; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0819
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kolay
+    adim: 8
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: oncelik-kuyrugu
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

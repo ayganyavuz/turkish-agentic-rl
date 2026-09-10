@@ -1,0 +1,89 @@
+id: gen-s-0560-yeniden-duzenle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  notlar dizin ağacındaki her .txt dosyasını, içindeki "not:" satırındaki sayı 60'tan büyükse notlar/arsiv altında aynı adla, değilse notlar/aktif altında aynı adla bulunacak şekilde taşı. Taşıma sonunda dosyaların içeriği değişmemiş olmalı ve hem notlar/arsiv hem de notlar/aktif dizinleri var olmalı. Sonuçta notlar/arsiv içinde ayse.txt ve mehmet.txt, notlar/aktif içinde eski_ayse.txt ve eski_mehmet.txt bulunmalı.
+
+setup: |
+  mkdir -p notlar/arsiv notlar/aktif
+  cat > notlar/aktif/ayse.txt <<'TXT'
+  ad: ayse
+  not: 85
+  TXT
+  cat > notlar/aktif/mehmet.txt <<'TXT'
+  ad: mehmet
+  not: 70
+  TXT
+  cat > notlar/arsiv/eski_ayse.txt <<'TXT'
+  ad: ayse
+  not: 60
+  TXT
+  cat > notlar/arsiv/eski_mehmet.txt <<'TXT'
+  ad: mehmet
+  not: 55
+  TXT
+
+goal_tr: >
+  notlar dizin agacindaki her .txt dosyasini, icindeki "not:" satirindaki
+  sayi 60'tan buyukse notlar/arsiv altinda ayni adla, degilse notlar/aktif
+  altinda ayni adla bulunacak sekilde tasi; her dosyanin icerigi tasima
+  sonunda degismemis olmali ve her iki hedef dizin de var olmali.
+
+reference_solution: |
+  find notlar -type f -name '*.txt' | while read -r f; do
+    n=$(grep '^not:' "$f" | cut -d: -f2 | tr -d ' ')
+    if [ "$n" -gt 60 ]; then d=notlar/arsiv; else d=notlar/aktif; fi
+    mkdir -p "$d"
+    mv "$f" "$d/$(basename "$f")"
+  done
+  mkdir -p notlar/arsiv notlar/aktif
+
+outputs:
+  - {path: notlar/arsiv/ayse.txt, kind: file}
+  - {path: notlar/arsiv/mehmet.txt, kind: file}
+  - {path: notlar/aktif/eski_ayse.txt, kind: file}
+  - {path: notlar/aktif/eski_mehmet.txt, kind: file}
+  - {path: notlar/arsiv, kind: dir}
+  - {path: notlar/aktif, kind: dir}
+
+checks:
+  - {op: dir_entries_eq, path: notlar/aktif, value: [eski_ayse.txt, eski_mehmet.txt]}
+  - {op: dir_entries_eq, path: notlar/arsiv, value: [ayse.txt, mehmet.txt]}
+  - {op: file_lines_eq, path: notlar/aktif/eski_ayse.txt, value: ['ad: ayse', 'not: 60']}
+  - {op: file_lines_eq, path: notlar/aktif/eski_mehmet.txt, value: ['ad: mehmet', 'not: 55']}
+  - {op: file_lines_eq, path: notlar/arsiv/ayse.txt, value: ['ad: ayse', 'not: 85']}
+  - {op: file_lines_eq, path: notlar/arsiv/mehmet.txt, value: ['ad: mehmet', 'not: 70']}
+  - {op: not_exists, path: notlar/aktif/ayse.txt}
+  - {op: not_exists, path: notlar/aktif/mehmet.txt}
+  - {op: not_exists, path: notlar/arsiv/eski_ayse.txt}
+  - {op: not_exists, path: notlar/arsiv/eski_mehmet.txt}
+
+metadata:
+  domain: yeniden-duzenle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0560
+    bundle: dosya-duzen
+    tools:
+    - mkdir
+    - mv
+    konu: ogrenci-notlari
+    hedef: yeniden-duzenle
+    girdi: log-satiri
+    kaynak: dizin-agaci
+    cikti: birden-cok-dosya
+    kesif: dolayli-hedef
+    uslup: duz-hedef
+    direnc: bom
+    bukulme: yok
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

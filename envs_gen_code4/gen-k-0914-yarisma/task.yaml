@@ -1,0 +1,151 @@
+id: gen-k-0914-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) orders/merge.py dosyasında, iki dosyadan okunan siparişleri ürün adına göre birleştirip aynı ürünün miktarlarını toplayan bir birleştirici yaz.
+
+  2) Birleştirme işlemini iki-işaretçi tekniği ile yap.
+
+  3) Dosyaları okurken orders/reader.py içindeki OrderReader context manager'ını kullan.
+
+  4) Birleştirilmiş sonucu ürün adına göre artan sırada döndür.
+
+setup: |
+  mkdir -p orders
+  cat > orders/reader.py <<'READER'
+  class OrderReader:
+      def __init__(self, path):
+          self._path = path
+          self._handle = None
+
+      def __enter__(self):
+          self._handle = open(self._path, "r", encoding="ascii")
+          return self
+
+      def __exit__(self, exc_type, exc, tb):
+          self._handle.close()
+          self._handle = None
+          return False
+
+      def rows(self):
+          out = []
+          for line in self._handle:
+              line = line.strip()
+              if not line:
+                  continue
+              name, qty, price = line.split(",")
+              out.append((name, int(qty), int(price)))
+          return out
+  READER
+  cat > orders/merge.py <<'MERGE'
+  from orders.reader import OrderReader
+
+
+  def load_orders(path):
+      with OrderReader(path) as reader:
+          return reader.rows()
+  MERGE
+  cat > left.txt <<'LEFT'
+  apple,2,10
+  banana,5,3
+  cherry,1,7
+  LEFT
+  cat > right.txt <<'RIGHT'
+  banana,4,3
+  date,9,2
+  apple,1,10
+  RIGHT
+
+goal_tr: >
+  orders/merge.py icinde, iki dosyadan okunan siparisleri urun adina gore
+  birlestirip miktarlari toplayan ve sonucu urun adina gore artan sirada
+  donduren bir birlestirici yaz; iki-isaretci teknigi kullan ve dosyalari
+  orders/reader.py icindeki OrderReader context manager'i ile oku.
+
+reference_solution: |
+  cat > orders/merge.py <<'MERGE'
+  from orders.reader import OrderReader
+
+
+  def _totals(path):
+      with OrderReader(path) as reader:
+          rows = reader.rows()
+      rows.sort(key=lambda r: r[0])
+      merged = []
+      for name, qty, price in rows:
+          if merged and merged[-1][0] == name:
+              merged[-1][1] += qty
+          else:
+              merged.append([name, qty, price])
+      return merged
+
+
+  def merge_orders(left_path, right_path):
+      left = _totals(left_path)
+      right = _totals(right_path)
+      i = 0
+      j = 0
+      out = []
+      while i < len(left) and j < len(right):
+          if left[i][0] == right[j][0]:
+              out.append((left[i][0], left[i][1] + right[j][1], left[i][2]))
+              i += 1
+              j += 1
+          elif left[i][0] < right[j][0]:
+              out.append((left[i][0], left[i][1], left[i][2]))
+              i += 1
+          else:
+              out.append((right[j][0], right[j][1], right[j][2]))
+              j += 1
+      while i < len(left):
+          out.append((left[i][0], left[i][1], left[i][2]))
+          i += 1
+      while j < len(right):
+          out.append((right[j][0], right[j][1], right[j][2]))
+          j += 1
+      return out
+  MERGE
+
+outputs:
+  - {path: orders/merge.py, kind: program, run: 'python3 -c ''from orders.merge import merge_orders as f; r=f("left.txt","right.txt"); assert r==[("apple",3,10),("banana",9,3),("cherry",1,7),("date",9,2)], r; assert f("right.txt","left.txt")==r; assert f("left.txt","left.txt")==[("apple",4,10),("banana",10,3),("cherry",2,7)]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from orders.merge import merge_orders as f; r=f("left.txt","right.txt"); assert r==[("apple",3,10),("banana",9,3),("cherry",1,7),("date",9,2)], r; assert f("right.txt","left.txt")==r; assert f("left.txt","left.txt")==[("apple",4,10),("banana",10,3),("cherry",2,7)]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0914
+    bundle: yarisma
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: iki-isaretci
+      karmasiklik: duz
+      kalip: context-manager
+      akis: dosya-okuma
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

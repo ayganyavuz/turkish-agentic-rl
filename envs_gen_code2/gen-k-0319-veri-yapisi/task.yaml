@@ -1,0 +1,149 @@
+id: gen-k-0319-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) registrar/intervals.py dosyasındaki merge_intervals fonksiyonunu gerçekleştir; girdi olarak verilen aralıkları artan sırada birleştirsin ve birbiriyle kesişen ya da komşu olan aralıkları tek bir aralık haline getirsin.
+
+  2) registrar/transcript.py dosyasındaki active_terms fonksiyonunu gerçekleştir; transkript satırlarından ders alınan dönemleri sıralı olarak döndürsün.
+
+  3) registrar/transcript.py dosyasındaki credit_load fonksiyonunu gerçekleştir; her dönemin kredi toplamını sözlük olarak döndürsün.
+
+  4) registrar/transcript.py dosyasındaki gaps fonksiyonunu gerçekleştir; verilen ilk dönem ile son dönem arasındaki boş dönemleri döndürsün.
+
+setup: |
+  mkdir -p registrar
+  cat > registrar/intervals.py <<'INTERVALS'
+  def merge_intervals(spans):
+      raise NotImplementedError
+  INTERVALS
+  cat > registrar/transcript.py <<'TRANSCRIPT'
+  from registrar.intervals import merge_intervals
+
+
+  def active_terms(rows):
+      raise NotImplementedError
+
+
+  def credit_load(rows):
+      raise NotImplementedError
+
+
+  def gaps(rows, first_term, last_term):
+      raise NotImplementedError
+  TRANSCRIPT
+  cat > data.txt <<'DATA'
+  2020A,3
+  2020A,4
+  2020B,5
+  2021A,4
+  2021A,2
+  2021B,1
+  2022A,6
+  DATA
+
+goal_tr: >
+  registrar/intervals.py ve registrar/transcript.py icindeki dort fonksiyonu
+  (merge_intervals, active_terms, credit_load, gaps) gerceklestir;
+  merge_intervals artan sirali ve kesisen/komsu araliklari birlestirsin,
+  active_terms transkript satirlarindan ders alinan donemleri sirali
+  dondursun, credit_load her donemin kredi toplamini sozluk olarak versin,
+  gaps iki donem arasindaki bos donemleri dondursun.
+
+reference_solution: |
+  cat > registrar/intervals.py <<'INTERVALS'
+  def merge_intervals(spans):
+      items = sorted((tuple(s) for s in spans), key=lambda s: (s[0], s[1]))
+      merged = []
+      for start, end in items:
+          if merged and start <= merged[-1][1]:
+              if end > merged[-1][1]:
+                  merged[-1] = (merged[-1][0], end)
+          else:
+              merged.append((start, end))
+      return merged
+  INTERVALS
+  cat > registrar/transcript.py <<'TRANSCRIPT'
+  from registrar.intervals import merge_intervals
+
+
+  def _term_index(code):
+      year = int(code[:4])
+      season = code[4:]
+      order = {"A": 0, "B": 1, "C": 2}
+      return year * 3 + order[season]
+
+
+  def _index_term(index):
+      year, season = divmod(index, 3)
+      return "%04d%s" % (year, "ABC"[season])
+
+
+  def _parse(rows):
+      entries = []
+      for row in rows:
+          code, credits = row.split(",")
+          entries.append((code.strip(), int(credits)))
+      return entries
+
+
+  def active_terms(rows):
+      entries = _parse(rows)
+      spans = [(_term_index(c), _term_index(c)) for c, _ in entries]
+      return [_index_term(a) for a, _ in merge_intervals(spans)]
+
+
+  def credit_load(rows):
+      totals = {}
+      for code, credits in _parse(rows):
+          totals[code] = totals.get(code, 0) + credits
+      return totals
+
+
+  def gaps(rows, first_term, last_term):
+      active = active_terms(rows)
+      active_set = set(active)
+      out = []
+      for index in range(_term_index(first_term), _term_index(last_term) + 1):
+          code = _index_term(index)
+          if code not in active_set:
+              out.append(code)
+      return out
+  TRANSCRIPT
+
+outputs:
+  - {path: registrar/intervals.py, kind: program, run: 'python3 -c ''from registrar.intervals import merge_intervals as f; assert f([])==[]; assert f([(1,3),(2,5)])==[(1,5)]; assert f([(5,6),(1,2),(2,4)])==[(1,4),(5,6)]; assert f([(1,2),(3,4)])==[(1,2),(3,4)]; print("TAMAM")'''}
+  - {path: registrar/transcript.py, kind: program, run: 'python3 -c ''from registrar.transcript import active_terms as a, credit_load as c, gaps as g; rows=open("data.txt").read().strip().splitlines(); assert a(rows)==["2020A","2020B","2021A","2021B","2022A"], a(rows); assert c(rows)=={"2020A":7,"2020B":5,"2021A":6,"2021B":1,"2022A":6}, c(rows); assert g(rows,"2020A","2020B")==[]; assert g(rows,"2020A","2021B")==["2020C"]; assert g(rows,"2021B","2022A")==["2021C"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from registrar.intervals import merge_intervals as f; assert f([])==[]; assert f([(1,3),(2,5)])==[(1,5)]; assert f([(5,6),(1,2),(2,4)])==[(1,4),(5,6)]; assert f([(1,2),(3,4)])==[(1,2),(3,4)]; print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from registrar.transcript import active_terms as a, credit_load as c, gaps as g; rows=open("data.txt").read().strip().splitlines(); assert a(rows)==["2020A","2020B","2021A","2021B","2022A"], a(rows); assert c(rows)=={"2020A":7,"2020B":5,"2021A":6,"2021B":1,"2022A":6}, c(rows); assert g(rows,"2020A","2020B")==[]; assert g(rows,"2020A","2021B")==["2020C"]; assert g(rows,"2021B","2022A")==["2021C"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0319
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: zor
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: aralik-birlestirme

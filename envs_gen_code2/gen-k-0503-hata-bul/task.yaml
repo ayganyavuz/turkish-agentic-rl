@@ -1,0 +1,152 @@
+id: gen-k-0503-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) store/records.py içindeki days_span fonksiyonunu, kayıtların kapsadığı gün sayısını ilk ve son gün dahil olacak şekilde doğru döndürecek biçimde düzelt.
+
+  2) store/window.py içindeki busiest_window fonksiyonunu, genişliği width olan ve iki ucu da dahil eden pencereler içinde toplam miktarı en yüksek olanı (başlangıç_günü, toplam) olarak doğru döndürecek biçimde düzelt; eşitlik durumunda en küçük başlangıç günü kazanmalı.
+
+  3) store/window.py dosyasını, yukarıdaki düzeltmeleri içerecek şekilde güncelle.
+
+setup: |
+  mkdir -p store
+  cat > store/__init__.py <<'INIT'
+  INIT
+  cat > store/records.py <<'RECORDS'
+  def load_records(text):
+      """Return list of (day, item, qty) tuples from CSV text."""
+      out = []
+      for line in text.strip().splitlines():
+          day, item, qty = line.split(',')
+          out.append((int(day), item, int(qty)))
+      return out
+
+
+  def days_span(records):
+      """Number of calendar days covered, first and last inclusive."""
+      days = sorted({r[0] for r in records})
+      return days[-1] - days[0]
+  RECORDS
+  cat > store/window.py <<'WINDOW'
+  from store.records import load_records, days_span
+
+
+  def busiest_window(text, width):
+      """Return (start_day, total_qty) for the width-day window with the
+      highest total quantity. Both endpoints are inclusive."""
+      records = load_records(text)
+      span = days_span(records)
+      if width > span:
+          raise ValueError("window wider than data")
+      totals = {}
+      for day, _item, qty in records:
+          totals[day] = totals.get(day, 0) + qty
+      first = min(totals)
+      last = max(totals)
+      best_start = None
+      best_sum = None
+      for start in range(first, last - width + 1):
+          total = 0
+          for d in range(start, start + width):
+              total += totals.get(d, 0)
+          if best_sum is None or total > best_sum:
+              best_sum = total
+              best_start = start
+      return (best_start, best_sum)
+  WINDOW
+  cat > orders.csv <<'CSV'
+  1,bolt,4
+  2,bolt,9
+  3,nut,2
+  4,nut,7
+  5,bolt,1
+  6,nut,6
+  CSV
+
+goal_tr: >
+  1) store/records.py icindeki days_span fonksiyonunu, kayitlarin kapsadigi
+  gun sayisini ilk ve son gun dahil olacak sekilde dogru dondurecek bicimde
+  duzelt. 2) store/window.py icindeki busiest_window fonksiyonunu, genisligi
+  width olan ve iki ucu da dahil eden pencereler icinde toplam miktari en
+  yuksek olani (baslangic_gunu, toplam) olarak dogru dondurecek bicimde
+  duzelt; esitlikte en kucuk baslangic gunu kazanmali.
+
+reference_solution: |
+  cat > store/records.py <<'RECORDS'
+  def load_records(text):
+      """Return list of (day, item, qty) tuples from CSV text."""
+      out = []
+      for line in text.strip().splitlines():
+          day, item, qty = line.split(',')
+          out.append((int(day), item, int(qty)))
+      return out
+
+
+  def days_span(records):
+      """Number of calendar days covered, first and last inclusive."""
+      days = sorted({r[0] for r in records})
+      return days[-1] - days[0] + 1
+  RECORDS
+  cat > store/window.py <<'WINDOW'
+  from store.records import load_records, days_span
+
+
+  def busiest_window(text, width):
+      """Return (start_day, total_qty) for the width-day window with the
+      highest total quantity. Both endpoints are inclusive."""
+      records = load_records(text)
+      span = days_span(records)
+      if width > span:
+          raise ValueError("window wider than data")
+      totals = {}
+      for day, _item, qty in records:
+          totals[day] = totals.get(day, 0) + qty
+      first = min(totals)
+      last = max(totals)
+      best_start = None
+      best_sum = None
+      for start in range(first, last - width + 2):
+          total = 0
+          for d in range(start, start + width):
+              total += totals.get(d, 0)
+          if best_sum is None or total > best_sum:
+              best_sum = total
+              best_start = start
+      return (best_start, best_sum)
+  WINDOW
+
+outputs:
+  - {path: store/window.py, kind: program, run: 'python3 -c ''from store.window import busiest_window as f; from store.records import days_span as g; recs=[(1,"bolt",4),(2,"bolt",9),(3,"nut",2),(4,"nut",7),(5,"bolt",1),(6,"nut",6)]; assert g(recs)==6, ("span",g(recs)); t="1,bolt,4\n2,bolt,9\n3,nut,2\n4,nut,7\n5,bolt,1\n6,nut,6\n"; assert f(t,1)==(2,9), f(t,1); assert f(t,2)==(1,13), f(t,2); assert f(t,3)==(2,18), f(t,3); assert f(t,6)==(1,29), f(t,6); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from store.window import busiest_window as f; from store.records import days_span as g; recs=[(1,"bolt",4),(2,"bolt",9),(3,"nut",2),(4,"nut",7),(5,"bolt",1),(6,"nut",6)]; assert g(recs)==6, ("span",g(recs)); t="1,bolt,4\n2,bolt,9\n3,nut,2\n4,nut,7\n5,bolt,1\n6,nut,6\n"; assert f(t,1)==(2,9), f(t,1); assert f(t,2)==(1,13), f(t,2); assert f(t,3)==(2,18), f(t,3); assert f(t,6)==(1,29), f(t,6); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0503
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: zor
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: off-by-one

@@ -1,0 +1,109 @@
+id: gen-k-0546-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  pricing/quote.py dosyasındaki quote_all fonksiyonunu düzelt. Fonksiyon, prices.txt kataloğundaki her ürün için (sku, yuvarlanmış fiyat) ikililerinden oluşan bir liste döndürmeli. Katalogdaki hiçbir ürün atlanmamalı; her ürün sonuçta tam olarak bir kez yer almalı. İndirimli fiyat, ürünün temel fiyatına pricing/discounts.py içindeki indirim oranı uygulanarak hesaplanmalı ve virgülden sonra iki basamağa yuvarlanmalı.
+
+  Şu şartlar sağlanmalı:
+  - pricing/quote.py dosyası, katalogdaki her ürün için bir ikili içeren liste döndürür.
+  - prices.txt içindeki üç ürünün (A, B, C) tamamı sonuçta yer alır; hiçbiri atlanmaz.
+  - Her ikilinin ilk elemanı ürünün sku değeridir.
+  - Her ikilinin ikinci elemanı, temel fiyata ilgili indirim uygulandıktan sonra virgülden sonra iki basamağa yuvarlanmış fiyattır.
+  - Fonksiyon, döngü içinde erken dönüş yapmaz; tüm ürünler işlendikten sonra liste döndürülür.
+
+setup: |
+  mkdir -p pricing
+  cat > pricing/catalog.py <<'CATALOG'
+  def load_catalog(text):
+      items = []
+      for line in text.strip().splitlines():
+          sku, name, base = line.split('|')
+          items.append({'sku': sku, 'name': name, 'base': float(base)})
+      return items
+  CATALOG
+  cat > pricing/discounts.py <<'DISCOUNTS'
+  def discount_for(sku, tier):
+      table = {
+          'bronze': {'A': 0.05, 'B': 0.02},
+          'silver': {'A': 0.10, 'B': 0.05},
+          'gold':   {'A': 0.20, 'B': 0.12},
+      }
+      return table.get(tier, {}).get(sku, 0.0)
+  DISCOUNTS
+  cat > pricing/quote.py <<'QUOTE'
+  from pricing.catalog import load_catalog
+  from pricing.discounts import discount_for
+
+
+  def quote_all(text, tier):
+      """Return list of (sku, final_price) for every catalog item."""
+      result = []
+      for item in load_catalog(text):
+          d = discount_for(item['sku'], tier)
+          final = item['base'] * (1.0 - d)
+          result.append((item['sku'], round(final, 2)))
+          return result
+      return result
+  QUOTE
+  cat > prices.txt <<'PRICES'
+  A|Widget|100.0
+  B|Gadget|50.0
+  C|Bolt|10.0
+  PRICES
+
+goal_tr: >
+  pricing/quote.py icindeki quote_all fonksiyonunu, katalogdaki her urun
+  icin indirimli fiyati (sku, yuvarlanmis fiyat) ikilisi olarak dondurecek
+  bicimde duzelt; hicbir urun atlanmamali.
+
+reference_solution: |
+  cat > pricing/quote.py <<'QUOTE'
+  from pricing.catalog import load_catalog
+  from pricing.discounts import discount_for
+
+
+  def quote_all(text, tier):
+      """Return list of (sku, final_price) for every catalog item."""
+      result = []
+      for item in load_catalog(text):
+          d = discount_for(item['sku'], tier)
+          final = item['base'] * (1.0 - d)
+          result.append((item['sku'], round(final, 2)))
+      return result
+  QUOTE
+
+outputs:
+  - {path: pricing/quote.py, kind: program, run: 'python3 -c ''from pricing.quote import quote_all as f; t=open("prices.txt").read(); r=f(t,"gold"); assert r==[("A",80.0),("B",44.0),("C",10.0)], r; r2=f(t,"silver"); assert r2==[("A",90.0),("B",47.5),("C",10.0)], r2; r3=f(t,"bronze"); assert r3==[("A",95.0),("B",49.0),("C",10.0)], r3; r4=f(t,"none"); assert r4==[("A",100.0),("B",50.0),("C",10.0)], r4; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from pricing.quote import quote_all as f; t=open("prices.txt").read(); r=f(t,"gold"); assert r==[("A",80.0),("B",44.0),("C",10.0)], r; r2=f(t,"silver"); assert r2==[("A",90.0),("B",47.5),("C",10.0)], r2; r3=f(t,"bronze"); assert r3==[("A",95.0),("B",49.0),("C",10.0)], r3; r4=f(t,"none"); assert r4==[("A",100.0),("B",50.0),("C",10.0)], r4; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0546
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: erken-donus

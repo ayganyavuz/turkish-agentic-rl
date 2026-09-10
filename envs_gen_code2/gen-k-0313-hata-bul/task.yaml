@@ -1,0 +1,135 @@
+id: gen-k-0313-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  docs/index.py içindeki search fonksiyonunu düzelt. Fonksiyon, bir sorgu verildiğinde sorgudaki tüm sözcüklerin birlikte geçtiği belgeleri döndürmeli. Sonuçlar belge kimliğine göre artan sırada olmalı.
+
+  docs/tokenizer.py ve docs/pipeline.py dosyalarına dokunma; bu iki dosya değişmemeli.
+
+  Şu şartlar sağlanmalı:
+  - Yalnızca docs/index.py dosyası değiştirilmiş olmalı; docs/tokenizer.py ve docs/pipeline.py aynen kalmalı.
+  - search fonksiyonu, sorgudaki tüm sözcüklerin birlikte geçtiği belgeleri döndürmeli; yalnızca ilk eşleşen sözcüğe göre sonuç vermemeli.
+  - Dönen sonuçlar belge kimliğine göre artan sırada olmalı.
+  - docs/index.py içindeki build_index fonksiyonu ve diğer mevcut davranışlar korunmalı.
+
+setup: |
+  mkdir -p docs
+  cat > docs/tokenizer.py <<'TOK'
+  STOPWORDS = {"the", "a", "an", "of", "and"}
+
+
+  def tokenize(text):
+      words = []
+      for raw in text.lower().split():
+          word = raw.strip(".,;:!?()[]")
+          if word and word not in STOPWORDS:
+              words.append(word)
+      return words
+  TOK
+  cat > docs/index.py <<'INDEX'
+  from docs.tokenizer import tokenize
+
+
+  def build_index(documents):
+      index = {}
+      for doc_id, text in documents.items():
+          for word in tokenize(text):
+              if word not in index:
+                  index[word] = []
+              if doc_id not in index[word]:
+                  index[word].append(doc_id)
+      return index
+
+
+  def search(index, query):
+      hits = []
+      for word in tokenize(query):
+          if word in index:
+              hits = index[word]
+              break
+      return hits
+  INDEX
+  cat > docs/pipeline.py <<'PIPE'
+  from docs.index import build_index, search
+
+
+  def run_pipeline(documents, queries):
+      index = build_index(documents)
+      results = {}
+      for name, query in queries.items():
+          results[name] = search(index, query)
+      return results
+  PIPE
+  cat > corpus.txt <<'CORPUS'
+  d1: the quick brown fox
+  d2: the lazy dog sleeps
+  d3: quick foxes jump
+  CORPUS
+
+goal_tr: >
+  docs/index.py icindeki search fonksiyonunu, sorgudaki tum sozcuklerin
+  birlikte gectigi belgeleri belge kimligine gore artan sirada dondurecek
+  bicimde duzelt; docs/tokenizer.py ve docs/pipeline.py degismemeli.
+
+reference_solution: |
+  cat > docs/index.py <<'INDEX'
+  from docs.tokenizer import tokenize
+
+
+  def build_index(documents):
+      index = {}
+      for doc_id, text in documents.items():
+          for word in tokenize(text):
+              if word not in index:
+                  index[word] = []
+              if doc_id not in index[word]:
+                  index[word].append(doc_id)
+      return index
+
+
+  def search(index, query):
+      words = tokenize(query)
+      if not words:
+          return []
+      hits = None
+      for word in words:
+          postings = set(index.get(word, ()))
+          hits = postings if hits is None else hits & postings
+      return sorted(hits)
+  INDEX
+
+outputs:
+  - {path: docs/index.py, kind: program, run: 'python3 -c ''from docs.index import search as s; idx={"quick":["d1","d3"],"fox":["d1"],"dog":["d2"],"lazy":["d2"],"jump":["d3"]}; assert s(idx,"quick")==["d1","d3"], s(idx,"quick"); assert s(idx,"quick fox")==["d1"], s(idx,"quick fox"); assert s(idx,"quick dog")==[], s(idx,"quick dog"); assert s(idx,"quick jump")==["d3"], s(idx,"quick jump"); assert s(idx,"dog lazy")==["d2"], s(idx,"dog lazy"); assert s(idx,"zzz")==[], s(idx,"zzz"); assert s(idx,"quick zzz")==[], s(idx,"quick zzz"); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from docs.index import search as s; idx={"quick":["d1","d3"],"fox":["d1"],"dog":["d2"],"lazy":["d2"],"jump":["d3"]}; assert s(idx,"quick")==["d1","d3"], s(idx,"quick"); assert s(idx,"quick fox")==["d1"], s(idx,"quick fox"); assert s(idx,"quick dog")==[], s(idx,"quick dog"); assert s(idx,"quick jump")==["d3"], s(idx,"quick jump"); assert s(idx,"dog lazy")==["d2"], s(idx,"dog lazy"); assert s(idx,"zzz")==[], s(idx,"zzz"); assert s(idx,"quick zzz")==[], s(idx,"quick zzz"); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0313
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: zor
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: erken-donus

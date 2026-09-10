@@ -1,0 +1,114 @@
+id: gen-k-0908-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depot/check.py içindeki low_stock fonksiyonunu düzelt: qty reorder'ın altındaysa döndürsün, eşitse düşük stok sayılmasın.
+
+setup: |
+  mkdir -p depot
+  cat > depot/records.py <<'REC'
+  from dataclasses import dataclass
+
+
+  @dataclass
+  class Item:
+      code: str
+      qty: int
+      reorder: int
+  REC
+  cat > depot/check.py <<'CHK'
+  from depot.records import Item
+
+
+  def parse(lines):
+      items = []
+      for line in lines:
+          line = line.strip()
+          if not line:
+              continue
+          code, qty, reorder = line.split()
+          items.append(Item(code, int(qty), int(reorder)))
+      return items
+
+
+  def low_stock(items):
+      return [it for it in items if it.qty <= it.reorder]
+  CHK
+  cat > depot/report.py <<'REP'
+  from depot.check import parse, low_stock
+
+
+  def summarize(lines):
+      items = parse(lines)
+      low = low_stock(items)
+      return len(low), sorted(it.code for it in low)
+  REP
+
+goal_tr: >
+  depot/check.py icindeki low_stock fonksiyonunu, stogu yeniden-siparis
+  esiginin ALTINDA (qty < reorder) olan urunleri dondurecek sekilde duzelt;
+  esitlik dusuk stok sayilmasin.
+
+reference_solution: |
+  cat > depot/check.py <<'CHK'
+  from depot.records import Item
+
+
+  def parse(lines):
+      items = []
+      for line in lines:
+          line = line.strip()
+          if not line:
+              continue
+          code, qty, reorder = line.split()
+          items.append(Item(code, int(qty), int(reorder)))
+      return items
+
+
+  def low_stock(items):
+      return [it for it in items if it.qty < it.reorder]
+  CHK
+
+outputs:
+  - {path: depot/check.py, kind: program, run: 'python3 -c ''import sys; from depot.report import summarize; data="A 5 5\nB 4 5\nC 7 5\nD 0 3\n"; r=summarize(data.splitlines()); assert r==(2,["B","D"]), r; assert summarize(["X 2 2"])==(0,[]); assert summarize(["Y 1 4","Z 9 9"])==(1,["Y"]); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import sys; from depot.report import summarize; data="A 5 5\nB 4 5\nC 7 5\nD 0 3\n"; r=summarize(data.splitlines()); assert r==(2,["B","D"]), r; assert summarize(["X 2 2"])==(0,[]); assert summarize(["Y 1 4","Z 9 9"])==(1,["Y"]); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0908
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-karsilastirma
+      karmasiklik: duz
+      kalip: dataclass-dogrulama
+      akis: stdin-boru
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

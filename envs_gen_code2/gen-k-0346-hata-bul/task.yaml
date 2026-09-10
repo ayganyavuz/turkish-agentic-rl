@@ -1,0 +1,132 @@
+id: gen-k-0346-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  nav/paths.py dosyasındaki distance fonksiyonunu düzelt. Fonksiyon, başlangıç hücresi ile hedef hücre aynı olduğunda 0 döndürmeli; hedefe ulaşan hiçbir yol yoksa -1 döndürmeli.
+
+setup: |
+  mkdir -p nav
+  cat > nav/grid.py <<'GRID'
+  def parse_grid(text):
+      return [line.split() for line in text.strip().splitlines()]
+
+
+  def neighbors(cell, grid):
+      r, c = cell
+      out = []
+      for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+          nr, nc = r + dr, c + dc
+          if 0 <= nr < len(grid) and 0 <= nc < len(grid[0]):
+              if grid[nr][nc] != "#":
+                  out.append((nr, nc))
+      return out
+  GRID
+  cat > nav/paths.py <<'PATHS'
+  from nav.grid import parse_grid, neighbors
+
+
+  def reachable(text, start):
+      grid = parse_grid(text)
+      seen = set()
+      stack = [start]
+      while stack:
+          cell = stack.pop()
+          if cell in seen:
+              continue
+          seen.add(cell)
+          for nb in neighbors(cell, grid):
+              if nb not in seen:
+                  stack.append(nb)
+      return seen
+
+
+  def distance(text, start, goal):
+      """Shortest path length from start to goal, or -1 if unreachable."""
+      grid = parse_grid(text)
+      start = tuple(start)
+      goal = tuple(goal)
+      seen = {start}
+      frontier = [(start, 0)]
+      while frontier:
+          cell, d = frontier.pop(0)
+          for nb in neighbors(cell, grid):
+              if nb == goal:
+                  return d + 1
+              if nb not in seen:
+                  seen.add(nb)
+                  frontier.append((nb, d + 1))
+      return -1
+  PATHS
+  cat > map.txt <<'MAP'
+  . . . # . .
+  . # . # . .
+  . # . . . .
+  . . # # . .
+  . . . . . .
+  MAP
+
+goal_tr: >
+  nav/paths.py icindeki distance fonksiyonunu, baslangic ile hedef ayni
+  hucre oldugunda 0 dondurecek ve hedefe hicbir yol yokken -1 dondurecek
+  bicimde duzelt.
+
+reference_solution: |
+  cat > nav/paths.py <<'PATHS'
+  from nav.grid import parse_grid, neighbors
+
+
+  def distance(text, start, goal):
+      """Shortest path length from start to goal, or -1 if unreachable."""
+      grid = parse_grid(text)
+      start = tuple(start)
+      goal = tuple(goal)
+      if start == goal:
+          return 0
+      seen = {start}
+      frontier = [(start, 0)]
+      while frontier:
+          cell, d = frontier.pop(0)
+          for nb in neighbors(cell, grid):
+              if nb == goal:
+                  return d + 1
+              if nb not in seen:
+                  seen.add(nb)
+                  frontier.append((nb, d + 1))
+      return -1
+  PATHS
+
+outputs:
+  - {path: nav/paths.py, kind: program, run: 'python3 -c ''from nav.paths import distance; t=open("map.txt").read(); assert distance(t,(0,0),(0,0))==0, distance(t,(0,0),(0,0)); assert distance(t,(0,0),(4,5))==9, distance(t,(0,0),(4,5)); assert distance(t,(0,0),(1,1))==-1, distance(t,(0,0),(1,1)); assert distance(t,(4,5),(0,0))==9, distance(t,(4,5),(0,0)); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from nav.paths import distance; t=open("map.txt").read(); assert distance(t,(0,0),(0,0))==0, distance(t,(0,0),(0,0)); assert distance(t,(0,0),(4,5))==9, distance(t,(0,0),(4,5)); assert distance(t,(0,0),(1,1))==-1, distance(t,(0,0),(1,1)); assert distance(t,(4,5),(0,0))==9, distance(t,(4,5),(0,0)); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0346
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: erken-donus

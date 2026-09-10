@@ -1,0 +1,125 @@
+id: gen-k-0372-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  registrar/transcript.py dosyasını, içindeki gpa ve honors fonksiyonları çalışır hale gelecek şekilde düzenle. gpa fonksiyonu bir öğrencinin not ortalamasını döndürsün: harf notu P olan dersler ortalamaya ve kredi toplamına katılmasın, diğer harf notları için ağırlıklı ortalama toplam(kredi*not_puanı)/toplam(kredi) olarak hesaplansın ve sayılan hiçbir ders yoksa 0.0 dönsün. honors fonksiyonu ise ilgili öğrencinin gpa değeri 3.5 ve üzerindeyse True, aksi halde False döndürsün.
+
+setup: |
+  mkdir -p registrar
+  cat > registrar/courses.py <<'COURSES'
+  DATA = {
+      "MATH101": {"credits": 4, "grades": {"A": 4.0, "B": 3.0, "C": 2.0, "D": 1.0, "F": 0.0}},
+      "PHYS201": {"credits": 3, "grades": {"A": 4.0, "B": 3.0, "C": 2.0, "D": 1.0, "F": 0.0}},
+      "CS150":   {"credits": 4, "grades": {"A": 4.0, "B": 3.0, "C": 2.0, "D": 1.0, "F": 0.0}},
+      "HIST110": {"credits": 2, "grades": {"A": 4.0, "B": 3.0, "C": 2.0, "D": 1.0, "F": 0.0}},
+      "ART100":  {"credits": 1, "grades": {"P": None, "F": 0.0}},
+  }
+
+
+  def course_credits(code):
+      return DATA[code]["credits"]
+
+
+  def grade_point(code, letter):
+      return DATA[code]["grades"][letter]
+  COURSES
+  cat > registrar/students.py <<'STUDENTS'
+  RECORDS = [
+      ("s1", "MATH101", "A"),
+      ("s1", "PHYS201", "B"),
+      ("s1", "CS150", "C"),
+      ("s2", "MATH101", "B"),
+      ("s2", "HIST110", "A"),
+      ("s2", "ART100", "P"),
+      ("s3", "CS150", "F"),
+      ("s3", "PHYS201", "A"),
+      ("s3", "MATH101", "B"),
+  ]
+  STUDENTS
+  cat > registrar/transcript.py <<'TRANSCRIPT'
+  from registrar.courses import course_credits, grade_point
+  from registrar.students import RECORDS
+
+
+  def gpa(student_id):
+      raise NotImplementedError
+
+
+  def honors(student_id):
+      raise NotImplementedError
+  TRANSCRIPT
+
+goal_tr: >
+  registrar/transcript.py icindeki gpa ve honors fonksiyonlarini
+  gerceklestir: gpa, ogrencinin not ortalamasini (harf notu P olan dersler
+  ortalama ve kredi toplamina KATILMAZ; diger harfler icin agirlikli
+  ortalama = toplam(kredi*not_puani)/toplam(kredi)) dondursun; hicbir
+  sayilan ders yoksa 0.0 dondursun; honors ise gpa 3.5 ve uzeriyse True,
+  aksi halde False dondursun.
+
+reference_solution: |
+  cat > registrar/transcript.py <<'TRANSCRIPT'
+  from registrar.courses import course_credits, grade_point
+  from registrar.students import RECORDS
+
+
+  def _counted(student_id):
+      rows = []
+      for sid, code, letter in RECORDS:
+          if sid != student_id:
+              continue
+          gp = grade_point(code, letter)
+          if gp is None:
+              continue
+          rows.append((course_credits(code), gp))
+      return rows
+
+
+  def gpa(student_id):
+      rows = _counted(student_id)
+      total_credits = sum(c for c, _ in rows)
+      if total_credits == 0:
+          return 0.0
+      total_points = sum(c * gp for c, gp in rows)
+      return total_points / total_credits
+
+
+  def honors(student_id):
+      return gpa(student_id) >= 3.5
+  TRANSCRIPT
+
+outputs:
+  - {path: registrar/transcript.py, kind: program, run: 'python3 -c ''from registrar.transcript import gpa, honors; assert abs(gpa("s1") - (4*4.0+3*3.0+4*2.0)/(4+3+4)) < 1e-9, gpa("s1"); assert abs(gpa("s2") - (4*3.0+2*4.0)/(4+2)) < 1e-9, gpa("s2"); assert abs(gpa("s3") - (4*0.0+3*4.0+4*3.0)/(4+3+4)) < 1e-9, gpa("s3"); assert gpa("nobody") == 0.0; assert honors("s1") is False; assert honors("s2") is False; assert honors("s3") is False; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from registrar.transcript import gpa, honors; assert abs(gpa("s1") - (4*4.0+3*3.0+4*2.0)/(4+3+4)) < 1e-9, gpa("s1"); assert abs(gpa("s2") - (4*3.0+2*4.0)/(4+2)) < 1e-9, gpa("s2"); assert abs(gpa("s3") - (4*0.0+3*4.0+4*3.0)/(4+3+4)) < 1e-9, gpa("s3"); assert gpa("nobody") == 0.0; assert honors("s1") is False; assert honors("s2") is False; assert honors("s3") is False; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0372
+    bundle: yarisma
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: benzetim

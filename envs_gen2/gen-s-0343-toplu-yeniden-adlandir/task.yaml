@@ -1,0 +1,83 @@
+id: gen-s-0343-toplu-yeniden-adlandir
+split: single_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 8
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) notlar dizini ve alt dizinlerindeki tüm .txt dosyalarını incele; her dosyanın ilk satırının ilk alanındaki öğrenci adını belirle.
+
+  2) notlar dizini altında cikti adlı bir dizin oluştur ve işlem sırasında kullanılacak geçici dosyaları bu dizinde tut.
+
+  3) Her .txt dosyasını, içindeki ilk satırın ilk alanındaki öğrenci adıyla, bulunduğu dizinde aynı .txt uzantılı olacak şekilde yeniden adlandır; orijinal dosyalar kalmasın.
+
+  4) Yeniden adlandırılan dosyaların notlar/cikti/Ali.txt, notlar/cikti/Veli.txt, notlar/cikti/Ayse.txt ve notlar/cikti/Fatma.txt olarak notlar/cikti dizini altında yer almasını sağla.
+
+setup: |
+  mkdir -p notlar/2023 notlar/2024
+  cat > notlar/2023/001.txt <<'EOF'
+  Ali 085
+  EOF
+  cat > notlar/2023/002.txt <<'EOF'
+  Veli 092
+  EOF
+  cat > notlar/2024/003.txt <<'EOF'
+  Ayse 078
+  EOF
+  cat > notlar/2024/004.txt <<'EOF'
+  Fatma 088
+  EOF
+
+goal_tr: >
+  notlar dizin agacindaki her .txt dosyasini, icindeki ilk satirin ilk alani
+  (ogrenci adi) kullanilarak bulundugu dizinde ayni uzantili olacak sekilde
+  yeniden adlandir; orijinal dosyalar kalmasin. Yeniden adlandirilan
+  dosyalar icin notlar dizini altinda cikti adli bir dizin olustur ve islem
+  sirasinda gecici dosyalari orada tut.
+
+reference_solution: |
+  mkdir -p notlar/cikti
+  find notlar -type f -name '*.txt' | while read -r f; do d=$(dirname "$f"); n=$(head -n1 "$f" | cut -d' ' -f1); mv "$f" "notlar/cikti/$n.txt"; done
+
+outputs:
+  - {path: notlar/cikti/Ali.txt, kind: file}
+  - {path: notlar/cikti/Veli.txt, kind: file}
+  - {path: notlar/cikti/Ayse.txt, kind: file}
+  - {path: notlar/cikti/Fatma.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: notlar/cikti/Ali.txt, value: Ali 085}
+  - {op: file_content_eq, path: notlar/cikti/Ayse.txt, value: Ayse 078}
+  - {op: file_content_eq, path: notlar/cikti/Fatma.txt, value: Fatma 088}
+  - {op: file_content_eq, path: notlar/cikti/Veli.txt, value: Veli 092}
+  - {op: not_exists, path: notlar/2023/001.txt}
+  - {op: not_exists, path: notlar/2023/002.txt}
+  - {op: not_exists, path: notlar/2024/003.txt}
+  - {op: not_exists, path: notlar/2024/004.txt}
+
+metadata:
+  domain: toplu-yeniden-adlandir
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0343
+    bundle: dosya-duzen
+    tools:
+    - mkdir
+    - mv
+    konu: ogrenci-notlari
+    hedef: toplu-yeniden-adlandir
+    girdi: sabit-genislik
+    kaynak: dizin-agaci
+    cikti: birden-cok-dosya
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: olcek
+    adim: 1
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

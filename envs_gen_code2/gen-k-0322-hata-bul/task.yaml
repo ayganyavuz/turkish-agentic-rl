@@ -1,0 +1,102 @@
+id: gen-k-0322-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  planner/schedule.py içindeki total_hours fonksiyonu, tüm etkinliklerin toplam süresini her etkinlik için bitiş eksi başlangıç olacak şekilde doğru hesaplamıyor; bu fonksiyonu doğru hesaplayacak biçimde düzelt.
+
+setup: |
+  mkdir -p planner
+  cat > planner/parse.py <<'PARSE'
+  def parse_events(text):
+      events = []
+      for line in text.strip().splitlines():
+          name, start, end = line.split(',')
+          events.append((name, int(start), int(end)))
+      return events
+  PARSE
+  cat > planner/schedule.py <<'SCHEDULE'
+  from planner.parse import parse_events
+
+
+  def total_hours(text):
+      total = 0
+      for name, start, end in parse_events(text):
+          total += end
+      return total
+
+
+  def busiest_day(text):
+      best_name, best_len = None, -1
+      for name, start, end in parse_events(text):
+          length = end - start
+          if length > best_len:
+              best_name, best_len = name, length
+      return best_name
+  SCHEDULE
+  cat > events.csv <<'CSV'
+  standup,9,10
+  review,14,16
+  workshop,11,12
+  CSV
+
+goal_tr: >
+  planner/schedule.py icindeki total_hours fonksiyonunu, tum etkinliklerin
+  toplam suresini (her etkinlik icin bitis eksi baslangic) dogru
+  hesaplayacak bicimde duzelt.
+
+reference_solution: |
+  cat > planner/schedule.py <<'SCHEDULE'
+  from planner.parse import parse_events
+
+
+  def total_hours(text):
+      total = 0
+      for name, start, end in parse_events(text):
+          total += end - start
+      return total
+
+
+  def busiest_day(text):
+      best_name, best_len = None, -1
+      for name, start, end in parse_events(text):
+          length = end - start
+          if length > best_len:
+              best_name, best_len = name, length
+      return best_name
+  SCHEDULE
+
+outputs:
+  - {path: planner/schedule.py, kind: program, run: 'python3 -c ''from planner.schedule import total_hours as f; assert f("a,1,4\nb,10,12\n")==5, f("a,1,4\nb,10,12\n"); assert f("x,0,7\n")==7, f("x,0,7\n"); assert f("p,3,3\nq,5,9\n")==4, f("p,3,3\nq,5,9\n"); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from planner.schedule import total_hours as f; assert f("a,1,4\nb,10,12\n")==5, f("a,1,4\nb,10,12\n"); assert f("x,0,7\n")==7, f("x,0,7\n"); assert f("p,3,3\nq,5,9\n")==4, f("p,3,3\nq,5,9\n"); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0322
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-toplama-sirasi

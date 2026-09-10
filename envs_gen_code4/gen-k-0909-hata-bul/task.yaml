@@ -1,0 +1,122 @@
+id: gen-k-0909-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) docs/search.py dosyasındaki Searcher.search metodunu, döndürdüğü sonuçlar belge kimliğine göre artan sırada olacak biçimde düzelt.
+
+setup: |
+  mkdir -p docs
+  cat > docs/tokens.py <<'TOKENS'
+  def tokenize(text):
+      return [w for w in text.replace('.', ' ').replace(',', ' ').split() if w]
+  TOKENS
+  cat > docs/index.py <<'INDEX'
+  from docs.tokens import tokenize
+
+
+  def build_index(docs):
+      index = {}
+      for doc_id, text in docs.items():
+          for word in tokenize(text):
+              index.setdefault(word.lower(), []).append(doc_id)
+      return index
+  INDEX
+  cat > docs/search.py <<'SEARCH'
+  from docs.index import build_index
+
+
+  class Searcher:
+      def __init__(self, docs):
+          self.index = build_index(docs)
+
+      def search(self, query):
+          words = query.lower().split()
+          if not words:
+              return []
+          hits = []
+          for doc_id in self.index.get(words[0], []):
+              if self._matches(doc_id, words):
+                  hits.append(doc_id)
+          return hits
+
+      def _matches(self, doc_id, words):
+          for w in words[1:]:
+              if doc_id not in self.index.get(w, []):
+                  return False
+          return True
+  SEARCH
+
+goal_tr: >
+  docs/search.py icindeki Searcher.search metodunu, sonuclari belge
+  kimligine gore artan sirada dondurecek bicimde duzelt.
+
+reference_solution: |
+  cat > docs/search.py <<'SEARCH'
+  from docs.index import build_index
+
+
+  class Searcher:
+      def __init__(self, docs):
+          self.index = build_index(docs)
+
+      def search(self, query):
+          words = query.lower().split()
+          if not words:
+              return []
+          hits = []
+          for doc_id in self.index.get(words[0], []):
+              if self._matches(doc_id, words):
+                  hits.append(doc_id)
+          hits.sort()
+          return hits
+
+      def _matches(self, doc_id, words):
+          for w in words[1:]:
+              if doc_id not in self.index.get(w, []):
+                  return False
+          return True
+  SEARCH
+
+outputs:
+  - {path: docs/search.py, kind: program, run: 'python3 -c ''from docs.search import Searcher; d={"d3":"alpha beta","d1":"alpha","d2":"alpha beta","d0":"alpha beta gamma"}; s=Searcher(d); assert s.search("alpha")==["d0","d1","d2","d3"], s.search("alpha"); assert s.search("alpha beta")==["d0","d2","d3"], s.search("alpha beta"); assert s.search("beta alpha")==["d0","d2","d3"]; assert s.search("")==[]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from docs.search import Searcher; d={"d3":"alpha beta","d1":"alpha","d2":"alpha beta","d0":"alpha beta gamma"}; s=Searcher(d); assert s.search("alpha")==["d0","d1","d2","d3"], s.search("alpha"); assert s.search("alpha beta")==["d0","d2","d3"], s.search("alpha beta"); assert s.search("beta alpha")==["d0","d2","d3"]; assert s.search("")==[]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0909
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: siralama-kararsizligi
+      karmasiklik: duz
+      kalip: context-manager
+      akis: ic-ice-yapi
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

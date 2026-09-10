@@ -1,0 +1,76 @@
+id: gen-s-0406-bol
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  siparisler.log dosyasındaki her satırı saat, masa, ürün ve adet alanlarına göre ayır. Her satırdaki masa numarasına göre kayıtları masalar dizini altındaki masalar/masa_1.txt, masalar/masa_2.txt, masalar/masa_3.txt ve masalar/masa_4.txt dosyalarına yaz. Bu dosyaların her birinde, ilgili masaya ait her satırda yalnızca ürün ve adet kalsın ve "urun adet" biçiminde olsun.
+
+setup: |
+  cat > siparisler.log <<'LOG'
+  12:05|Masa3|corba|2
+  12:07|Masa1|salata|1
+  12:10|Masa3|kebap|1
+  12:15|Masa2|cay|4
+  12:20|Masa1|kebap|2
+  12:25|Masa3|cay|3
+  12:30|Masa2|corba|1
+  12:35|Masa4|salata|2
+  12:40|Masa1|cay|1
+  12:45|Masa4|kebap|1
+  LOG
+
+goal_tr: >
+  siparisler.log dosyasindaki her satiri saat, masa, urun ve adet alanlarina
+  gore ayirip masa numarasina gore masalar/masa_<N>.txt dosyalarina yaz; her
+  satirda yalnizca urun ve adet "urun adet" biciminde kalsin.
+
+reference_solution: |
+  mkdir -p masalar
+  cut -d'|' -f2 siparisler.log | sort -u | while read masa; do
+    n=$(printf '%s' "$masa" | cut -c5-)
+    cut -d'|' -f2,3,4 siparisler.log | grep "^$masa|" | cut -d'|' -f2,3 | tr '|' ' ' > "masalar/masa_$n.txt"
+  done
+  tee /dev/null < siparisler.log > /dev/null
+
+outputs:
+  - {path: masalar, kind: dir}
+  - {path: masalar/masa_1.txt, kind: file}
+  - {path: masalar/masa_2.txt, kind: file}
+  - {path: masalar/masa_3.txt, kind: file}
+  - {path: masalar/masa_4.txt, kind: file}
+
+checks:
+  - {op: dir_entries_eq, path: masalar, value: [masa_1.txt, masa_2.txt, masa_3.txt, masa_4.txt]}
+  - {op: file_lines_eq, path: masalar/masa_1.txt, value: [salata 1, kebap 2, cay 1]}
+  - {op: file_lines_eq, path: masalar/masa_2.txt, value: [cay 4, corba 1]}
+  - {op: file_lines_eq, path: masalar/masa_3.txt, value: [corba 2, kebap 1, cay 3]}
+  - {op: file_lines_eq, path: masalar/masa_4.txt, value: [salata 2, kebap 1]}
+
+metadata:
+  domain: bol
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0406
+    bundle: dallandir
+    tools:
+    - tee
+    - cut
+    konu: restoran-siparisleri
+    hedef: bol
+    girdi: log-satiri
+    kaynak: tek-dosya
+    cikti: birden-cok-dosya
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: yok
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

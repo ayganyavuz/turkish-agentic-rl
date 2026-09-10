@@ -1,0 +1,135 @@
+id: gen-k-0919-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  diner/billing.py içindeki build_ticket fonksiyonunu, her çağrıda temiz bir notes listesi kullanacak biçimde düzelt. Böylece diner/summary.py içindeki daily_report fonksiyonu build_ticket'i arka arkaya iki kez çağırdığında, ilk çağrının notları ikinci çağrının notlarına karışmasın; her iki çağrı da kendi notlarını bağımsız döndürsün.
+
+  Şu şartlar sağlanmalı:
+  1. diner/billing.py dosyası, build_ticket fonksiyonu her çağrıldığında boş bir notes listesi ile başlayacak biçimde düzeltilmiş olmalı.
+  2. build_ticket çağrıldığında dışarıdan notes parametresi verilmediği durumda önceki çağrıdan kalan notlar taşınmamalı.
+  3. diner/summary.py içindeki daily_report fonksiyonu iki kez build_ticket çağırdığında first_notes ve second_notes listeleri aynı nesneyi paylaşmamalı; birindeki değişiklik diğerini etkilememeli.
+  4. build_ticket fonksiyonunun dönüş sözlüğündeki lines, total ve notes anahtarları korunmalı; notlar menü öğelerinin adlarını içermeye devam etmeli.
+  5. menu.txt gibi geçerli bir menü dosyası ile çalıştırıldığında daily_report hatasız çalışmalı ve first_total ile second_total değerleri doğru hesaplanmalı.
+
+setup: |
+  mkdir -p diner
+  cat > diner/__init__.py <<'INIT'
+  INIT
+  cat > diner/loader.py <<'LOADER'
+  def load_menu(path):
+      items = {}
+      with open(path, encoding="utf-8") as fh:
+          for line in fh:
+              line = line.strip()
+              if not line:
+                  continue
+              name, price = line.split(",")
+              items[name] = float(price)
+      return items
+  LOADER
+  cat > diner/billing.py <<'BILLING'
+  from diner.loader import load_menu
+
+
+  def build_ticket(path, discount=None, notes=None):
+      menu = load_menu(path)
+      lines = []
+      total = 0.0
+      for name in sorted(menu):
+          price = menu[name]
+          if discount is not None:
+              price = price - discount
+          total += price
+          notes.append(name)
+          lines.append("%s=%.2f" % (name, price))
+      return {"lines": lines, "total": round(total, 2), "notes": notes}
+  BILLING
+  cat > diner/summary.py <<'SUMMARY'
+  from diner.billing import build_ticket
+
+
+  def daily_report(path):
+      first = build_ticket(path)
+      second = build_ticket(path)
+      return {
+          "first_total": first["total"],
+          "second_total": second["total"],
+          "first_notes": first["notes"],
+          "second_notes": second["notes"],
+      }
+  SUMMARY
+  cat > menu.txt <<'MENU'
+  soup,4.50
+  steak,12.00
+  cake,3.25
+  MENU
+
+goal_tr: >
+  diner/billing.py icindeki build_ticket fonksiyonunu, her cagrida temiz bir
+  notes listesi kullanacak bicimde duzelt; boylece diner/summary.py icindeki
+  daily_report iki cagrinin notlarini birbirine karistirmasin.
+
+reference_solution: |
+  cat > diner/billing.py <<'BILLING'
+  from diner.loader import load_menu
+
+
+  def build_ticket(path, discount=None, notes=None):
+      if notes is None:
+          notes = []
+      menu = load_menu(path)
+      lines = []
+      total = 0.0
+      for name in sorted(menu):
+          price = menu[name]
+          if discount is not None:
+              price = price - discount
+          total += price
+          notes.append(name)
+          lines.append("%s=%.2f" % (name, price))
+      return {"lines": lines, "total": round(total, 2), "notes": notes}
+  BILLING
+
+outputs:
+  - {path: diner/billing.py, kind: program, run: 'python3 -c ''from diner.summary import daily_report as f; r=f("menu.txt"); assert r["first_notes"]==["cake","soup","steak"], r; assert r["second_notes"]==["cake","soup","steak"], r; assert r["first_total"]==19.75 and r["second_total"]==19.75, r; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from diner.summary import daily_report as f; r=f("menu.txt"); assert r["first_notes"]==["cake","soup","steak"], r; assert r["second_notes"]==["cake","soup","steak"], r; assert r["first_total"]==19.75 and r["second_total"]==19.75, r; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0919
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: restoran-siparisleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: mutable-varsayilan
+      karmasiklik: duz
+      kalip: duz-fonksiyon
+      akis: dosya-okuma
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

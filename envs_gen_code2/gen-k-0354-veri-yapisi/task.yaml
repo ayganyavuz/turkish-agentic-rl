@@ -1,0 +1,135 @@
+id: gen-k-0354-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün günlerdir şu sensör serileriyle uğraşıyoruz; sensördeki etiketlerin ön eklerine göre hızlı arama yapmamız gerekiyor ama elimizdeki yapı bir türlü oturmadı. Ekip sürekli aynı etiketlerin farklı yazımlarıyla uğraşıyor, kimisi büyük harfle kimisi baştaki boşlukla geliyor ve bu yüzden aynı seriyi iki kez sayıyoruz. Artık sensors/store.py içindeki SensorIndex sınıfının düzgün çalışması lazım.
+
+  SensorIndex sınıfını, eklenen her etiketi normalize edilmiş hâliyle saklayacak ve her etiketin tüm öneklerini sayacak şekilde gerçekleştir. add ile eklenen bir etiketin tüm önekleri için sayım tutulmalı; prefix_matches verilen önekle başlayan etiketleri döndürmeli ve total de o öneğe kaç etiket düştüğünü vermeli. sensors/store.py dışında bir dosyaya dokunma; sensors/schema.py ve sensors/pipeline.py olduğu gibi kalsın.
+
+setup: |
+  mkdir -p sensors
+  cat > sensors/schema.py <<'SCHEMA'
+  def normalize(reading):
+      """Lowercase and strip a sensor label."""
+      return reading.strip().lower()
+
+
+  def is_valid(reading):
+      return bool(reading) and all(c.isalnum() or c in "-_" for c in reading)
+  SCHEMA
+  cat > sensors/store.py <<'STORE'
+  from sensors.schema import normalize, is_valid
+
+
+  class SensorIndex:
+      """Prefix index over sensor series labels."""
+
+      def __init__(self):
+          raise NotImplementedError
+
+      def add(self, label, value):
+          raise NotImplementedError
+
+      def prefix_matches(self, prefix):
+          raise NotImplementedError
+
+      def total(self, prefix):
+          raise NotImplementedError
+  STORE
+  cat > sensors/pipeline.py <<'PIPELINE'
+  from sensors.store import SensorIndex
+  from sensors.schema import normalize, is_valid
+
+
+  def ingest(records):
+      """records: list of (label, value) pairs. Returns a SensorIndex."""
+      idx = SensorIndex()
+      for label, value in records:
+          if not is_valid(label):
+              continue
+          idx.add(normalize(label), value)
+      return idx
+
+
+  def report(records, prefix):
+      idx = ingest(records)
+      return idx.prefix_matches(prefix), idx.total(prefix)
+  PIPELINE
+
+goal_tr: >
+  sensors/store.py icindeki SensorIndex sinifini, etiketleri normalize
+  edilmis halde saklayan, eklenen her etiketin tum oneklerini sayan ve
+  prefix_matches ile total metodlarini dogru donduren bir onek indeksi
+  olacak bicimde gerceklestir.
+
+reference_solution: |
+  cat > sensors/store.py <<'STORE'
+  from sensors.schema import normalize, is_valid
+
+
+  class SensorIndex:
+      """Prefix index over sensor series labels."""
+
+      def __init__(self):
+          self._children = {}
+          self._count = 0
+
+      def add(self, label, value):
+          node = self._children
+          node.setdefault("_values", []).append(value)
+          for ch in label:
+              node = node.setdefault(ch, {})
+              node.setdefault("_values", []).append(value)
+
+      def prefix_matches(self, prefix):
+          node = self._children
+          for ch in prefix:
+              if ch not in node:
+                  return []
+              node = node[ch]
+          return list(node.get("_values", []))
+
+      def total(self, prefix):
+          node = self._children
+          for ch in prefix:
+              if ch not in node:
+                  return 0
+              node = node[ch]
+          return sum(node.get("_values", []))
+  STORE
+
+outputs:
+  - {path: sensors/store.py, kind: program, run: 'python3 -c ''from sensors.pipeline import report; r=[("Temp-01",4),("temp-02",6),("HUM-1",10),("temp-01",3),("bad label!",99)]; m,t=report(r,"temp"); assert sorted(m)==[3,4,6], m; assert t==13, t; m2,t2=report(r,"temp-0"); assert sorted(m2)==[3,4,6], m2; assert t2==13, t2; m3,t3=report(r,"hum"); assert m3==[10], m3; assert t3==10, t3; m4,t4=report(r,"zzz"); assert m4==[] and t4==0; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensors.pipeline import report; r=[("Temp-01",4),("temp-02",6),("HUM-1",10),("temp-01",3),("bad label!",99)]; m,t=report(r,"temp"); assert sorted(m)==[3,4,6], m; assert t==13, t; m2,t2=report(r,"temp-0"); assert sorted(m2)==[3,4,6], m2; assert t2==13, t2; m3,t3=report(r,"hum"); assert m3==[10], m3; assert t3==10, t3; m4,t4=report(r,"zzz"); assert m4==[] and t4==0; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0354
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: trie

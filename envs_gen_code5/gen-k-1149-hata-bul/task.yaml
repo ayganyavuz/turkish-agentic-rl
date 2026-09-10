@@ -1,0 +1,134 @@
+id: gen-k-1149-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  plant/summary.py içindeki total_hours ve busiest_machine fonksiyonlarındaki kenar-durum hatasını gider; sıfır saatli bakım kayıtları da makinenin kayıtlı olduğunu göstermeli, bu yüzden toplamdan ve en-yoğun-makine seçiminden dışlanmamalı.
+
+setup: |
+  mkdir -p plant
+  cat > plant/records.py <<'RECORDS'
+  from dataclasses import dataclass
+
+
+  @dataclass
+  class Service:
+      machine: str
+      hours: int
+      cost: float
+
+
+  def parse_records(text):
+      out = []
+      for line in text.strip().splitlines():
+          machine, hours, cost = line.split(',')
+          out.append(Service(machine, int(hours), float(cost)))
+      return out
+  RECORDS
+  cat > plant/summary.py <<'SUMMARY'
+  from plant.records import parse_records
+
+
+  def total_hours(text, machine):
+      total = 0
+      for rec in parse_records(text):
+          if rec.machine == machine and rec.hours:
+              total += rec.hours
+      return total
+
+
+  def busiest_machine(text):
+      totals = {}
+      for rec in parse_records(text):
+          if rec.hours:
+              totals[rec.machine] = totals.get(rec.machine, 0) + rec.hours
+      if not totals:
+          return None
+      best = max(totals.values())
+      for name in sorted(totals):
+          if totals[name] == best:
+              return name
+      return None
+  SUMMARY
+  cat > log.csv <<'CSV'
+  press,4,120.0
+  lathe,2,80.0
+  press,0,15.0
+  mill,6,300.0
+  lathe,3,90.0
+  CSV
+
+goal_tr: >
+  plant/summary.py icindeki total_hours ve busiest_machine
+  fonksiyonlarindaki kenar-durum hatasini gider: sifir saatli bakim
+  kayitlari da makinenin kayitli oldugunu gostermeli, dolayisiyla bu tur
+  kayitlar toplamdan ve en-yogun-makine seciminden dislanmamali.
+
+reference_solution: |
+  cat > plant/summary.py <<'SUMMARY'
+  from plant.records import parse_records
+
+
+  def total_hours(text, machine):
+      total = 0
+      for rec in parse_records(text):
+          if rec.machine == machine:
+              total += rec.hours
+      return total
+
+
+  def busiest_machine(text):
+      totals = {}
+      for rec in parse_records(text):
+          totals[rec.machine] = totals.get(rec.machine, 0) + rec.hours
+      if not totals:
+          return None
+      best = max(totals.values())
+      for name in sorted(totals):
+          if totals[name] == best:
+              return name
+      return None
+  SUMMARY
+
+outputs:
+  - {path: plant/summary.py, kind: program, run: 'python3 -c ''from plant.summary import total_hours as th, busiest_machine as bm; t=open("log.csv").read(); assert th(t,"press")==4, th(t,"press"); assert th(t,"lathe")==5, th(t,"lathe"); assert th(t,"mill")==6; assert th(t,"none")==0; assert bm(t)=="mill", bm(t); assert bm("idle,0,0.0")=="idle", bm("idle,0,0.0"); assert bm("") is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from plant.summary import total_hours as th, busiest_machine as bm; t=open("log.csv").read(); assert th(t,"press")==4, th(t,"press"); assert th(t,"lathe")==5, th(t,"lathe"); assert th(t,"mill")==6; assert th(t,"none")==0; assert bm(t)=="mill", bm(t); assert bm("idle,0,0.0")=="idle", bm("idle,0,0.0"); assert bm("") is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1149
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: makine-bakim-kayitlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: zor
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum
+      karmasiklik: duz
+      kalip: dataclass-dogrulama
+      akis: cok-dosya-birlestirme
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

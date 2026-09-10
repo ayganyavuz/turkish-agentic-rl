@@ -1,0 +1,162 @@
+id: gen-k-1001-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) clinic/scheduling.py dosyasındaki Scheduler.book metodu, aynı Scheduler nesnesi üzerinde farklı günlere sıralı olmayan şekilde kayıt yapıldığında günlük hasta listelerini sıfırlayıp önceki kayıtları siliyor. Bu hatayı gider; her gün için hasta listesi birikimli ve doğru kalsın.
+
+  2) Bir güne ait kayıt yapıldıktan sonra başka bir güne, ardından tekrar ilk güne dönüldüğünde o günün daha önce kaydedilmiş hasta listesi korunsun ve yeni kayıtlar bu listenin üzerine eklensin; hiçbir günün listesi sıfırlanmasın.
+
+  3) Günlük listelerin tutulması günler arasında gidip gelerek yapılan kayıtlarda da doğru sonucu versin; Scheduler.day_count ve clinic/report.py içindeki VisitReport.summary çağrıları her gün için birikimli ve doğru sayıları döndürsün.
+
+  4) Değişiklik yalnızca clinic/scheduling.py dosyasında yapılsın; clinic/records.py, clinic/report.py ve data.txt dosyalarındaki mevcut davranış korunsun.
+
+setup: |
+  mkdir -p clinic
+  cat > clinic/__init__.py <<'INIT'
+  INIT
+  cat > clinic/records.py <<'RECORDS'
+  class PatientRecord:
+      def __init__(self, patient_id, name):
+          self.patient_id = patient_id
+          self.name = name
+          self.visits = 0
+
+      def add_visit(self):
+          self.visits += 1
+          return self.visits
+
+
+  def load_patients(rows):
+      out = []
+      for pid, name in rows:
+          out.append(PatientRecord(pid, name))
+      return out
+  RECORDS
+  cat > clinic/scheduling.py <<'SCHED'
+  from clinic.records import load_patients
+
+
+  class Scheduler:
+      def __init__(self, rows):
+          self.patients = load_patients(rows)
+          self.calendar = {}
+          self.current_day = None
+
+      def book(self, patient_id, day):
+          for p in self.patients:
+              if p.patient_id == patient_id:
+                  p.add_visit()
+                  if day != self.current_day:
+                      self.current_day = day
+                      self.calendar[day] = []
+                  self.calendar[day].append(patient_id)
+                  return True
+          return False
+
+      def day_count(self, day):
+          return len(self.calendar.get(day, []))
+
+
+  def build_scheduler(rows):
+      return Scheduler(rows)
+  SCHED
+  cat > clinic/report.py <<'REPORT'
+  from clinic.scheduling import build_scheduler
+
+
+  class VisitReport:
+      def __init__(self, rows):
+          self.scheduler = build_scheduler(rows)
+          self.total = 0
+
+      def register(self, patient_id, day):
+          ok = self.scheduler.book(patient_id, day)
+          if ok:
+              self.total += 1
+          return ok
+
+      def summary(self):
+          return {"total": self.total, "per_day": dict(self.scheduler.calendar)}
+  REPORT
+  cat > data.txt <<'DATA'
+  P1,ayse
+  P2,mehmet
+  P3,zeynep
+  DATA
+
+goal_tr: >
+  clinic/scheduling.py icindeki Scheduler.book metodundaki gunluk liste
+  sifirlama hatasini gider: ayni Scheduler uzerinde gunler arasinda gidip
+  gelerek yapilan kayitlarda her gunun hasta listesi birikimli ve dogru
+  tutulmali, bir gune geri donuldugunde onceki kayitlar silinmemeli.
+
+reference_solution: |
+  cat > clinic/scheduling.py <<'SCHED'
+  from clinic.records import load_patients
+
+
+  class Scheduler:
+      def __init__(self, rows):
+          self.patients = load_patients(rows)
+          self.calendar = {}
+
+      def book(self, patient_id, day):
+          for p in self.patients:
+              if p.patient_id == patient_id:
+                  p.add_visit()
+                  self.calendar.setdefault(day, [])
+                  self.calendar[day].append(patient_id)
+                  return True
+          return False
+
+      def day_count(self, day):
+          return len(self.calendar.get(day, []))
+
+
+  def build_scheduler(rows):
+      return Scheduler(rows)
+  SCHED
+
+outputs:
+  - {path: clinic/scheduling.py, kind: program, run: 'python3 -c ''from clinic.report import VisitReport as R; rows=[("P1","a"),("P2","b"),("P3","c")]; r=R(rows); assert r.register("P1","mon") is True; assert r.register("P2","mon") is True; assert r.register("P3","tue") is True; assert r.register("P1","mon") is True; s=r.summary(); assert s["total"]==4, s; assert sorted(s["per_day"].keys())==["mon","tue"], s; assert s["per_day"]["mon"]==["P1","P2","P1"], s; assert s["per_day"]["tue"]==["P3"], s; assert r.scheduler.day_count("mon")==3; assert r.scheduler.day_count("tue")==1; assert r.register("P9","wed") is False; assert r.summary()["total"]==4; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from clinic.report import VisitReport as R; rows=[("P1","a"),("P2","b"),("P3","c")]; r=R(rows); assert r.register("P1","mon") is True; assert r.register("P2","mon") is True; assert r.register("P3","tue") is True; assert r.register("P1","mon") is True; s=r.summary(); assert s["total"]==4, s; assert sorted(s["per_day"].keys())==["mon","tue"], s; assert s["per_day"]["mon"]==["P1","P2","P1"], s; assert s["per_day"]["tue"]==["P3"], s; assert r.scheduler.day_count("mon")==3; assert r.scheduler.day_count("tue")==1; assert r.register("P9","wed") is False; assert r.summary()["total"]==4; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1001
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: hastane-randevulari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: zor
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-durum-sifirlama
+      karmasiklik: duz
+      kalip: durumlu-sinif
+      akis: cok-dosya-birlestirme
+      topoloji: elmas
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

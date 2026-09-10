@@ -1,0 +1,140 @@
+id: gen-k-0851-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 20
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) sensor/reader.py dosyasındaki parse_readings fonksiyonunu, okuma değerlerini float'a çevirecek şekilde düzelt.
+
+  2) sensor/stats.py dosyasındaki running_peak fonksiyonunu, negatif okumalar geldiğinde de doğru sonuç verecek şekilde düzelt.
+
+  3) sensor/stats.py dosyasındaki span fonksiyonuna dokunma; yalnızca running_peak değişsin.
+
+setup: |
+  mkdir -p sensor
+  cat > sensor/reader.py <<'READER'
+  def parse_readings(text):
+      rows = []
+      for line in text.strip().splitlines():
+          if not line.strip():
+              continue
+          ts, val = line.split(',')
+          rows.append((int(ts), val))
+      return rows
+  READER
+  cat > sensor/stats.py <<'STATS'
+  from sensor.reader import parse_readings
+
+
+  def running_peak(text):
+      rows = parse_readings(text)
+      peak = 0.0
+      out = []
+      for _, v in rows:
+          if v > peak:
+              peak = v
+          out.append(peak)
+      return out
+
+
+  def span(text):
+      rows = parse_readings(text)
+      vals = [v for _, v in rows]
+      return max(vals) - min(vals)
+  STATS
+  cat > data.txt <<'DATA'
+  1,2.0
+  2,5.0
+  3,1.0
+  4,3.0
+  DATA
+
+goal_tr: >
+  sensor/reader.py icindeki parse_readings degerleri float'a cevirmeli ve
+  sensor/stats.py icindeki running_peak negatif okumalarda da dogru
+  calismali; span fonksiyonuna dokunma.
+
+reference_solution: |
+  cat > sensor/reader.py <<'READER'
+  def parse_readings(text):
+      rows = []
+      for line in text.strip().splitlines():
+          if not line.strip():
+              continue
+          ts, val = line.split(',')
+          rows.append((int(ts), float(val)))
+      return rows
+  READER
+  cat > sensor/stats.py <<'STATS'
+  from sensor.reader import parse_readings
+
+
+  def running_peak(text):
+      rows = parse_readings(text)
+      peak = None
+      out = []
+      for _, v in rows:
+          if peak is None or v > peak:
+              peak = v
+          out.append(peak)
+      return out
+
+
+  def span(text):
+      rows = parse_readings(text)
+      vals = [v for _, v in rows]
+      return max(vals) - min(vals)
+  STATS
+
+ara_adim: |
+  cat > sensor/reader.py <<'READER'
+  def parse_readings(text):
+      rows = []
+      for line in text.strip().splitlines():
+          if not line.strip():
+              continue
+          ts, val = line.split(',')
+          rows.append((int(ts), float(val)))
+      return rows
+  READER
+
+outputs:
+  - {path: sensor/stats.py, kind: program, run: 'python3 -c ''from sensor.stats import running_peak as f; assert f("1,-3.0\n2,-1.0\n3,-2.0")==[-3.0,-1.0,-1.0], f("1,-3.0\n2,-1.0\n3,-2.0"); assert f("1,2.0\n2,5.0\n3,1.0")==[2.0,5.0,5.0]; print("TAMAM")'''}
+  - {path: sensor/stats.py, kind: program, run: 'python3 -c ''from sensor.stats import span as f; assert f("1,2.0\n2,5.0\n3,1.0")==4.0; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor.stats import running_peak as f; assert f("1,-3.0\n2,-1.0\n3,-2.0")==[-3.0,-1.0,-1.0], f("1,-3.0\n2,-1.0\n3,-2.0"); assert f("1,2.0\n2,5.0\n3,1.0")==[2.0,5.0,5.0]; print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor.stats import span as f; assert f("1,2.0\n2,5.0\n3,1.0")==4.0; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0851
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 7
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

@@ -1,0 +1,71 @@
+id: gen-s-0597-bol
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  notlar dizinindeki her .txt dosyasını işle. Her dosyadaki satırlarda ilk 10 karakter öğrenci adı, sonraki üç sayı ise notlar olsun. Bu üç notun ortalamasını hesapla ve her öğrenci için "ad ortalama" biçiminde bir satır oluştur. Satır sonlarındaki CRLF karakterlerini temizle. Sonuçları notlar dizini altındaki bol dizinine, aynı adlı .bol dosyasına yaz: notlar/sinif_a.txt için notlar/bol/sinif_a.bol, notlar/sinif_b.txt için notlar/bol/sinif_b.bol, notlar/sinif_c.txt için notlar/bol/sinif_c.bol.
+
+  Şu şartlar sağlanmalı:
+  - notlar/bol/sinif_a.bol, notlar/bol/sinif_b.bol ve notlar/bol/sinif_c.bol dosyaları oluşturulmuş olmalı.
+  - Her .bol dosyasında ilgili .txt dosyasındaki her öğrenci için bir satır bulunmalı ve satır "ad ortalama" biçiminde olmalı.
+  - Öğrenci adı ilk 10 karakterden, notlar ise sonraki üç sayıdan alınmış olmalı.
+  - Ortalama, üç notun ortalaması olarak hesaplanmış olmalı.
+  - Çıktıda CRLF karakterleri bulunmamalı.
+
+setup: |
+  mkdir -p notlar
+  printf 'Ali      90 85 70\r\nAyse     60 75 80\r\nCan      45 50 55\r\nDeniz    100 95 90\r\n' | tee notlar/sinif_a.txt > /dev/null
+  printf 'Ece      55 65 75\r\nFatma    80 80 80\r\nGokhan   30 40 50\r\n' | tee notlar/sinif_b.txt > /dev/null
+  printf 'Hasan    70 70 70\r\nIrem     88 92 96\r\n' | tee notlar/sinif_c.txt > /dev/null
+
+goal_tr: >
+  notlar dizinindeki her .txt dosyasi icin, sabit genislikli satirlardaki
+  ilk 10 karakterden ogrenci adini ve sonraki uc sayidan not ortalamasini
+  alip, notlar dizini altinda ayni adli .bol dosyasina "ad ortalama"
+  biciminde yaz (CRLF temizlensin).
+
+reference_solution: |
+  mkdir -p notlar/bol
+  for f in notlar/*.txt; do
+    b=$(basename "$f" .txt)
+    tr -d '\r' < "$f" | cut -c1-10,11-13,14-16,17-19 | awk '{ad=$1; top=$2+$3+$4; printf "%s %.2f\n", ad, top/3}' | tee "notlar/bol/$b.bol" > /dev/null
+  done
+
+outputs:
+  - {path: notlar/bol/sinif_a.bol, kind: file}
+  - {path: notlar/bol/sinif_b.bol, kind: file}
+  - {path: notlar/bol/sinif_c.bol, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: notlar/bol/sinif_a.bol, value: [Ali 81.67, Ayse 71.67, Can 50.00, Deniz 95.00]}
+  - {op: file_lines_eq, path: notlar/bol/sinif_b.bol, value: [Ece 65.00, Fatma 80.00, Gokhan 40.00]}
+  - {op: file_lines_eq, path: notlar/bol/sinif_c.bol, value: [Hasan 70.00, Irem 92.00]}
+
+metadata:
+  domain: bol
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0597
+    bundle: dallandir
+    tools:
+    - tee
+    - cut
+    konu: ogrenci-notlari
+    hedef: bol
+    girdi: sabit-genislik
+    kaynak: dizin-agaci
+    cikti: birden-cok-dosya
+    kesif: veriye-bak
+    uslup: kabul-kriteri
+    direnc: crlf
+    bukulme: yok
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

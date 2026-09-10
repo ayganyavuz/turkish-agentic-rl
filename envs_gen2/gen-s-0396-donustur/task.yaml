@@ -1,0 +1,78 @@
+id: gen-s-0396-donustur
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  girdi dizinindeki .ini dosyalarını gzip ile sıkıştırıp girdi.tar arşivine koy, arşivi cikti dizinine aç. Açılan her .ini dosyasını cikti/a.txt, cikti/b.txt, cikti/c.txt olarak dönüştür; içinde "kayit" satırı ve "anahtar: deger" satırları olsun, son satırdan sonra yeni satır olmasın.
+
+setup: |
+  mkdir -p girdi
+  printf 'kalem=tahsilat\nmiktar=1200\npara=TL\n' > girdi/a.ini
+  printf 'kalem=odeme\nmiktar=850\npara=TL\n' > girdi/b.ini
+  printf 'kalem=masraf\nmiktar=300\npara=USD\n' > girdi/c.ini
+
+goal_tr: >
+  girdi dizinindeki tum .ini dosyalarini once gzip ile tek tek sikistirip
+  (girdi/a.ini.gz, girdi/b.ini.gz, girdi/c.ini.gz), sonra bu .gz dosyalarini
+  tek bir tar arsivine (girdi.tar) koy; arsivi cikti dizinine ac ve acilan
+  her .ini dosyasini, dosya basi "kayit" satiri ve ardindan "anahtar: deger"
+  biciminde satirlar iceren, adi ayni olan bir .txt dosyasina (uzanti .ini
+  yerine .txt) donustur; her cikti dosyasi son satirindan sonra yeni satir
+  karakteri ICERMESIN.
+
+reference_solution: |
+  for f in girdi/*.ini; do gzip "$f"; done
+  tar -cf girdi.tar girdi
+  mkdir -p cikti
+  tar -xf girdi.tar -C cikti --strip-components=1
+  for g in cikti/*.ini.gz; do gzip -d "$g"; done
+  for f in cikti/*.ini; do
+    b=$(basename "$f" .ini)
+    { echo kayit; awk -F= '{printf "%s: %s\n", $1, $2}' "$f"; } > "cikti/$b.txt"
+    rm "$f"
+  done
+  find cikti -type f -name '*.txt' -exec sh -c 'printf "%s" "$(cat "$1")" > "$1"' _ {} \;
+
+outputs:
+  - {path: cikti, kind: dir}
+  - {path: cikti/a.txt, kind: file}
+  - {path: cikti/b.txt, kind: file}
+  - {path: cikti/c.txt, kind: file}
+
+checks:
+  - {op: dir_entries_eq, path: cikti, value: [a.txt, b.txt, c.txt]}
+  - {op: file_lines_eq, path: cikti/a.txt, value: [kayit, 'kalem: tahsilat', 'miktar: 1200', 'para: TL']}
+  - {op: file_lines_eq, path: cikti/b.txt, value: [kayit, 'kalem: odeme', 'miktar: 850', 'para: TL']}
+  - {op: file_lines_eq, path: cikti/c.txt, value: [kayit, 'kalem: masraf', 'miktar: 300', 'para: USD']}
+  - {op: not_exists, path: girdi/a.ini}
+  - {op: not_exists, path: girdi/b.ini}
+  - {op: not_exists, path: girdi/c.ini}
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0396
+    bundle: arsiv
+    tools:
+    - tar
+    - gzip
+    konu: muhasebe-kalemleri
+    hedef: donustur
+    girdi: ini
+    kaynak: cok-dosya
+    cikti: birden-cok-dosya
+    kesif: yok
+    uslup: terse
+    direnc: son-newline-yok
+    bukulme: yok
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

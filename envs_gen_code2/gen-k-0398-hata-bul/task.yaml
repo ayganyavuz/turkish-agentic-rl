@@ -1,0 +1,134 @@
+id: gen-k-0398-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) school/gpa.py dosyasındaki weighted_gpa ve passed_courses fonksiyonlarını, kredisi 0 olan dersleri ve notu FF olan dersleri doğru ele alacak biçimde düzelt.
+
+  2) Sıfır kredili dersler GPA hesabına hiç girmemeli.
+
+  3) FF dersli bir transkriptte passed_courses yalnızca geçilen dersleri döndürmeli.
+
+  4) Hiçbir durumda ZeroDivisionError oluşmamalı.
+
+setup: |
+  mkdir -p school
+  cat > school/parser.py <<'PARSER'
+  def parse_grades(text):
+      rows = []
+      for line in text.strip().splitlines():
+          parts = line.split(',')
+          rows.append((parts[0].strip(), parts[1].strip(), int(parts[2])))
+      return rows
+  PARSER
+  cat > school/gpa.py <<'GPA'
+  from school.parser import parse_grades
+
+  LETTER_POINTS = {
+      "AA": 4.0,
+      "BA": 3.5,
+      "BB": 3.0,
+      "CB": 2.5,
+      "CC": 2.0,
+      "DC": 1.5,
+      "DD": 1.0,
+      "FF": 0.0,
+  }
+
+
+  def weighted_gpa(text):
+      rows = parse_grades(text)
+      total_credit = 0
+      total_points = 0.0
+      for name, letter, credit in rows:
+          total_credit += credit
+          total_points += LETTER_POINTS[letter] * credit
+      return total_points / total_credit
+
+
+  def passed_courses(text):
+      rows = parse_grades(text)
+      return [name for name, letter, credit in rows if LETTER_POINTS[letter] > 0.0]
+  GPA
+  cat > transcript.txt <<'TXT'
+  math,AA,3
+  physics,FF,4
+  chem,BB,2
+  TXT
+
+goal_tr: >
+  school/gpa.py dosyasindaki weighted_gpa ve passed_courses fonksiyonlarini,
+  kredisi 0 olan dersleri ve notu FF olan dersleri dogru ele alacak bicimde
+  duzelt; sifir kredili dersler GPA hesabina hic girmemeli, FF dersli bir
+  transkriptte passed_courses yalnizca gecilen dersleri dondurmeli ve hicbir
+  durumda ZeroDivisionError olusmamali.
+
+reference_solution: |
+  cat > school/gpa.py <<'GPA'
+  from school.parser import parse_grades
+
+  LETTER_POINTS = {
+      "AA": 4.0,
+      "BA": 3.5,
+      "BB": 3.0,
+      "CB": 2.5,
+      "CC": 2.0,
+      "DC": 1.5,
+      "DD": 1.0,
+      "FF": 0.0,
+  }
+
+
+  def weighted_gpa(text):
+      rows = parse_grades(text)
+      total_credit = 0
+      total_points = 0.0
+      for name, letter, credit in rows:
+          if credit == 0:
+              continue
+          total_credit += credit
+          total_points += LETTER_POINTS[letter] * credit
+      if total_credit == 0:
+          return 0.0
+      return total_points / total_credit
+
+
+  def passed_courses(text):
+      rows = parse_grades(text)
+      return [name for name, letter, credit in rows if LETTER_POINTS[letter] > 0.0]
+  GPA
+
+outputs:
+  - {path: school/gpa.py, kind: program, run: 'python3 -c ''from school.gpa import weighted_gpa as g, passed_courses as p; t="math,AA,3\nphysics,FF,4\nchem,BB,2\n"; assert abs(g(t)-2.0)<1e-9, g(t); assert p(t)==["math","chem"], p(t); z="art,AA,0\n"; assert g(z)==0.0, g(z); assert p(z)==["art"], p(z); e=""; assert g(e)==0.0, g(e); assert p(e)==[], p(e); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from school.gpa import weighted_gpa as g, passed_courses as p; t="math,AA,3\nphysics,FF,4\nchem,BB,2\n"; assert abs(g(t)-2.0)<1e-9, g(t); assert p(t)==["math","chem"], p(t); z="art,AA,0\n"; assert g(z)==0.0, g(z); assert p(z)==["art"], p(z); e=""; assert g(e)==0.0, g(e); assert p(e)==[], p(e); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0398
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum

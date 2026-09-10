@@ -1,0 +1,76 @@
+id: gen-s-0580-bol
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) arşiv dizini altındaki tüm csv dosyalarını gzip ile sıkıştırıp tek bir arsiv.tar.gz dosyasında topla.
+
+  2) arsiv.tar.gz dosyasından hasta, bölüm ve tarih sütunlarındaki değerleri çıkarıp bolumlere.csv dosyasına yaz; her satırda bir kayıt olsun ve hasta, bölüm, tarih değerleri yer alsın.
+
+setup: |
+  mkdir -p arsiv
+  cat > arsiv/ocak.csv <<'CSV'
+  hasta,bolum,tarih
+  Ayse,Kardiyoloji,2024-01-03
+  Mehmet,Noroloji,2024-01-05
+  CSV
+  cat > arsiv/subat.csv <<'CSV'
+  hasta,bolum,tarih
+  Zeynep,Kardiyoloji,2024-02-11
+  Ali,Ortopedi,2024-02-14
+  CSV
+  cat > arsiv/mart.csv <<'CSV'
+  hasta,bolum,tarih
+  Fatma,Noroloji,2024-03-02
+  CSV
+
+goal_tr: >
+  arsiv altindaki tum csv dosyalarini gzip ile sikistirip tek bir tar
+  arsivinde topla ve bu arsivden bolum sutunundaki degerleri hasta ve tarih
+  ile birlikte bolumlere.csv dosyasina yaz
+
+reference_solution: |
+  tar -cf arsiv.tar arsiv/*.csv
+  gzip arsiv.tar
+  tar -xzf arsiv.tar.gz -O --wildcards '*/[a-z]*.csv' | awk -F, 'NR>1 && NF==3 {print $1","$2","$3}' | sort > bolumlere.csv
+
+outputs:
+  - {path: arsiv.tar.gz, kind: file}
+  - {path: bolumlere.csv, kind: file}
+
+checks:
+  - {op: run_stdout_eq, cmd: tar -tzf arsiv.tar.gz | sort, value: 'arsiv/mart.csv
+
+    arsiv/ocak.csv
+
+    arsiv/subat.csv'}
+  - {op: file_lines_eq, path: bolumlere.csv, value: ['Ali,Ortopedi,2024-02-14', 'Ayse,Kardiyoloji,2024-01-03', 'Fatma,Noroloji,2024-03-02', 'Mehmet,Noroloji,2024-01-05', 'Zeynep,Kardiyoloji,2024-02-11', 'hasta,bolum,tarih', 'hasta,bolum,tarih']}
+
+metadata:
+  domain: bol
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0580
+    bundle: arsiv
+    tools:
+    - tar
+    - gzip
+    konu: hastane-randevulari
+    hedef: bol
+    girdi: csv
+    kaynak: cok-dosya
+    cikti: csv
+    kesif: dolayli-hedef
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: yok
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

@@ -1,0 +1,127 @@
+id: gen-k-0921-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  maintenance/index/sorter.py dosyasını oluştur. Bu dosyada load_sorted(text) fonksiyonu, verilen metni gün numarasına göre artan sırada sıralanmış kayıt listesi olarak döndürsün. Aynı dosyada find_by_day(text, day) fonksiyonu da olsun; bu fonksiyon load_sorted ile elde edilen sıralı kayıtlar üzerinde ikili arama yaparak gün numarası eşleşen kaydı, eşleşme yoksa None döndürsün. Ardından maintenance/index/lookup.py içindeki find_day fonksiyonunu, artık bu yeni find_by_day fonksiyonunu kullanacak şekilde güncelle.
+
+setup: |
+  mkdir -p maintenance/core maintenance/index
+  cat > maintenance/core/records.py <<'RECORDS'
+  def parse_line(line):
+      machine, day, cost = line.strip().split('|')
+      return (machine, int(day), int(cost))
+
+
+  def load_records(text):
+      return [parse_line(l) for l in text.splitlines() if l.strip()]
+  RECORDS
+  cat > maintenance/core/__init__.py <<'INIT'
+  INIT
+  cat > maintenance/index/__init__.py <<'INIT'
+  INIT
+  cat > maintenance/index/lookup.py <<'LOOKUP'
+  from maintenance.core.records import load_records
+
+
+  def find_day(records, target_day):
+      lo, hi = 0, len(records) - 1
+      while lo <= hi:
+          mid = (lo + hi) // 2
+          if records[mid][1] == target_day:
+              return records[mid]
+          if records[mid][1] < target_day:
+              lo = mid + 1
+          else:
+              hi = mid - 1
+      return None
+  LOOKUP
+  cat > log.txt <<'LOG'
+  lathe|101|40
+  press|104|25
+  lathe|109|70
+  mill|115|12
+  press|120|55
+  LOG
+
+goal_tr: >
+  maintenance/index/sorter.py dosyasini yaz: load_sorted(text) gun
+  numarasina gore artan sirali kayit listesi dondursun, find_by_day(text,
+  day) ise bu sirali kayitlar uzerinde ikili arama yapip eslesen kaydi ya da
+  None dondursun; lookup.py icindeki find_day bu yeni fonksiyonu kullanacak
+  sekilde guncellensin.
+
+reference_solution: |
+  cat > maintenance/index/sorter.py <<'SORTER'
+  from maintenance.core.records import load_records
+
+
+  def load_sorted(text):
+      records = load_records(text)
+      records.sort(key=lambda r: r[1])
+      return records
+
+
+  def find_by_day(text, day):
+      records = load_sorted(text)
+      lo, hi = 0, len(records) - 1
+      while lo <= hi:
+          mid = (lo + hi) // 2
+          if records[mid][1] == day:
+              return records[mid]
+          if records[mid][1] < day:
+              lo = mid + 1
+          else:
+              hi = mid - 1
+      return None
+  SORTER
+  cat > maintenance/index/lookup.py <<'LOOKUP'
+  from maintenance.index.sorter import find_by_day
+
+
+  def find_day(records, target_day):
+      return None
+  LOOKUP
+
+outputs:
+  - {path: maintenance/index/sorter.py, kind: program, run: 'python3 -c ''from maintenance.index.sorter import load_sorted as ls, find_by_day as fb; t=open("log.txt").read(); r=ls(t); assert [x[1] for x in r]==[101,104,109,115,120], r; assert fb(t,109)==("lathe",109,70); assert fb(t,101)==("lathe",101,40); assert fb(t,120)==("press",120,55); assert fb(t,110) is None; assert fb(t,130) is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from maintenance.index.sorter import load_sorted as ls, find_by_day as fb; t=open("log.txt").read(); r=ls(t); assert [x[1] for x in r]==[101,104,109,115,120], r; assert fb(t,109)==("lathe",109,70); assert fb(t,101)==("lathe",101,40); assert fb(t,120)==("press",120,55); assert fb(t,110) is None; assert fb(t,130) is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0921
+    bundle: yarisma
+    tools:
+    - python3
+    konu: makine-bakim-kayitlari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: siralama-ikili-arama
+      karmasiklik: duz
+      kalip: istisna-hiyerarsisi
+      akis: parcali-akis
+      topoloji: paket-alt-paket
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

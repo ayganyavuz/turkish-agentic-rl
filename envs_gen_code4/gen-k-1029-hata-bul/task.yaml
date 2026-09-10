@@ -1,0 +1,118 @@
+id: gen-k-1029-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) farm/plot/ledger.py dosyasındaki Ledger sınıfını incele.
+
+  2) Ledger.record çağrıldığında, aynı mahsul için daha önce kayıt varsa yeni bir YieldRecord oluşturmak yerine mevcut olanı kullanacak ve tutarı ona ekleyecek şekilde düzelt.
+
+  3) Aynı mahsul için yapılan ardışık record çağrılarının tek bir YieldRecord üzerinde biriktiğinden emin ol.
+
+  4) Ledger.summary çağrıldığında, her mahsul için gerçek ortalamanın (tüm eklenen tutarların ortalamasının) döndüğünü doğrula.
+
+setup: |
+  mkdir -p farm/plot
+  cat > farm/plot/record.py <<'RECORD'
+  from dataclasses import dataclass, field
+
+
+  @dataclass
+  class YieldRecord:
+      crop: str
+      samples: list = field(default_factory=list)
+      total: float = 0.0
+
+      def add(self, amount):
+          self.samples.append(amount)
+          self.total += amount
+
+      def mean(self):
+          if not self.samples:
+              return 0.0
+          return self.total / len(self.samples)
+  RECORD
+  cat > farm/plot/ledger.py <<'LEDGER'
+  from farm.plot.record import YieldRecord
+
+
+  class Ledger:
+      def __init__(self):
+          self.records = {}
+
+      def record(self, crop, amount):
+          rec = YieldRecord(crop)
+          rec.add(amount)
+          self.records[crop] = rec
+
+      def summary(self):
+          return {crop: rec.mean() for crop, rec in self.records.items()}
+  LEDGER
+  cat > farm/plot/__init__.py <<'INIT'
+  INIT
+
+goal_tr: >
+  farm/plot/ledger.py icindeki Ledger sinifini, ayni mahsul icin yapilan
+  ardisik record cagrilari tek bir YieldRecord uzerinde birikip summary
+  gercek ortalamayi dondurecek sekilde duzelt.
+
+reference_solution: |
+  cat > farm/plot/ledger.py <<'LEDGER'
+  from farm.plot.record import YieldRecord
+
+
+  class Ledger:
+      def __init__(self):
+          self.records = {}
+
+      def record(self, crop, amount):
+          if crop not in self.records:
+              self.records[crop] = YieldRecord(crop)
+          self.records[crop].add(amount)
+
+      def summary(self):
+          return {crop: rec.mean() for crop, rec in self.records.items()}
+  LEDGER
+
+outputs:
+  - {path: farm/plot/ledger.py, kind: program, run: 'python3 -c ''from farm.plot.ledger import Ledger as L; g=L(); g.record("wheat",10); g.record("wheat",20); g.record("wheat",30); assert g.summary()=={"wheat":20.0}, g.summary(); h=L(); h.record("corn",5); h.record("corn",15); assert h.summary()=={"corn":10.0}, h.summary(); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from farm.plot.ledger import Ledger as L; g=L(); g.record("wheat",10); g.record("wheat",20); g.record("wheat",30); assert g.summary()=={"wheat":20.0}, g.summary(); h=L(); h.record("corn",5); h.record("corn",15); assert h.summary()=={"corn":10.0}, h.summary(); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1029
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: tarim-verim-olcumleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-durum-sifirlama
+      karmasiklik: duz
+      kalip: dataclass-dogrulama
+      akis: ic-ice-yapi
+      topoloji: paket-alt-paket
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

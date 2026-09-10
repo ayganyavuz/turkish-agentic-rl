@@ -1,0 +1,123 @@
+id: gen-k-1037-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  docs/core/factory.py içindeki make_section_reader, istenen bölümün satırlarını doğru döndürsün. docs/report.py ve docs/core/loader.py değişmesin.
+
+setup: |
+  mkdir -p docs/core
+  cat > docs/core/loader.py <<'LOADER'
+  def read_lines(path):
+      with open(path, "r", encoding="utf-8") as handle:
+          return [line.rstrip("\n") for line in handle if line.strip()]
+  LOADER
+  cat > docs/core/factory.py <<'FACTORY'
+  from docs.core.loader import read_lines
+
+
+  def make_section_reader(path):
+      lines = read_lines(path)
+
+      def read_section(name):
+          collected = []
+          for line in lines:
+              if line.startswith("["):
+                  return collected
+              collected.append(line)
+          return collected
+
+      return read_section
+  FACTORY
+  cat > docs/report.py <<'REPORT'
+  from docs.core.factory import make_section_reader
+
+
+  def summarize(path, names):
+      read_section = make_section_reader(path)
+      return {name: len(read_section(name)) for name in names}
+  REPORT
+  cat > docs/data.txt <<'DATA'
+  [alpha]
+  one
+  two
+  three
+  [beta]
+  four
+  five
+  [gamma]
+  six
+  DATA
+
+goal_tr: >
+  docs/core/factory.py icindeki make_section_reader fabrikasinin urettigi
+  okuyucuyu, istenen bolumun satirlarini dogru dondurecek bicimde duzelt;
+  docs/report.py ve docs/core/loader.py degismemeli.
+
+reference_solution: |
+  cat > docs/core/factory.py <<'FACTORY'
+  from docs.core.loader import read_lines
+
+
+  def make_section_reader(path):
+      lines = read_lines(path)
+
+      def read_section(name):
+          header = "[" + name + "]"
+          collected = []
+          inside = False
+          for line in lines:
+              if line.startswith("["):
+                  if inside:
+                      break
+                  inside = line == header
+                  continue
+              if inside:
+                  collected.append(line)
+          return collected
+
+      return read_section
+  FACTORY
+
+outputs:
+  - {path: docs/core/factory.py, kind: program, run: 'python3 -c ''from docs.report import summarize as s; r=s("docs/data.txt",["alpha","beta","gamma","delta"]); assert r=={"alpha":3,"beta":2,"gamma":1,"delta":0}, r; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from docs.report import summarize as s; r=s("docs/data.txt",["alpha","beta","gamma","delta"]); assert r=={"alpha":3,"beta":2,"gamma":1,"delta":0}, r; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1037
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: terse
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: erken-donus
+      karmasiklik: duz
+      kalip: closure-fabrika
+      akis: dosya-okuma
+      topoloji: paket-alt-paket
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

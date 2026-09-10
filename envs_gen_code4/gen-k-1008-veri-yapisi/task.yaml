@@ -1,0 +1,165 @@
+id: gen-k-1008-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depot/tree.py içindeki ShelfTree sınıfını gerçek bir ikili arama ağacı olarak gerçekleştir. Ağaç, PUT ile eklenen (raf adı, adet) çiftlerini tutmalı; aynı raf adına yapılan yeni bir PUT eskisinin yerine geçmeli. find, ağaçta bulunmayan bir raf adı için -1 döndürmeli. range_sum ise [lo, hi] kapalı aralığındaki raf adetlerinin toplamını döndürmeli ve aralıkta hiçbir raf yoksa 0 vermeli. Sınıfın __init__, insert, find ve range_sum metotlarını bu davranışı sağlayacak biçimde doldur.
+
+setup: |
+  mkdir -p depot
+  cat > depot/parser.py <<'PARSER'
+  def parse_request(text):
+      lines = [ln for ln in text.splitlines() if ln.strip()]
+      n = int(lines[0].split()[0])
+      ops = []
+      for ln in lines[1:1 + n]:
+          parts = ln.split()
+          if parts[0] == "PUT":
+              ops.append(("PUT", parts[1], int(parts[2])))
+          elif parts[0] == "GET":
+              ops.append(("GET", parts[1], None))
+          elif parts[0] == "SUM":
+              ops.append(("SUM", parts[1], parts[2]))
+      return ops
+  PARSER
+  cat > depot/tree.py <<'TREE'
+  class ShelfTree:
+      def __init__(self):
+          raise NotImplementedError
+
+      def insert(self, key, value):
+          raise NotImplementedError
+
+      def find(self, key):
+          raise NotImplementedError
+
+      def range_sum(self, lo, hi):
+          raise NotImplementedError
+  TREE
+  cat > depot/service.py <<'SERVICE'
+  from depot.parser import parse_request
+  from depot.tree import ShelfTree
+
+
+  def run(text):
+      tree = ShelfTree()
+      out = []
+      for op, a, b in parse_request(text):
+          if op == "PUT":
+              tree.insert(a, b)
+          elif op == "GET":
+              out.append(str(tree.find(a)))
+          elif op == "SUM":
+              out.append(str(tree.range_sum(a, b)))
+      return out
+  SERVICE
+
+goal_tr: >
+  depot/tree.py icindeki ShelfTree sinifini, PUT ile eklenen (raf adi, adet)
+  ciftlerini tutan bir ikili arama agaci olacak ve ayni ada yapilan PUT
+  eskisinin yerine gececek bicimde; find eksik rafta -1, range_sum ise [lo,
+  hi] kapali araligindaki adetlerin toplamini (eksikse 0) dondurecek bicimde
+  gerceklestir.
+
+reference_solution: |
+  cat > depot/tree.py <<'TREE'
+  class _Node:
+      __slots__ = ("key", "value", "left", "right")
+
+      def __init__(self, key, value):
+          self.key = key
+          self.value = value
+          self.left = None
+          self.right = None
+
+
+  class ShelfTree:
+      def __init__(self):
+          self._root = None
+
+      def insert(self, key, value):
+          if self._root is None:
+              self._root = _Node(key, value)
+              return
+          node = self._root
+          while True:
+              if key == node.key:
+                  node.value = value
+                  return
+              if key < node.key:
+                  if node.left is None:
+                      node.left = _Node(key, value)
+                      return
+                  node = node.left
+              else:
+                  if node.right is None:
+                      node.right = _Node(key, value)
+                      return
+                  node = node.right
+
+      def find(self, key):
+          node = self._root
+          while node is not None:
+              if key == node.key:
+                  return node.value
+              node = node.left if key < node.key else node.right
+          return -1
+
+      def range_sum(self, lo, hi):
+          total = 0
+          stack = [self._root]
+          while stack:
+              node = stack.pop()
+              if node is None:
+                  continue
+              if lo <= node.key <= hi:
+                  total += node.value
+              if node.key > lo:
+                  stack.append(node.left)
+              if node.key < hi:
+                  stack.append(node.right)
+          return total
+  TREE
+
+outputs:
+  - {path: depot/tree.py, kind: program, run: 'python3 -c ''from depot.service import run; t="6\nPUT A 3\nPUT B 5\nPUT A 9\nGET A\nGET Z\nSUM A B\n"; assert run(t)==["9","-1","14"], run(t); t2="7\nPUT M 4\nPUT D 2\nPUT Z 7\nSUM D Z\nGET D\nPUT D 8\nSUM D D\n"; assert run(t2)==["13","2","8"], run(t2); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depot.service import run; t="6\nPUT A 3\nPUT B 5\nPUT A 9\nGET A\nGET Z\nSUM A B\n"; assert run(t)==["9","-1","14"], run(t); t2="7\nPUT M 4\nPUT D 2\nPUT Z 7\nSUM D Z\nGET D\nPUT D 8\nSUM D D\n"; assert run(t2)==["13","2","8"], run(t2); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1008
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: depo-raf-yerlesimi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: ikili-arama-agaci
+      karmasiklik: duz
+      kalip: durumlu-sinif
+      akis: stdin-boru
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

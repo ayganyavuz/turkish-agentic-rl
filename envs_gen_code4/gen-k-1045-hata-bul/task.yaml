@@ -1,0 +1,117 @@
+id: gen-k-1045-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  stock/report.py içindeki summarize fonksiyonunu düzelt. Fonksiyon her stok kalemi için ad ve sayımı boşlukla ayrılmış şekilde, kalem adına göre artan sırada tek bir metin döndürsün.
+
+setup: |
+  mkdir -p stock
+  cat > stock/ledger.py <<'LEDGER'
+  def read_moves(path):
+      rows = []
+      with open(path) as fh:
+          for line in fh:
+              line = line.strip()
+              if not line:
+                  continue
+              item, delta = line.split()
+              rows.append((item, int(delta)))
+      return rows
+  LEDGER
+  cat > stock/inventory.py <<'INV'
+  from stock.ledger import read_moves
+
+
+  class Inventory:
+      def __init__(self):
+          self.counts = {}
+
+      def load(self, path):
+          for item, delta in read_moves(path):
+              self.counts[item] = self.counts.get(item, 0) + delta
+
+      def on_hand(self, item):
+          return self.counts.get(item, 0)
+  INV
+  cat > stock/report.py <<'REPORT'
+  from stock.inventory import Inventory
+
+
+  def summarize(path):
+      inv = Inventory()
+      inv.load(path)
+      lines = []
+      for item in sorted(inv.counts):
+          lines.append(item + " " + inv.on_hand(item))
+      return "\n".join(lines)
+  REPORT
+  cat > moves.txt <<'MOVES'
+  widget 5
+  gadget 2
+  widget -3
+  bolt 10
+  gadget -1
+  MOVES
+
+goal_tr: >
+  stock/report.py icindeki summarize fonksiyonunu, her stok kalemi icin ad
+  ve sayimi boslukla ayrilmis, kalem adina gore artan sirada tek bir metin
+  dondurecek bicimde duzelt.
+
+reference_solution: |
+  cat > stock/report.py <<'REPORT'
+  from stock.inventory import Inventory
+
+
+  def summarize(path):
+      inv = Inventory()
+      inv.load(path)
+      lines = []
+      for item in sorted(inv.counts):
+          lines.append(item + " " + str(inv.on_hand(item)))
+      return "\n".join(lines)
+  REPORT
+
+outputs:
+  - {path: stock/report.py, kind: program, run: 'python3 -c ''from stock.report import summarize as f; r=f("moves.txt"); assert r=="bolt 10\ngadget 1\nwidget 2", repr(r); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from stock.report import summarize as f; r=f("moves.txt"); assert r=="bolt 10\ngadget 1\nwidget 2", repr(r); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1045
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: stok-hareketleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: tip-karismasi
+      karmasiklik: duz
+      kalip: durumlu-sinif
+      akis: dosya-okuma
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

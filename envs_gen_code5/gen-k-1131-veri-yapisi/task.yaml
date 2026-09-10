@@ -1,0 +1,180 @@
+id: gen-k-1131-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depot/store.py içindeki Inventory sınıfını Item nesnelerini bağlı liste olarak tutacak ve append, total_qty, below_reorder, __len__ metotlarıyla ekleme, toplam miktar, yeniden-sipariş eşiğinin altındaki kalemler ve eleman sayısını doğru verecek şekilde gerçekleştir.
+
+setup: |
+  mkdir -p depot
+  cat > depot/models.py <<'MODELS'
+  from dataclasses import dataclass
+
+
+  @dataclass
+  class Item:
+      sku: str
+      qty: int
+      reorder: int
+
+
+  @dataclass
+  class Node:
+      item: Item
+      nxt: "Node" = None
+  MODELS
+  cat > depot/parse.py <<'PARSE'
+  import sys
+  from depot.models import Item
+
+
+  def read_items(stream):
+      items = []
+      for raw in stream:
+          line = raw.strip()
+          if not line:
+              continue
+          sku, qty, reorder = line.split()
+          items.append(Item(sku, int(qty), int(reorder)))
+      return items
+
+
+  def main():
+      items = read_items(sys.stdin)
+      for it in items:
+          print(it.sku, it.qty, it.reorder)
+
+
+  if __name__ == "__main__":
+      main()
+  PARSE
+  cat > depot/store.py <<'STORE'
+  from depot.models import Item, Node
+
+
+  class Inventory:
+      def __init__(self):
+          raise NotImplementedError
+
+      def append(self, item):
+          raise NotImplementedError
+
+      def total_qty(self):
+          raise NotImplementedError
+
+      def below_reorder(self):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+  STORE
+  cat > depot/cli.py <<'CLI'
+  import sys
+  from depot.parse import read_items
+  from depot.store import Inventory
+
+
+  def main():
+      inv = Inventory()
+      for item in read_items(sys.stdin):
+          inv.append(item)
+      print("count", len(inv))
+      print("total", inv.total_qty())
+      for item in inv.below_reorder():
+          print("low", item.sku)
+
+
+  if __name__ == "__main__":
+      main()
+  CLI
+
+goal_tr: >
+  depot/store.py icindeki Inventory sinifini, Item nesnelerini bagli liste
+  olarak tutan ve append, total_qty, below_reorder, __len__ metotlariyla
+  sirasiyla ekleme, toplam miktar, yeniden-siparis esiginin altindaki
+  kalemleri ve eleman sayisini dogru veren bicimde gerceklestir
+
+reference_solution: |
+  cat > depot/store.py <<'STORE'
+  from depot.models import Item, Node
+
+
+  class Inventory:
+      def __init__(self):
+          self.head = None
+          self.tail = None
+          self.count = 0
+
+      def append(self, item):
+          node = Node(item)
+          if self.head is None:
+              self.head = node
+              self.tail = node
+          else:
+              self.tail.nxt = node
+              self.tail = node
+          self.count += 1
+
+      def total_qty(self):
+          total = 0
+          cur = self.head
+          while cur is not None:
+              total += cur.item.qty
+              cur = cur.nxt
+          return total
+
+      def below_reorder(self):
+          out = []
+          cur = self.head
+          while cur is not None:
+              if cur.item.qty < cur.item.reorder:
+                  out.append(cur.item)
+              cur = cur.nxt
+          return out
+
+      def __len__(self):
+          return self.count
+  STORE
+
+outputs:
+  - {path: depot/store.py, kind: program, run: 'python3 -c ''from depot.store import Inventory; from depot.models import Item; inv=Inventory(); assert len(inv)==0; assert inv.total_qty()==0; assert inv.below_reorder()==[]; inv.append(Item("a",5,3)); inv.append(Item("b",1,4)); inv.append(Item("c",2,2)); assert len(inv)==3; assert inv.total_qty()==8; low=inv.below_reorder(); assert [i.sku for i in low]==["b"], [i.sku for i in low]; assert inv.head.item.sku=="a"; assert inv.tail.item.sku=="c"; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depot.store import Inventory; from depot.models import Item; inv=Inventory(); assert len(inv)==0; assert inv.total_qty()==0; assert inv.below_reorder()==[]; inv.append(Item("a",5,3)); inv.append(Item("b",1,4)); inv.append(Item("c",2,2)); assert len(inv)==3; assert inv.total_qty()==8; low=inv.below_reorder(); assert [i.sku for i in low]==["b"], [i.sku for i in low]; assert inv.head.item.sku=="a"; assert inv.tail.item.sku=="c"; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1131
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: terse
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: bagli-liste
+      karmasiklik: duz
+      kalip: dataclass-dogrulama
+      akis: stdin-boru
+      topoloji: elmas
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

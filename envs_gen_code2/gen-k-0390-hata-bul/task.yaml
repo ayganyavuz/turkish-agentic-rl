@@ -1,0 +1,89 @@
+id: gen-k-0390-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  planner/store.py dosyasındaki add_tag fonksiyonunu, etkinliğin mevcut etiket listesini koruyup yeni etiketi listenin sonuna ekleyecek biçimde düzelt. Böylece planner/agenda.py içindeki build_agenda fonksiyonunun ürettiği her etkinlik, DEFAULT_TAGS listesindeki tüm etiketleri sırayla taşımalı; yani add_tag her çağrıldığında önceki etiketler silinmemeli, yeni etiket mevcut listenin sonuna eklenmeli.
+
+setup: |
+  mkdir -p planner
+  cat > planner/store.py <<'STORE'
+  def make_event(day, title):
+      return {"day": day, "title": title, "tags": []}
+
+
+  def add_tag(event, tag):
+      event["tags"] = [tag]
+      return event
+  STORE
+  cat > planner/agenda.py <<'AGENDA'
+  from planner.store import make_event, add_tag
+
+  DEFAULT_TAGS = ["work", "team"]
+
+
+  def build_agenda(entries):
+      agenda = []
+      for day, title in entries:
+          event = make_event(day, title)
+          for tag in DEFAULT_TAGS:
+              add_tag(event, tag)
+          agenda.append(event)
+      return agenda
+  AGENDA
+  cat > entries.txt <<'TXT'
+  mon,standup
+  tue,review
+  TXT
+
+goal_tr: >
+  planner/store.py icindeki add_tag fonksiyonunu, etkinligin mevcut etiket
+  listesini koruyup yeni etiketi sonuna ekleyecek bicimde duzelt; boylece
+  build_agenda'nin urettigi her etkinlik DEFAULT_TAGS icindeki tum
+  etiketleri sirayla tasir.
+
+reference_solution: |
+  cat > planner/store.py <<'STORE'
+  def make_event(day, title):
+      return {"day": day, "title": title, "tags": []}
+
+
+  def add_tag(event, tag):
+      event["tags"] = event["tags"] + [tag]
+      return event
+  STORE
+
+outputs:
+  - {path: planner/store.py, kind: program, run: 'python3 -c ''from planner.agenda import build_agenda as b; from planner.store import make_event as m, add_tag as a; e=m("mon","standup"); a(e,"work"); a(e,"team"); assert e["tags"]==["work","team"], e["tags"]; a(e,"urgent"); assert e["tags"]==["work","team","urgent"], e["tags"]; g=b([("mon","standup"),("tue","review")]); assert g[0]["tags"]==["work","team"], g[0]["tags"]; assert g[1]["tags"]==["work","team"], g[1]["tags"]; assert g[0]["tags"] is not g[1]["tags"], "shared list"; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from planner.agenda import build_agenda as b; from planner.store import make_event as m, add_tag as a; e=m("mon","standup"); a(e,"work"); a(e,"team"); assert e["tags"]==["work","team"], e["tags"]; a(e,"urgent"); assert e["tags"]==["work","team","urgent"], e["tags"]; g=b([("mon","standup"),("tue","review")]); assert g[0]["tags"]==["work","team"], g[0]["tags"]; assert g[1]["tags"]==["work","team"], g[1]["tags"]; assert g[0]["tags"] is not g[1]["tags"], "shared list"; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0390
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-durum-sifirlama

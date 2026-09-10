@@ -1,0 +1,88 @@
+id: gen-s-0391-donustur
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  girdi dizinindeki uyeler.ini, kitaplar.ini ve oduncler.ini dosyalarındaki kayıtları anahtar=alan1|alan2|alan3 biçiminden oku ve her biri için aynı girdi dizininde bir csv dosyası oluştur: uyeler.ini için girdi/uyeler.csv, kitaplar.ini için girdi/kitaplar.csv ve oduncler.ini için girdi/oduncler.csv. Her csv dosyasında bir başlık satırı bulunsun ve alanlar virgülle ayrılsın.
+
+setup: |
+  mkdir -p girdi
+  cat > girdi/uyeler.ini <<'INI'
+  [uyeler]
+  101=Ali Veli|roman|3
+  102=Ayse Demir|siir|5
+  103=Can Yilmaz|tarih|2
+  INI
+  cat > girdi/kitaplar.ini <<'INI'
+  [kitaplar]
+  201=Kirmizi Kitap|roman|101
+  202=Gece Sisi|siir|102
+  203=Uzun Yol|tarih|103
+  INI
+  cat > girdi/oduncler.ini <<'INI'
+  [oduncler]
+  301=201|101|2024-01-05
+  302=202|102|2024-02-11
+  303=203|103|2024-03-20
+  INI
+
+goal_tr: >
+  girdi altindaki uc ini dosyasindaki kayitlari anahtar=alan1|alan2|alan3
+  biciminden okuyup, her dosya icin ilgili csv dosyasini (uyeler.csv,
+  kitaplar.csv, oduncler.csv) baslik satiri ve virgulle ayrilmis alanlarla
+  girdi dizininde olustur
+
+reference_solution: |
+  cd girdi
+  for f in uyeler kitaplar oduncler; do
+    case "$f" in
+      uyeler)   baslik='id,ad,tur,sayi' ;;
+      kitaplar) baslik='id,ad,tur,uye_id' ;;
+      oduncler) baslik='id,kitap_id,uye_id,tarih' ;;
+    esac
+    grep '=' "$f.ini" | cut -d= -f2- | tr '|' ',' > "$f.govde"
+    echo "$baslik" > "$f.csv"
+    paste -d'\n' "$f.csv" "$f.govde" > "$f.tmp"
+    mv "$f.tmp" "$f.csv"
+    rm -f "$f.govde"
+  done
+  cd ..
+
+outputs:
+  - {path: girdi/uyeler.csv, kind: file}
+  - {path: girdi/kitaplar.csv, kind: file}
+  - {path: girdi/oduncler.csv, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: girdi/kitaplar.csv, value: ['id,ad,tur,uye_id', 'Kirmizi Kitap,roman,101', 'Gece Sisi,siir,102', 'Uzun Yol,tarih,103']}
+  - {op: file_lines_eq, path: girdi/oduncler.csv, value: ['id,kitap_id,uye_id,tarih', '201,101,2024-01-05', '202,102,2024-02-11', '203,103,2024-03-20']}
+  - {op: file_lines_eq, path: girdi/uyeler.csv, value: ['id,ad,tur,sayi', 'Ali Veli,roman,3', 'Ayse Demir,siir,5', 'Can Yilmaz,tarih,2']}
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0391
+    bundle: sutun
+    tools:
+    - cut
+    - paste
+    konu: kutuphane-kayitlari
+    hedef: donustur
+    girdi: ini
+    kaynak: cok-dosya
+    cikti: csv
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

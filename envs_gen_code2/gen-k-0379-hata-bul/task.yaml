@@ -1,0 +1,99 @@
+id: gen-k-0379-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  sensor/aggregate.py içindeki moving_average fonksiyonunu düzelt: her pencere için doğru (zaman damgası, değer) çiftlerini döndürsün.
+
+setup: |
+  mkdir -p sensor
+  cat > sensor/reader.py <<'READER'
+  def parse_series(text):
+      rows = []
+      for line in text.strip().splitlines():
+          ts, val = line.split(',')
+          rows.append((int(ts), float(val)))
+      return rows
+  READER
+  cat > sensor/aggregate.py <<'AGG'
+  from sensor.reader import parse_series
+
+
+  def moving_average(text, window):
+      rows = parse_series(text)
+      out = []
+      total = 0.0
+      for i, (ts, val) in enumerate(rows):
+          total += val
+          if i >= window:
+              total -= rows[i - window][1]
+          if i >= window - 1:
+              out.append((ts, round(total / window, 3)))
+              return out
+      return out
+  AGG
+  cat > series.csv <<'CSV'
+  1,2.0
+  2,4.0
+  3,6.0
+  4,8.0
+  5,10.0
+  CSV
+
+goal_tr: >
+  sensor/aggregate.py icindeki moving_average fonksiyonunu, her pencere icin
+  dogru hareketli ortalama ciftlerini (zaman damgasi, deger) dondurecek
+  bicimde duzelt
+
+reference_solution: |
+  cat > sensor/aggregate.py <<'AGG'
+  from sensor.reader import parse_series
+
+
+  def moving_average(text, window):
+      rows = parse_series(text)
+      out = []
+      total = 0.0
+      for i, (ts, val) in enumerate(rows):
+          total += val
+          if i >= window:
+              total -= rows[i - window][1]
+          if i >= window - 1:
+              out.append((ts, round(total / window, 3)))
+      return out
+  AGG
+
+outputs:
+  - {path: sensor/aggregate.py, kind: program, run: 'python3 -c ''from sensor.aggregate import moving_average as f; t=open("series.csv").read(); assert f(t,3)==[(3,4.0),(4,6.0),(5,8.0)], f(t,3); assert f(t,2)==[(2,3.0),(3,5.0),(4,7.0),(5,9.0)], f(t,2); assert f(t,5)==[(5,6.0)], f(t,5); assert f(t,1)==[(1,2.0),(2,4.0),(3,6.0),(4,8.0),(5,10.0)], f(t,1); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor.aggregate import moving_average as f; t=open("series.csv").read(); assert f(t,3)==[(3,4.0),(4,6.0),(5,8.0)], f(t,3); assert f(t,2)==[(2,3.0),(3,5.0),(4,7.0),(5,9.0)], f(t,2); assert f(t,5)==[(5,6.0)], f(t,5); assert f(t,1)==[(1,2.0),(2,4.0),(3,6.0),(4,8.0),(5,10.0)], f(t,1); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0379
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: erken-donus

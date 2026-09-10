@@ -1,0 +1,118 @@
+id: gen-k-0905-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  flights/booking.py dosyasını oluştur ve içinde BookingIndex adında bir sınıf tanımla. Bu sınıf, flights/records.py içindeki parse_stream fonksiyonuyla okunan uçuş kayıtlarından (dep, arr) çiftine göre sıralı bir indeks kursun. Sınıfta ayrıca bir query metodu olsun; bu metod verilen (dep, arr) çifti için ikili arama kullanarak o rotadaki uçuşları koltuk sayısına göre azalan sırada döndürsün.
+
+setup: |
+  mkdir -p flights
+  cat > flights/records.py <<'RECORDS'
+  def parse_stream(lines):
+      rows = []
+      for line in lines:
+          line = line.strip()
+          if not line or line.startswith("#"):
+              continue
+          parts = line.split("|")
+          if len(parts) != 4:
+              continue
+          flight, dep, arr, seats = parts
+          rows.append({
+              "flight": flight,
+              "dep": dep,
+              "arr": arr,
+              "seats": int(seats),
+          })
+      return rows
+  RECORDS
+  cat > data.txt <<'DATA'
+  # flight|dep|arr|seats
+  TK100|IST|ANK|120
+  TK200|IST|IZM|90
+  TK300|ANK|IST|60
+  TK400|IZM|IST|200
+  TK500|IST|ANK|45
+  TK600|ANK|IZM|75
+  TK700|IZM|ANK|150
+  DATA
+
+goal_tr: >
+  flights/booking.py icinde BookingIndex sinifini yaz; parse_stream ile
+  okunan ucus kayitlarindan (dep,arr) ciftine gore sirali bir indeks kurup,
+  verilen (dep,arr) icin ikili arama ile o rotadaki ucuslari koltuk sayisina
+  gore azalan sirada donduren bir query metodu tanimla.
+
+reference_solution: |
+  cat > flights/booking.py <<'BOOKING'
+  from bisect import bisect_left, bisect_right
+
+  from flights.records import parse_stream
+
+
+  class BookingIndex:
+      def __init__(self, lines):
+          self._rows = parse_stream(lines)
+          keys = sorted({(r["dep"], r["arr"]) for r in self._rows})
+          self._keys = keys
+          buckets = {k: [] for k in keys}
+          for r in self._rows:
+              buckets[(r["dep"], r["arr"])].append(r)
+          self._buckets = {}
+          for k in keys:
+              items = sorted(buckets[k], key=lambda r: (-r["seats"], r["flight"]))
+              self._buckets[k] = items
+
+      def query(self, dep, arr):
+          key = (dep, arr)
+          i = bisect_left(self._keys, key)
+          if i >= len(self._keys) or self._keys[i] != key:
+              return []
+          return list(self._buckets[key])
+
+      def routes(self):
+          return list(self._keys)
+  BOOKING
+
+outputs:
+  - {path: flights/booking.py, kind: program, run: 'python3 -c ''from flights.booking import BookingIndex as B; t=open("data.txt").read().splitlines(); idx=B(t); assert idx.routes()==[("ANK","IST"),("ANK","IZM"),("IST","ANK"),("IST","IZM"),("IZM","ANK"),("IZM","IST")], idx.routes(); assert [r["flight"] for r in idx.query("IST","ANK")]==["TK100","TK500"]; assert [r["flight"] for r in idx.query("ANK","IZM")]==["TK600"]; assert idx.query("IST","IZM")[0]["flight"]=="TK200"; assert idx.query("XXX","YYY")==[]; assert idx.query("IST","ANK")[0]["seats"]==120; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from flights.booking import BookingIndex as B; t=open("data.txt").read().splitlines(); idx=B(t); assert idx.routes()==[("ANK","IST"),("ANK","IZM"),("IST","ANK"),("IST","IZM"),("IZM","ANK"),("IZM","IST")], idx.routes(); assert [r["flight"] for r in idx.query("IST","ANK")]==["TK100","TK500"]; assert [r["flight"] for r in idx.query("ANK","IZM")]==["TK600"]; assert idx.query("IST","IZM")[0]["flight"]=="TK200"; assert idx.query("XXX","YYY")==[]; assert idx.query("IST","ANK")[0]["seats"]==120; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0905
+    bundle: yarisma
+    tools:
+    - python3
+    konu: ucus-rezervasyonlari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: zor
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: siralama-ikili-arama
+      karmasiklik: duz
+      kalip: durumlu-sinif
+      akis: parcali-akis
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

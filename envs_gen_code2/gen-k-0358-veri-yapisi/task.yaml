@@ -1,0 +1,166 @@
+id: gen-k-0358-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) /workspace/document_store.py dosyasındaki DocumentStore sınıfını tek yönlü bağlı liste kullanarak gerçekleştir; sınıfın __init__, add, get, remove, ids_in_order, longest ve count metotları NotImplementedError yerine çalışan gerçek kod içersin.
+
+  2) add metodu belgeyi listenin sonuna eklesin; aynı id ile daha önce eklenmiş bir belge varsa yeni bir düğüm eklemek yerine o belgenin metnini güncellesin.
+
+  3) get metodu verilen id'ye sahip belgenin metnini döndürsün; o id'de bir belge yoksa None döndürsün.
+
+  4) remove metodu verilen id'ye sahip belgeyi listeden silsin ve belgenin silinip silinmediğini belirten bir bilgi döndürsün.
+
+  5) ids_in_order metodu belgelerin id'lerini ekleme sırasındaki haliyle bir liste olarak döndürsün.
+
+  6) longest metodu en uzun metne sahip belgeyi döndürsün; en uzun metin birden fazla belgede aynıysa ilk eklenen belgeyi döndürsün.
+
+  7) count metodu yapıdaki belge sayısını döndürsün.
+
+setup: |
+  cat > document_store.py <<'PY'
+  class DocumentStore:
+      """Singly linked list of text documents keyed by an integer id."""
+
+      def __init__(self):
+          raise NotImplementedError
+
+      def add(self, doc_id, text):
+          raise NotImplementedError
+
+      def get(self, doc_id):
+          raise NotImplementedError
+
+      def remove(self, doc_id):
+          raise NotImplementedError
+
+      def ids_in_order(self):
+          raise NotImplementedError
+
+      def longest(self):
+          raise NotImplementedError
+
+      def count(self):
+          raise NotImplementedError
+  PY
+
+goal_tr: >
+  document_store.py icindeki DocumentStore sinifini tek yonlu bagli liste
+  ile gerceklestir: add belgeyi sona ekleyip ayni id varsa metnini
+  guncellesin, get metni veya yoksa None dondursun, remove belgeyi silip
+  silindi mi bilgisini dondursun, ids_in_order ekleme sirasindaki id
+  listesini versin, longest en uzun metni (esitlikte ilk eklenen) dondursun,
+  count eleman sayisini versin.
+
+reference_solution: |
+  cat > document_store.py <<'PY'
+  class _Node:
+      __slots__ = ("doc_id", "text", "next")
+
+      def __init__(self, doc_id, text):
+          self.doc_id = doc_id
+          self.text = text
+          self.next = None
+
+
+  class DocumentStore:
+      """Singly linked list of text documents keyed by an integer id."""
+
+      def __init__(self):
+          self._head = None
+          self._size = 0
+
+      def add(self, doc_id, text):
+          if self._head is None:
+              self._head = _Node(doc_id, text)
+              self._size = 1
+              return
+          node = self._head
+          while node is not None:
+              if node.doc_id == doc_id:
+                  node.text = text
+                  return
+              if node.next is None:
+                  node.next = _Node(doc_id, text)
+                  self._size += 1
+                  return
+              node = node.next
+
+      def get(self, doc_id):
+          node = self._head
+          while node is not None:
+              if node.doc_id == doc_id:
+                  return node.text
+              node = node.next
+          return None
+
+      def remove(self, doc_id):
+          prev = None
+          node = self._head
+          while node is not None:
+              if node.doc_id == doc_id:
+                  if prev is None:
+                      self._head = node.next
+                  else:
+                      prev.next = node.next
+                  self._size -= 1
+                  return True
+              prev = node
+              node = node.next
+          return False
+
+      def ids_in_order(self):
+          result = []
+          node = self._head
+          while node is not None:
+              result.append(node.doc_id)
+              node = node.next
+          return result
+
+      def longest(self):
+          best = None
+          node = self._head
+          while node is not None:
+              if best is None or len(node.text) > len(best):
+                  best = node.text
+              node = node.next
+          return best
+
+      def count(self):
+          return self._size
+  PY
+
+outputs:
+  - {path: document_store.py, kind: program, run: 'python3 -c ''from document_store import DocumentStore as S; d=S(); assert d.count()==0; assert d.get(1) is None; assert d.longest() is None; assert d.ids_in_order()==[]; d.add(1,"ab"); d.add(2,"abcd"); d.add(3,"xy"); assert d.count()==3; assert d.ids_in_order()==[1,2,3]; assert d.get(2)=="abcd"; assert d.longest()=="abcd"; d.add(2,"z"); assert d.get(2)=="z"; assert d.count()==3; assert d.ids_in_order()==[1,2,3]; assert d.longest()=="ab"; assert d.remove(1) is True; assert d.remove(1) is False; assert d.count()==2; assert d.ids_in_order()==[2,3]; assert d.get(1) is None; assert d.remove(3) is True; assert d.ids_in_order()==[2]; assert d.count()==1; d.add(3,"qqqq"); assert d.ids_in_order()==[2,3]; assert d.longest()=="qqqq"; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from document_store import DocumentStore as S; d=S(); assert d.count()==0; assert d.get(1) is None; assert d.longest() is None; assert d.ids_in_order()==[]; d.add(1,"ab"); d.add(2,"abcd"); d.add(3,"xy"); assert d.count()==3; assert d.ids_in_order()==[1,2,3]; assert d.get(2)=="abcd"; assert d.longest()=="abcd"; d.add(2,"z"); assert d.get(2)=="z"; assert d.count()==3; assert d.ids_in_order()==[1,2,3]; assert d.longest()=="ab"; assert d.remove(1) is True; assert d.remove(1) is False; assert d.count()==2; assert d.ids_in_order()==[2,3]; assert d.get(1) is None; assert d.remove(3) is True; assert d.ids_in_order()==[2]; assert d.count()==1; d.add(3,"qqqq"); assert d.ids_in_order()==[2,3]; assert d.longest()=="qqqq"; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0358
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: bagli-liste

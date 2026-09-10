@@ -1,0 +1,129 @@
+id: gen-k-1027-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  farm/merge.py dosyasındaki YieldMerger sınıfını gerçekleştir. Sınıf, aralık-verim kayıtlarını tutmalı: add(start, end, yield_kg) ile eklenen kayıtlar saklanmalı. merged() metodu, çakışan ya da bitişik aralıkları birleştirip verimlerini toplayarak (start, end, toplam_verim) üçlülerinin başlangıca göre artan sıralı listesini döndürmeli. total() metodu ise tüm eklenen verimlerin toplamını döndürmeli.
+
+  Şu şartlar sağlanmalı:
+  - farm/merge.py dosyası mevcut olmalı ve içinde YieldMerger sınıfı bulunmalı.
+  - add(start, end, yield_kg) çağrılarıyla eklenen aralık-verim kayıtları tutulmalı.
+  - merged() çakışan ya da bitişik aralıkları birleştirip verimlerini toplamalı ve (start, end, toplam_verim) üçlülerinin başlangıca göre artan sıralı listesini döndürmeli.
+  - total() tüm eklenen verimlerin toplamını döndürmeli.
+  - farm/summary.py ve farm/records.py dosyalarındaki mevcut kullanım bozulmamalı.
+
+setup: |
+  mkdir -p farm
+  cat > farm/records.py <<'RECORDS'
+  def parse_readings(text):
+      rows = []
+      for line in text.strip().splitlines():
+          field, start, end, yield_kg = line.split(',')
+          rows.append((field, int(start), int(end), float(yield_kg)))
+      return rows
+  RECORDS
+  cat > farm/merge.py <<'MERGE'
+  class YieldMerger:
+      def __init__(self):
+          self._items = []
+
+      def add(self, start, end, yield_kg):
+          raise NotImplementedError
+
+      def merged(self):
+          raise NotImplementedError
+
+      def total(self):
+          raise NotImplementedError
+  MERGE
+  cat > farm/summary.py <<'SUMMARY'
+  from farm.records import parse_readings
+  from farm.merge import YieldMerger
+
+
+  def summarize(text):
+      merger = YieldMerger()
+      for field, start, end, yield_kg in parse_readings(text):
+          merger.add(start, end, yield_kg)
+      return merger.merged(), merger.total()
+  SUMMARY
+  cat > readings.csv <<'CSV'
+  north,1,5,10.0
+  north,4,8,20.0
+  north,20,25,5.0
+  CSV
+
+goal_tr: >
+  farm/merge.py icindeki YieldMerger sinifini; add(start, end, yield_kg) ile
+  eklenen aralik-verim kayitlarini tutacak, merged() ile cakisan ya da
+  bitisik araliklari birlestirip verimlerini toplayarak (start, end,
+  toplam_verim) uclulerinin baslangica gore artan sirali listesini ve
+  total() ile tum eklenen verimlerin toplamini dondurecek bicimde
+  gerceklestir.
+
+reference_solution: |
+  cat > farm/merge.py <<'MERGE'
+  class YieldMerger:
+      def __init__(self):
+          self._items = []
+
+      def add(self, start, end, yield_kg):
+          self._items.append((start, end, yield_kg))
+
+      def merged(self):
+          rows = sorted(self._items, key=lambda r: (r[0], r[1]))
+          out = []
+          for start, end, yield_kg in rows:
+              if out and start <= out[-1][1]:
+                  prev_start, prev_end, prev_yield = out[-1]
+                  out[-1] = (prev_start, max(prev_end, end), prev_yield + yield_kg)
+              else:
+                  out.append((start, end, yield_kg))
+          return out
+
+      def total(self):
+          return sum(r[2] for r in self._items)
+  MERGE
+
+outputs:
+  - {path: farm/merge.py, kind: program, run: 'python3 -c ''from farm.merge import YieldMerger as Y; y=Y(); y.add(1,5,10.0); y.add(4,8,20.0); y.add(20,25,5.0); m=y.merged(); assert m==[(1,8,30.0),(20,25,5.0)], m; assert y.total()==35.0, y.total(); from farm.summary import summarize as s; t=open("readings.csv").read(); m2,tot=s(t); assert m2==[(1,8,30.0),(20,25,5.0)], m2; assert tot==35.0, tot; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from farm.merge import YieldMerger as Y; y=Y(); y.add(1,5,10.0); y.add(4,8,20.0); y.add(20,25,5.0); m=y.merged(); assert m==[(1,8,30.0),(20,25,5.0)], m; assert y.total()==35.0, y.total(); from farm.summary import summarize as s; t=open("readings.csv").read(); m2,tot=s(t); assert m2==[(1,8,30.0),(20,25,5.0)], m2; assert tot==35.0, tot; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1027
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: tarim-verim-olcumleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: aralik-birlestirme
+      karmasiklik: duz
+      kalip: durumlu-sinif
+      akis: bellek-ici
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

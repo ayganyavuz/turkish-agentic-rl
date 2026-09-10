@@ -1,0 +1,114 @@
+id: gen-k-0504-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  pricing/catalog.py içindeki price_cart fonksiyonundaki varsayılan argüman hatasını düzelt; seen parametresi her çağrıda taze bir liste almalı ve quote_with_names yalnızca o çağrının ürün adlarını döndürmeli.
+
+setup: |
+  mkdir -p pricing
+  cat > pricing/rules.py <<'RULES'
+  DISCOUNTS = {
+      "standard": 0.0,
+      "member": 0.10,
+      "vip": 0.25,
+  }
+
+
+  def discount_rate(tier):
+      return DISCOUNTS.get(tier, 0.0)
+  RULES
+  cat > pricing/catalog.py <<'CATALOG'
+  from pricing.rules import discount_rate
+
+
+  def unit_price(base, tier):
+      rate = discount_rate(tier)
+      return round(base * (1.0 - rate), 2)
+
+
+  def price_cart(items, tier, seen=[]):
+      total = 0.0
+      for name, base in items:
+          seen.append(name)
+          total += unit_price(base, tier)
+      return round(total, 2)
+  CATALOG
+  cat > pricing/quote.py <<'QUOTE'
+  from pricing.catalog import price_cart
+
+
+  def quote(items, tier):
+      return price_cart(items, tier)
+
+
+  def quote_with_names(items, tier):
+      seen = []
+      total = price_cart(items, tier, seen)
+      return total, seen
+  QUOTE
+  cat > items.txt <<'ITEMS'
+  widget,10.0
+  bolt,2.5
+  gizmo,4.0
+  ITEMS
+
+goal_tr: >
+  pricing/catalog.py icindeki price_cart fonksiyonundaki mutable varsayilan
+  arguman hatasini gider; seen parametresi her cagride taze bir liste almali
+  ve quote_with_names yalnizca o cagrinin urun adlarini dondurmeli.
+
+reference_solution: |
+  cat > pricing/catalog.py <<'CATALOG'
+  from pricing.rules import discount_rate
+
+
+  def unit_price(base, tier):
+      rate = discount_rate(tier)
+      return round(base * (1.0 - rate), 2)
+
+
+  def price_cart(items, tier, seen=None):
+      if seen is None:
+          seen = []
+      total = 0.0
+      for name, base in items:
+          seen.append(name)
+          total += unit_price(base, tier)
+      return round(total, 2)
+  CATALOG
+
+outputs:
+  - {path: pricing/catalog.py, kind: program, run: 'python3 -c ''import pricing.catalog as c; c.price_cart([("widget",10.0)],"standard"); r=c.price_cart([("bolt",2.5)],"standard"); import inspect; sig=inspect.signature(c.price_cart); d=sig.parameters["seen"].default; assert d is None, "default must be None, got %r" % (d,); import pricing.quote as q; t1,n1=q.quote_with_names([("widget",10.0),("bolt",2.5)],"member"); assert t1==11.25, t1; assert n1==["widget","bolt"], n1; t2,n2=q.quote_with_names([("gizmo",4.0)],"vip"); assert t2==3.0, t2; assert n2==["gizmo"], n2; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import pricing.catalog as c; c.price_cart([("widget",10.0)],"standard"); r=c.price_cart([("bolt",2.5)],"standard"); import inspect; sig=inspect.signature(c.price_cart); d=sig.parameters["seen"].default; assert d is None, "default must be None, got %r" % (d,); import pricing.quote as q; t1,n1=q.quote_with_names([("widget",10.0),("bolt",2.5)],"member"); assert t1==11.25, t1; assert n1==["widget","bolt"], n1; t2,n2=q.quote_with_names([("gizmo",4.0)],"vip"); assert t2==3.0, t2; assert n2==["gizmo"], n2; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0504
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: mutable-varsayilan

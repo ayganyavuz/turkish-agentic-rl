@@ -1,0 +1,106 @@
+id: gen-k-1005-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) stock/report.py dosyasındaki summarize fonksiyonunu, stok miktarı sıfır olan kalemleri de sıfırdan farklı olanlar gibi sonuca dahil edecek biçimde düzelt.
+
+  2) Bu düzeltmeden sonra moves.txt için summarize çağrıldığında nut kaleminin 0 değeriyle sonuca girmesini sağla.
+
+setup: |
+  mkdir -p stock
+  cat > stock/reader.py <<'READER'
+  def read_moves(path):
+      moves = []
+      with open(path) as fh:
+          for line in fh:
+              line = line.strip()
+              if not line:
+                  continue
+              item, delta = line.split(',')
+              moves.append((item, int(delta)))
+      return moves
+  READER
+  cat > stock/ledger.py <<'LEDGER'
+  def apply_moves(moves):
+      totals = {}
+      for item, delta in moves:
+          totals[item] = totals.get(item, 0) + delta
+      return totals
+  LEDGER
+  cat > stock/report.py <<'REPORT'
+  from stock.reader import read_moves
+  from stock.ledger import apply_moves
+
+
+  def summarize(path):
+      totals = apply_moves(read_moves(path))
+      return {item: qty for item, qty in totals.items() if qty > 0}
+  REPORT
+  cat > moves.txt <<'MOVES'
+  bolt,5
+  nut,3
+  bolt,-2
+  washer,1
+  nut,-3
+  bolt,1
+  MOVES
+
+goal_tr: >
+  stock/report.py icindeki summarize fonksiyonunu, stok miktari sifir olan
+  kalemleri de sifirdan farkli olanlar gibi sonuca dahil edecek bicimde
+  duzelt; boylece moves.txt icin nut kalemi 0 degeriyle sonuca girer.
+
+reference_solution: |
+  cat > stock/report.py <<'REPORT'
+  from stock.reader import read_moves
+  from stock.ledger import apply_moves
+
+
+  def summarize(path):
+      totals = apply_moves(read_moves(path))
+      return {item: qty for item, qty in totals.items() if qty >= 0}
+  REPORT
+
+outputs:
+  - {path: stock/report.py, kind: program, run: 'python3 -c ''from stock.report import summarize as f; r=f("moves.txt"); assert r=={"bolt":4,"nut":0,"washer":1}, r; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from stock.report import summarize as f; r=f("moves.txt"); assert r=={"bolt":4,"nut":0,"washer":1}, r; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1005
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: stok-hareketleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-karsilastirma
+      karmasiklik: duz
+      kalip: ozyineleme
+      akis: dosya-okuma
+      topoloji: elmas
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

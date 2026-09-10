@@ -1,0 +1,97 @@
+id: gen-s-0585-denetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün ofiste hesap dönemi kapanışına hazırlanıyoruz; geçen seneki kayıtların dağıldığı bir sürü alt klasör var ve mali müşavirimiz her şeyi tek bir tabloda görmek istiyor. Muhasebe departmanından gelen notta, muhasebe dizin ağacındaki tüm .ini dosyalarının taranması gerektiği, ancak denetim.ini dosyasının bu işin dışında tutulacağı belirtilmiş. Bu tarama sonucunda, dosyalardaki [hesap] bölümlerinde yer alan kod, ad, borc ve alacak alanları toplanıp kod sayısal olarak artan sırada olacak şekilde denetim.csv dosyasına yazılsın; bu dosyanın ilk satırı "kod,ad,borc,alacak" başlığı olsun.
+
+setup: |
+  mkdir -p muhasebe/2024/ocak muhasebe/2024/subat muhasebe/arsiv
+  cat > muhasebe/2024/ocak/kayitlar.ini <<'INI'
+  [hesap]
+  kod=100
+  ad=kasa
+  borc=1500
+  alacak=0
+  [hesap]
+  kod=101
+  ad=banka
+  borc=0
+  alacak=1500
+  INI
+  cat > muhasebe/2024/subat/kayitlar.ini <<'INI'
+  [hesap]
+  kod=200
+  ad=stok
+  borc=800
+  alacak=0
+  [hesap]
+  kod=201
+  ad=borc
+  borc=0
+  alacak=800
+  INI
+  cat > muhasebe/arsiv/kayitlar.ini <<'INI'
+  [hesap]
+  kod=999
+  ad=arsiv
+  borc=100
+  alacak=100
+  INI
+  cat > muhasebe/2024/ocak/denetim.ini <<'INI'
+  [hesap]
+  kod=100
+  ad=kasa
+  borc=1500
+  alacak=0
+  INI
+
+goal_tr: >
+  muhasebe dizin agacindaki denetim.ini haric tum .ini dosyalarindan [hesap]
+  bolumlerindeki kod, ad, borc ve alacak alanlarini toplayip kod sayisal
+  olarak artan sirada denetim.csv dosyasina "kod,ad,borc,alacak" basligiyla
+  yaz.
+
+reference_solution: |
+  find muhasebe -type f -name '*.ini' | sort > tum.txt
+  printf 'muhasebe/2024/ocak/denetim.ini\n' | sort > haric.txt
+  comm -23 tum.txt haric.txt > kapsam.txt
+  awk -F= '/^\[hesap\]/{if(k!="")print k","a","b","c; k="";a="";b="";c=""} /^kod=/{k=$2} /^ad=/{a=$2} /^borc=/{b=$2} /^alacak=/{c=$2} END{if(k!="")print k","a","b","c}' $(cat kapsam.txt) | sort -t, -k1,1n > gecici.csv
+  printf 'kod,ad,borc,alacak\n' > denetim.csv
+  cat gecici.csv >> denetim.csv
+  rm -f tum.txt haric.txt kapsam.txt gecici.csv
+
+outputs:
+  - {path: denetim.csv, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: denetim.csv, value: ['kod,ad,borc,alacak', '100,kasa,1500,0', '101,banka,0,1500', '200,stok,800,0', '201,borc,0,800', '999,arsiv,100,100']}
+
+metadata:
+  domain: denetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0585
+    bundle: kume-farki
+    tools:
+    - comm
+    - sort
+    konu: muhasebe-kalemleri
+    hedef: denetle
+    girdi: ini
+    kaynak: dizin-agaci
+    cikti: csv
+    kesif: dolayli-hedef
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: tuzak-dosya
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

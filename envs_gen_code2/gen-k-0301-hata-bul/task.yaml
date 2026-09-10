@@ -1,0 +1,107 @@
+id: gen-k-0301-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  pricing/summary.py dosyasındaki cheapest fonksiyonu şu an fiyatı en düşük ürünü doğru şekilde döndürmüyor. Bu fonksiyonu, verilen metindeki ürünler arasından fiyatı en düşük olanı doğru biçimde bulup döndürecek hale getir. pricing/parse.py ve prices.txt dosyalarına dokunma; yalnızca pricing/summary.py içindeki cheapest fonksiyonunu düzelt.
+
+setup: |
+  mkdir -p pricing
+  cat > pricing/parse.py <<'PARSE'
+  def parse_prices(text):
+      rows = []
+      for line in text.strip().splitlines():
+          name, raw = line.split(':')
+          rows.append((name.strip(), float(raw.strip())))
+      return rows
+  PARSE
+  cat > pricing/summary.py <<'SUMMARY'
+  from pricing.parse import parse_prices
+
+
+  def cheapest(text):
+      rows = parse_prices(text)
+      best = None
+      for name, price in rows:
+          if best is None or price < best[1]:
+              best = (name, price)
+              return best
+      return best
+
+
+  def priciest(text):
+      rows = parse_prices(text)
+      best = None
+      for name, price in rows:
+          if best is None or price > best[1]:
+              best = (name, price)
+      return best
+  SUMMARY
+  cat > prices.txt <<'PRICES'
+  elma: 3.50
+  armut: 2.25
+  kiraz: 12.00
+  muz: 4.75
+  PRICES
+
+goal_tr: >
+  pricing/summary.py icindeki cheapest fonksiyonunu, fiyati en dusuk urunu
+  dogru dondurecek bicimde duzelt.
+
+reference_solution: |
+  cat > pricing/summary.py <<'SUMMARY'
+  from pricing.parse import parse_prices
+
+
+  def cheapest(text):
+      rows = parse_prices(text)
+      best = None
+      for name, price in rows:
+          if best is None or price < best[1]:
+              best = (name, price)
+      return best
+
+
+  def priciest(text):
+      rows = parse_prices(text)
+      best = None
+      for name, price in rows:
+          if best is None or price > best[1]:
+              best = (name, price)
+      return best
+  SUMMARY
+
+outputs:
+  - {path: pricing/summary.py, kind: program, run: 'python3 -c ''from pricing.summary import cheapest as c, priciest as p; t=open("prices.txt").read(); assert c(t)==("armut",2.25), c(t); assert p(t)==("kiraz",12.0), p(t); assert c("tek: 9.0")==("tek",9.0); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from pricing.summary import cheapest as c, priciest as p; t=open("prices.txt").read(); assert c(t)==("armut",2.25), c(t); assert p(t)==("kiraz",12.0), p(t); assert c("tek: 9.0")==("tek",9.0); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0301
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: erken-donus

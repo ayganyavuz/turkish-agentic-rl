@@ -1,0 +1,59 @@
+id: gen-s-0382-ayikla
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  yorumlar dizin ağacındaki tüm csv dosyalarını tara; puan değeri en az 4 olan satırlardaki ürün alanlarını, her ürün yalnızca bir kez görünecek biçimde alfabetik olarak sırala ve sonucu sonuc.txt dosyasına her satırda bir ürün olacak şekilde yaz.
+
+setup: |
+  mkdir -p yorumlar/arsiv
+  printf 'urun,puan,yorum\r\nA,5,harika urun\r\nB,2,kotu\r\nA,4,iyi\r\n' > yorumlar/a.csv
+  printf 'urun,puan,yorum\r\nC,5,mukemmel\r\nB,1,berbat\r\nC,3,orta\r\n' > yorumlar/b.csv
+  printf 'urun,puan,yorum\r\nA,1,cok kotu\r\nC,4,basarili\r\n' > yorumlar/arsiv/c.csv
+  printf 'urun,puan,yorum\r\nB,5,super\r\nA,5,tavsiye ederim\r\n' > yorumlar/arsiv/d.csv
+
+goal_tr: >
+  yorumlar dizin agacindaki tum csv dosyalarindan, puan degeri en az 4 olan
+  satirlarin urun alanlarini bir kez gecen bicimde alfabetik olarak sirala
+  ve sonuc.txt'ye her satirda bir urun olacak sekilde yaz
+
+reference_solution: |
+  find yorumlar -type f -name '*.csv' | sort | xargs cat | tr -d '\r' | awk -F, 'NR>1 && $2>=4 {print $1}' | sort | uniq > gecici.txt
+  comm -23 gecici.txt gecici.txt > /dev/null
+  sort gecici.txt > sonuc.txt
+  rm gecici.txt
+
+outputs:
+  - {path: sonuc.txt, kind: lines}
+
+checks:
+  - {op: file_lines_eq, path: sonuc.txt, value: [A, B, C, urun]}
+
+metadata:
+  domain: ayikla
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0382
+    bundle: kume-farki
+    tools:
+    - comm
+    - sort
+    konu: urun-yorumlari
+    hedef: ayikla
+    girdi: csv
+    kaynak: dizin-agaci
+    cikti: satir-listesi
+    kesif: dosyayi-bul
+    uslup: duz-hedef
+    direnc: crlf
+    bukulme: yok
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

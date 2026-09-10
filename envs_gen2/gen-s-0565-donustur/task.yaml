@@ -1,0 +1,88 @@
+id: gen-s-0565-donustur
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  veri/kalemler.tar.gz arşivini aç ve içindeki kalemler.csv dosyasını kullanarak, başlık satırını koruyarak ve tutar alanını iki ondalıklı sayı olarak bırakarak, virgülle ayrılmış bir CSV dosyasını cikti/kalemler.csv yolunda oluştur. Ayrıca aynı içeriği cikti/kalemler.csv.gz olarak sıkıştırılmış biçimde üret.
+
+  Şu şartlar sağlanmalı:
+  - cikti dizini mevcut olmalı.
+  - cikti/kalemler.csv dosyası mevcut olmalı ve virgülle ayrılmış CSV biçiminde olmalı.
+  - cikti/kalemler.csv dosyasının ilk satırı başlık satırı olarak korunmalı.
+  - tutar alanındaki değerler iki ondalıklı sayı olarak kalmış olmalı.
+  - cikti/kalemler.csv.gz dosyası mevcut olmalı ve cikti/kalemler.csv içeriğini sıkıştırılmış olarak barındırmalı.
+  - veri/kalemler.tar.gz arşivinden gelen veriler kullanılmış olmalı.
+
+setup: |
+  mkdir -p veri
+  cat > veri/kalemler.tar.gz <<'EOF'
+  EOF
+  cat > /tmp/kalemler.csv <<'CSV'
+  id,hesap,tutar,tarih
+  1,Kasa,1500.00,2024-01-05
+  2,Banka,2750.50,2024-01-06
+  3,Kasa,300.00,2024-01-07
+  4,Alacaklar,4200.75,2024-01-08
+  5,Banka,980.25,2024-01-09
+  CSV
+  tar -czf veri/kalemler.tar.gz -C /tmp kalemler.csv
+  rm -f /tmp/kalemler.csv
+
+goal_tr: >
+  veri/kalemler.tar.gz arsivindeki kalemler.csv dosyasini acip icerigini,
+  basligi koruyarak ve tutar alanini iki ondalikli sayi olarak birakip,
+  cikti/kalemler.csv yolunda virgulle ayrilmis bir CSV dosyasi olarak uret
+
+reference_solution: |
+  mkdir -p cikti
+  tar -xzf veri/kalemler.tar.gz -C cikti
+  awk -F',' 'NR==1{print; next} {printf "%s,%s,%.2f,%s\n", $1, $2, $3, $4}' cikti/kalemler.csv > cikti/kalemler.tmp
+  mv cikti/kalemler.tmp cikti/kalemler.csv
+  gzip -c cikti/kalemler.csv > cikti/kalemler.csv.gz
+
+outputs:
+  - {path: cikti/kalemler.csv, kind: file}
+  - {path: cikti/kalemler.csv.gz, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: cikti/kalemler.csv, value: ['id,hesap,tutar,tarih', '1,Kasa,1500.00,2024-01-05', '2,Banka,2750.50,2024-01-06', '3,Kasa,300.00,2024-01-07', '4,Alacaklar,4200.75,2024-01-08', '5,Banka,980.25,2024-01-09']}
+  - {op: run_stdout_eq, cmd: gzip -dc cikti/kalemler.csv.gz, value: 'id,hesap,tutar,tarih
+
+    1,Kasa,1500.00,2024-01-05
+
+    2,Banka,2750.50,2024-01-06
+
+    3,Kasa,300.00,2024-01-07
+
+    4,Alacaklar,4200.75,2024-01-08
+
+    5,Banka,980.25,2024-01-09'}
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0565
+    bundle: arsiv
+    tools:
+    - tar
+    - gzip
+    konu: muhasebe-kalemleri
+    hedef: donustur
+    girdi: json
+    kaynak: tek-dosya
+    cikti: csv
+    kesif: dolayli-hedef
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

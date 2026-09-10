@@ -1,0 +1,134 @@
+id: gen-k-1026-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  maintenance/queue.py dosyasındaki MaintenanceQueue sınıfını tamamla. Sınıf, feed ile verilen parçalı kayıtları makine başına FIFO kuyruğunda tutmalı. next_job en eski bekleyen işi (makine, tür, dakika) olarak döndürmeli; bekleyen iş yoksa None döndürmeli. pending bekleyen toplam iş sayısını, total_minutes ise bekleyen toplam dakikayı vermeli. Aynı makineden yeni kayıt geldiğinde kuyruk sırası korunmalı.
+
+setup: |
+  mkdir -p maintenance
+  cat > maintenance/events.py <<'EVENTS'
+  def parse_events(chunk):
+      events = []
+      for raw in chunk.splitlines():
+          raw = raw.strip()
+          if not raw:
+              continue
+          machine, kind, minutes = raw.split(';')
+          events.append((machine, kind, int(minutes)))
+      return events
+  EVENTS
+  cat > maintenance/queue.py <<'QUEUE'
+  from maintenance.events import parse_events
+
+
+  class MaintenanceQueue:
+      def __init__(self):
+          raise NotImplementedError
+
+      def feed(self, chunk):
+          raise NotImplementedError
+
+      def pending(self):
+          raise NotImplementedError
+
+      def next_job(self):
+          raise NotImplementedError
+
+      def total_minutes(self):
+          raise NotImplementedError
+  QUEUE
+  cat > stream1.txt <<'S1'
+  press;inspect;15
+  lathe;repair;40
+
+  mill;inspect;10
+  S1
+  cat > stream2.txt <<'S2'
+  press;repair;25
+  drill;inspect;5
+  S2
+
+goal_tr: >
+  maintenance/queue.py icindeki MaintenanceQueue sinifini, feed ile beslenen
+  parcali kayitlari makine basina FIFO kuyrugunda tutacak, next_job ile en
+  eski bekleyen isi (makine, tur, dakika) dondurecek, pending ile bekleyen
+  toplam is sayisini ve total_minutes ile bekleyen toplam dakikayi verecek
+  bicimde tamamla; ayni makineden yeni kayit geldiginde kuyruk sirasi
+  korunmali ve bos kuyrukta next_job None dondurmeli.
+
+reference_solution: |
+  cat > maintenance/queue.py <<'QUEUE'
+  from collections import deque
+
+  from maintenance.events import parse_events
+
+
+  class MaintenanceQueue:
+      def __init__(self):
+          self._order = deque()
+          self._pending = {}
+
+      def feed(self, chunk):
+          for machine, kind, minutes in parse_events(chunk):
+              self._order.append((machine, kind, minutes))
+              self._pending[machine] = self._pending.get(machine, 0) + 1
+
+      def pending(self):
+          return len(self._order)
+
+      def next_job(self):
+          if not self._order:
+              return None
+          machine, kind, minutes = self._order.popleft()
+          self._pending[machine] -= 1
+          if self._pending[machine] == 0:
+              del self._pending[machine]
+          return (machine, kind, minutes)
+
+      def total_minutes(self):
+          return sum(job[2] for job in self._order)
+  QUEUE
+
+outputs:
+  - {path: maintenance/queue.py, kind: program, run: 'python3 -c ''from maintenance.queue import MaintenanceQueue as Q; q=Q(); assert q.pending()==0 and q.next_job() is None and q.total_minutes()==0; q.feed(open("stream1.txt").read()); assert q.pending()==3 and q.total_minutes()==65; assert q.next_job()==("press","inspect",15); q.feed(open("stream2.txt").read()); assert q.pending()==4 and q.total_minutes()==80; assert q.next_job()==("lathe","repair",40); assert q.next_job()==("mill","inspect",10); assert q.next_job()==("press","repair",25); assert q.next_job()==("drill","inspect",5); assert q.next_job() is None and q.pending()==0 and q.total_minutes()==0; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from maintenance.queue import MaintenanceQueue as Q; q=Q(); assert q.pending()==0 and q.next_job() is None and q.total_minutes()==0; q.feed(open("stream1.txt").read()); assert q.pending()==3 and q.total_minutes()==65; assert q.next_job()==("press","inspect",15); q.feed(open("stream2.txt").read()); assert q.pending()==4 and q.total_minutes()==80; assert q.next_job()==("lathe","repair",40); assert q.next_job()==("mill","inspect",10); assert q.next_job()==("press","repair",25); assert q.next_job()==("drill","inspect",5); assert q.next_job() is None and q.pending()==0 and q.total_minutes()==0; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1026
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: makine-bakim-kayitlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kuyruk
+      karmasiklik: duz
+      kalip: durumlu-sinif
+      akis: parcali-akis
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

@@ -1,0 +1,111 @@
+id: gen-k-0376-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  sensor/aggregate.py dosyasındaki bucket_totals fonksiyonunda bir sorun var: fonksiyon çağrılar arasında birikim taşıyor, yani bir çağrıda üretilen kova toplamları sonraki çağrının sonucuna sızıyor. Bu fonksiyonu, her çağrı yalnızca kendi serisinden üretilen kova toplamlarını döndürecek şekilde düzelt. Bunu yaparken sensor/readings.py dosyasına dokunma; oradaki parse_series ve deltas fonksiyonları olduğu gibi kalmalı. sensor/aggregate.py içindeki largest_jump fonksiyonunun davranışı da değişmemeli.
+
+setup: |
+  mkdir -p sensor
+  cat > sensor/readings.py <<'READINGS'
+  def parse_series(text):
+      out = []
+      for line in text.strip().splitlines():
+          if not line.strip():
+              continue
+          ts, val = line.split(',')
+          out.append((int(ts), float(val)))
+      return out
+
+
+  def deltas(series):
+      return [series[i + 1][1] - series[i][1] for i in range(len(series) - 1)]
+  READINGS
+  cat > sensor/aggregate.py <<'AGGREGATE'
+  from sensor.readings import parse_series, deltas
+
+  DEFAULT_BUCKETS = {}
+
+
+  def bucket_totals(text, bucket_seconds, acc=DEFAULT_BUCKETS):
+      series = parse_series(text)
+      for ts, val in series:
+          key = ts // bucket_seconds
+          acc[key] = acc.get(key, 0.0) + val
+      return acc
+
+
+  def largest_jump(text):
+      series = parse_series(text)
+      d = deltas(series)
+      if not d:
+          return None
+      best = max(range(len(d)), key=lambda i: abs(d[i]))
+      return series[best][0], d[best]
+  AGGREGATE
+  printf '0,1.0\n5,2.5\n12,0.5\n' > series_a.csv
+  printf '0,10.0\n7,10.5\n20,3.0\n' > series_b.csv
+
+goal_tr: >
+  sensor/aggregate.py icindeki bucket_totals fonksiyonunu, cagrilar arasinda
+  birikim tasimayacak sekilde duzelt; her cagri yalnizca kendi serisinden
+  uretilen kova toplamlarini dondurmeli.
+
+reference_solution: |
+  cat > sensor/aggregate.py <<'AGGREGATE'
+  from sensor.readings import parse_series, deltas
+
+
+  def bucket_totals(text, bucket_seconds, acc=None):
+      if acc is None:
+          acc = {}
+      series = parse_series(text)
+      for ts, val in series:
+          key = ts // bucket_seconds
+          acc[key] = acc.get(key, 0.0) + val
+      return acc
+
+
+  def largest_jump(text):
+      series = parse_series(text)
+      d = deltas(series)
+      if not d:
+          return None
+      best = max(range(len(d)), key=lambda i: abs(d[i]))
+      return series[best][0], d[best]
+  AGGREGATE
+
+outputs:
+  - {path: sensor/aggregate.py, kind: program, run: 'python3 -c ''from sensor.aggregate import bucket_totals as b; a=open("series_a.csv").read(); c=open("series_b.csv").read(); r1=b(a,10); assert r1=={0:3.5,1:0.5}, ("first",r1); r2=b(c,10); assert r2=={0:20.5,2:3.0}, ("second",r2); r3=b(a,10); assert r3=={0:3.5,1:0.5}, ("third",r3); r4=b(c,10); assert r4=={0:20.5,2:3.0}, ("fourth",r4); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor.aggregate import bucket_totals as b; a=open("series_a.csv").read(); c=open("series_b.csv").read(); r1=b(a,10); assert r1=={0:3.5,1:0.5}, ("first",r1); r2=b(c,10); assert r2=={0:20.5,2:3.0}, ("second",r2); r3=b(a,10); assert r3=={0:3.5,1:0.5}, ("third",r3); r4=b(c,10); assert r4=={0:20.5,2:3.0}, ("fourth",r4); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0376
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: zor
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: mutable-varsayilan

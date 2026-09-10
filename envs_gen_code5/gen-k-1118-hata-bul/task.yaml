@@ -1,0 +1,122 @@
+id: gen-k-1118-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) fleet/audit.py dosyasını aç ve incele.
+
+  2) fleet/audit.py içindeki utilization fonksiyonunu, her aracın toplam yükü ile kapasitesi arasındaki oranı (yük bölü kapasite) doğru hesaplayacak biçimde düzelt.
+
+setup: |
+  mkdir -p fleet/trips fleet/vehicles
+  cat > fleet/vehicles/registry.py <<'REG'
+  def load_fleet(text):
+      fleet = {}
+      for line in text.strip().splitlines():
+          plate, kind, capacity = line.split(',')
+          fleet[plate] = {'kind': kind, 'capacity': int(capacity)}
+      return fleet
+  REG
+  cat > fleet/trips/log.py <<'LOG'
+  def load_trips(text):
+      trips = []
+      for line in text.strip().splitlines():
+          plate, distance, load = line.split(',')
+          trips.append((plate, float(distance), int(load)))
+      return trips
+  LOG
+  cat > fleet/audit.py <<'AUDIT'
+  from fleet.vehicles.registry import load_fleet
+  from fleet.trips.log import load_trips
+
+
+  def utilization(fleet_text, trips_text):
+      fleet = load_fleet(fleet_text)
+      trips = load_trips(trips_text)
+      totals = {}
+      for plate, distance, load in trips:
+          if plate not in fleet:
+              continue
+          totals[plate] = totals.get(plate, 0) + distance
+      report = {}
+      for plate, total in totals.items():
+          report[plate] = total / fleet[plate]['capacity']
+      return report
+  AUDIT
+  cat > fleet_data.csv <<'CSV'
+  34ABC,van,10
+  06XYZ,truck,20
+  CSV
+  cat > trips_data.csv <<'CSV'
+  34ABC,120,8
+  34ABC,60,4
+  06XYZ,200,15
+  CSV
+
+goal_tr: >
+  fleet/audit.py icindeki utilization fonksiyonunu, her aracin toplam yuku
+  ile kapasitesi arasindaki orani (yuk bolu kapasite) dogru hesaplayacak
+  bicimde duzelt
+
+reference_solution: |
+  cat > fleet/audit.py <<'AUDIT'
+  from fleet.vehicles.registry import load_fleet
+  from fleet.trips.log import load_trips
+
+
+  def utilization(fleet_text, trips_text):
+      fleet = load_fleet(fleet_text)
+      trips = load_trips(trips_text)
+      totals = {}
+      for plate, distance, load in trips:
+          if plate not in fleet:
+              continue
+          totals[plate] = totals.get(plate, 0) + float(load)
+      report = {}
+      for plate, total in totals.items():
+          report[plate] = total / fleet[plate]['capacity']
+      return report
+  AUDIT
+
+outputs:
+  - {path: fleet/audit.py, kind: program, run: 'python3 -c ''from fleet.audit import utilization as f; ft=open("fleet_data.csv").read(); tt=open("trips_data.csv").read(); r=f(ft,tt); assert r=={"34ABC":1.2,"06XYZ":0.75}, r; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from fleet.audit import utilization as f; ft=open("fleet_data.csv").read(); tt=open("trips_data.csv").read(); r=f(ft,tt); assert r=={"34ABC":1.2,"06XYZ":0.75}, r; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1118
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: arac-filosu
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: tip-karismasi
+      karmasiklik: duz
+      kalip: duz-fonksiyon
+      akis: cok-dosya-birlestirme
+      topoloji: paket-alt-paket
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

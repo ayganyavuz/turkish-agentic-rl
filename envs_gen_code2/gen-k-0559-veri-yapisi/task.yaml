@@ -1,0 +1,152 @@
+id: gen-k-0559-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  docs/index.py içindeki DocIndex sınıfını tamamla: eklenen her belgeyi kelimelere ayırıp ikili arama ağacına koysun. search kelimeyi içeren belge kimliklerini artan sırada, prefix verilen önekle başlayan kelimeleri alfabetik sırada döndürsün, size de ağaçtaki benzersiz kelime sayısını versin.
+
+setup: |
+  mkdir -p docs
+  cat > docs/tokens.py <<'TOKENS'
+  def normalize(text):
+      return [w.strip(".,;:!?").lower() for w in text.split()]
+  TOKENS
+  cat > docs/index.py <<'INDEX'
+  from docs.tokens import normalize
+
+
+  class DocIndex:
+      def __init__(self):
+          raise NotImplementedError
+
+      def add(self, doc_id, text):
+          raise NotImplementedError
+
+      def search(self, word):
+          raise NotImplementedError
+
+      def prefix(self, pre):
+          raise NotImplementedError
+
+      def size(self):
+          raise NotImplementedError
+  INDEX
+  cat > corpus.txt <<'CORPUS'
+  alpha beta gamma
+  beta delta
+  gamma epsilon alpha
+  delta zeta
+  CORPUS
+
+goal_tr: >
+  docs/index.py icindeki DocIndex sinifini, her belgeyi kelimelere ayirip
+  kelimeleri bir ikili arama agacina yerlestiren, search ile o kelimeyi
+  iceren belge kimliklerini artan sirada, prefix ile verilen onekle baslayan
+  kelimeleri alfabetik sirada donduren ve size ile agactaki benzersiz kelime
+  sayisini veren bicimde tamamla.
+
+reference_solution: |
+  cat > docs/index.py <<'INDEX'
+  from docs.tokens import normalize
+
+
+  class _Node:
+      __slots__ = ("word", "docs", "left", "right")
+
+      def __init__(self, word, doc_id):
+          self.word = word
+          self.docs = [doc_id]
+          self.left = None
+          self.right = None
+
+
+  class DocIndex:
+      def __init__(self):
+          self._root = None
+          self._count = 0
+
+      def _insert(self, node, word, doc_id):
+          if node is None:
+              return _Node(word, doc_id)
+          if word == node.word:
+              if doc_id not in node.docs:
+                  node.docs.append(doc_id)
+          elif word < node.word:
+              node.left = self._insert(node.left, word, doc_id)
+          else:
+              node.right = self._insert(node.right, word, doc_id)
+          return node
+
+      def add(self, doc_id, text):
+          for word in normalize(text):
+              if not word:
+                  continue
+              before = self._lookup(self._root, word)
+              self._root = self._insert(self._root, word, doc_id)
+              if before is None:
+                  self._count += 1
+
+      def _lookup(self, node, word):
+          while node is not None:
+              if word == node.word:
+                  return node
+              node = node.left if word < node.word else node.right
+          return None
+
+      def search(self, word):
+          node = self._lookup(self._root, word)
+          if node is None:
+              return []
+          return sorted(node.docs)
+
+      def prefix(self, pre):
+          out = []
+          self._collect(self._root, pre, out)
+          return sorted(out)
+
+      def _collect(self, node, pre, out):
+          if node is None:
+              return
+          if node.word.startswith(pre):
+              out.append(node.word)
+          self._collect(node.left, pre, out)
+          self._collect(node.right, pre, out)
+
+      def size(self):
+          return self._count
+  INDEX
+
+outputs:
+  - {path: docs/index.py, kind: program, run: 'python3 -c ''from docs.index import DocIndex as D; c=open("corpus.txt").read().splitlines(); ix=D(); [ix.add(i+1, ln) for i,ln in enumerate(c)]; assert ix.search("alpha")==[1,3], ix.search("alpha"); assert ix.search("beta")==[1,2]; assert ix.search("missing")==[]; assert ix.prefix("ga")==["gamma"]; assert ix.prefix("d")==["delta"]; assert ix.prefix("z")==["zeta"]; assert ix.prefix("")==["alpha","beta","delta","epsilon","gamma","zeta"]; assert ix.size()==6, ix.size(); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from docs.index import DocIndex as D; c=open("corpus.txt").read().splitlines(); ix=D(); [ix.add(i+1, ln) for i,ln in enumerate(c)]; assert ix.search("alpha")==[1,3], ix.search("alpha"); assert ix.search("beta")==[1,2]; assert ix.search("missing")==[]; assert ix.prefix("ga")==["gamma"]; assert ix.prefix("d")==["delta"]; assert ix.prefix("z")==["zeta"]; assert ix.prefix("")==["alpha","beta","delta","epsilon","gamma","zeta"]; assert ix.size()==6, ix.size(); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0559
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: ikili-arama-agaci

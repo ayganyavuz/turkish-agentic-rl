@@ -1,0 +1,90 @@
+id: gen-k-0403-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depot/stock.py içindeki build_batch fonksiyonunu, extra verilmediğinde her çağrıda taze liste dönecek ve önceki kalıntıyı taşımayacak şekilde düzelt. batch_summary de tek elemanlı parti özetini doğru versin.
+
+setup: |
+  mkdir -p depot
+  cat > depot/items.py <<'ITEMS'
+  def make_item(sku, qty):
+      return {"sku": sku, "qty": qty}
+
+
+  def total_qty(items):
+      return sum(item["qty"] for item in items)
+  ITEMS
+  cat > depot/stock.py <<'STOCK'
+  from depot.items import make_item, total_qty
+
+  DEFAULT_BATCH = []
+
+
+  def build_batch(sku, qty, extra=None):
+      batch = DEFAULT_BATCH if extra is None else extra
+      batch.append(make_item(sku, qty))
+      return batch
+
+
+  def batch_summary(sku, qty):
+      batch = build_batch(sku, qty)
+      return {"count": len(batch), "total": total_qty(batch)}
+  STOCK
+
+goal_tr: >
+  depot/stock.py icindeki build_batch fonksiyonunu, extra verilmedigi her
+  cagride taze bir liste dondurecek ve onceki cagrilerin kalintisini
+  tasimayacak bicimde duzelt; batch_summary de tek elemanli parti ozetini
+  dogru versin.
+
+reference_solution: |
+  cat > depot/stock.py <<'STOCK'
+  from depot.items import make_item, total_qty
+
+
+  def build_batch(sku, qty, extra=None):
+      batch = [] if extra is None else list(extra)
+      batch.append(make_item(sku, qty))
+      return batch
+
+
+  def batch_summary(sku, qty):
+      batch = build_batch(sku, qty)
+      return {"count": len(batch), "total": total_qty(batch)}
+  STOCK
+
+outputs:
+  - {path: depot/stock.py, kind: program, run: 'python3 -c ''from depot.stock import build_batch as b, batch_summary as s; a=b("A",1); assert len(a)==1, a; c=b("B",2); assert len(c)==1, c; assert c[0]["sku"]=="B"; assert s("Z",7)=={"count":1,"total":7}, s("Z",7); d=b("C",3,extra=[{"sku":"X","qty":5}]); assert len(d)==2; d[0]["qty"]=99; assert b("D",4)[0]["qty"]==4; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depot.stock import build_batch as b, batch_summary as s; a=b("A",1); assert len(a)==1, a; c=b("B",2); assert len(c)==1, c; assert c[0]["sku"]=="B"; assert s("Z",7)=={"count":1,"total":7}, s("Z",7); d=b("C",3,extra=[{"sku":"X","qty":5}]); assert len(d)==2; d[0]["qty"]=99; assert b("D",4)[0]["qty"]==4; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0403
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: terse
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: mutable-varsayilan

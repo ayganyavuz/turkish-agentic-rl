@@ -1,0 +1,116 @@
+id: gen-k-0901-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depot/plan.py içindeki pack fonksiyonunu, bir sandık rafa sığmadığında o sandığı atlayıp sonraki sandıkları denemeye devam edecek ve tüm sandıklar denendikten sonra rafı döndürecek şekilde düzelt.
+
+setup: |
+  mkdir -p depot
+  cat > depot/__init__.py <<'INIT'
+  INIT
+  cat > depot/units.py <<'UNITS'
+  class Crate:
+      def __init__(self, code, weight):
+          self.code = code
+          self.weight = weight
+
+      def __add__(self, other):
+          return Crate(self.code + "+" + other.code, self.weight + other.weight)
+
+      def __repr__(self):
+          return "Crate(%r, %r)" % (self.code, self.weight)
+  UNITS
+  cat > depot/shelf.py <<'SHELF'
+  from depot.units import Crate
+
+
+  class Shelf:
+      def __init__(self, capacity):
+          self.capacity = capacity
+          self.crates = []
+
+      def place(self, crate):
+          if self.total_weight() + crate.weight > self.capacity:
+              return False
+          self.crates.append(crate)
+          return True
+
+      def total_weight(self):
+          total = 0
+          for c in self.crates:
+              total += c.weight
+          return total
+  SHELF
+  cat > depot/plan.py <<'PLAN'
+  from depot.shelf import Shelf
+
+
+  def pack(crates, capacity):
+      shelf = Shelf(capacity)
+      for crate in crates:
+          if not shelf.place(crate):
+              break
+      return shelf
+  PLAN
+
+goal_tr: >
+  depot/plan.py icindeki pack fonksiyonunu, bir sandik rafa sigmadiginda o
+  sandigi atlayip sonraki sandiklari denemeye devam edecek ve tum sandiklar
+  denendikten sonra rafi dondurecek bicimde duzelt.
+
+reference_solution: |
+  cat > depot/plan.py <<'PLAN'
+  from depot.shelf import Shelf
+
+
+  def pack(crates, capacity):
+      shelf = Shelf(capacity)
+      for crate in crates:
+          if not shelf.place(crate):
+              continue
+      return shelf
+  PLAN
+
+outputs:
+  - {path: depot/plan.py, kind: program, run: 'python3 -c ''from depot.plan import pack; from depot.units import Crate; s=pack([Crate("a",5),Crate("b",9),Crate("c",3)],10); assert [c.code for c in s.crates]==["a","c"], [c.code for c in s.crates]; assert s.total_weight()==8, s.total_weight(); s2=pack([Crate("x",4),Crate("y",4)],7); assert [c.code for c in s2.crates]==["x"], [c.code for c in s2.crates]; s3=pack([],5); assert s3.crates==[]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depot.plan import pack; from depot.units import Crate; s=pack([Crate("a",5),Crate("b",9),Crate("c",3)],10); assert [c.code for c in s.crates]==["a","c"], [c.code for c in s.crates]; assert s.total_weight()==8, s.total_weight(); s2=pack([Crate("x",4),Crate("y",4)],7); assert [c.code for c in s2.crates]==["x"], [c.code for c in s2.crates]; s3=pack([],5); assert s3.crates==[]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0901
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-raf-yerlesimi
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum
+      karmasiklik: duz
+      kalip: operator-asiri-yukleme
+      akis: cok-dosya-birlestirme
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

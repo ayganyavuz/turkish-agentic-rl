@@ -1,0 +1,156 @@
+id: gen-k-0868-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Arama tarafinda bir süredir tuhaf bir durum var: kullanıcılar bir ifadenin metinde geçip geçmediğine bakıyor ama dönen konumlar bir türlü tutarlı gelmiyor, özellikle ifadenin ilk sözcüğü metinde geçtiği halde tam ifade geçmediğinde de bir konum dönüyor gibi görünüyor. Bunu bugün oturup dokümandaki örneklerle karşılaştırdım, gerçekten de konum hesaplarında bir kayma var. Bu arada docs altındaki dosyaların çoğu yerinde duruyor, doc.txt de aynı.
+
+  Şu işi halletmeni istiyorum: docs/index.py ve docs/search.py içindeki konum hesaplarını düzelt ki find_phrase fonksiyonu, verilen bir ifadenin metinde geçtiği ilk sözcük konumunu 1 tabanlı olarak doğru döndürsün. İfadenin sözcükleri metinde bitişik ve aynı sırayla geçmiyorsa -1 dönsün. Yani sadece ilk sözcüğün nerede geçtiğine bakıp kesip atmak yok; ifadenin tamamının ardarda eşleşmesi gerekiyor.
+
+  Değişecek dosyalar docs/index.py ve docs/search.py. Başka bir şeye dokunma, doc.txt ve docs/tokenizer.py olduğu gibi kalsın.
+
+setup: |
+  mkdir -p docs
+  cat > docs/tokenizer.py <<'TOK'
+  def tokenize(text):
+      # Split into lowercase word tokens, keeping only alphabetic words.
+      words = []
+      current = []
+      for ch in text.lower():
+          if ch.isalpha():
+              current.append(ch)
+          else:
+              if current:
+                  words.append("".join(current))
+                  current = []
+      if current:
+          words.append("".join(current))
+      return words
+  TOK
+  cat > docs/index.py <<'INDEX'
+  from docs.tokenizer import tokenize
+
+
+  def build_index(text):
+      # Map each word to the 1-based position of its first occurrence.
+      index = {}
+      for pos, word in enumerate(tokenize(text)):
+          if word not in index:
+              index[word] = pos
+      return index
+  INDEX
+  cat > docs/search.py <<'SEARCH'
+  from docs.index import build_index
+
+
+  def find_phrase(text, phrase):
+      # Return the 1-based word position where phrase first occurs, or -1.
+      index = build_index(text)
+      words = phrase.lower().split()
+      if not words:
+          return -1
+      start = index.get(words[0], -1)
+      if start == -1:
+          return -1
+      return start
+  SEARCH
+  cat > doc.txt <<'DOC'
+  The quick brown fox jumps over the lazy dog.
+  The dog barks and the fox runs away.
+  DOC
+
+goal_tr: >
+  docs/index.py ve docs/search.py icindeki konum hesaplarini duzelterek
+  find_phrase fonksiyonunun bir ifadenin gectigi ilk sozcuk konumunu (1
+  tabanli) dogru dondurmesini sagla; ifadenin sozcukleri metinde bitisik ve
+  sirayla gecmiyorsa -1 donsun.
+
+reference_solution: |
+  cat > docs/index.py <<'INDEX'
+  from docs.tokenizer import tokenize
+
+
+  def build_index(text):
+      # Map each word to the 1-based position of its first occurrence.
+      index = {}
+      for pos, word in enumerate(tokenize(text)):
+          if word not in index:
+              index[word] = pos + 1
+      return index
+  INDEX
+  cat > docs/search.py <<'SEARCH'
+  from docs.index import build_index
+
+
+  def find_phrase(text, phrase):
+      # Return the 1-based word position where phrase first occurs, or -1.
+      index = build_index(text)
+      words = phrase.lower().split()
+      if not words:
+          return -1
+      start = index.get(words[0], -1)
+      if start == -1:
+          return -1
+      for offset, word in enumerate(words):
+          if index.get(word, -1) != start + offset:
+              return -1
+      return start
+  SEARCH
+
+ara_adim: |
+  cat > docs/index.py <<'INDEX'
+  from docs.tokenizer import tokenize
+
+
+  def build_index(text):
+      # Map each word to the 1-based position of its first occurrence.
+      index = {}
+      for pos, word in enumerate(tokenize(text)):
+          if word not in index:
+              index[word] = pos + 1
+      return index
+  INDEX
+
+outputs:
+  - {path: docs/search.py, kind: program, run: 'python3 -c ''from docs.search import find_phrase as f; t=open("doc.txt").read(); assert f(t,"quick brown")==2, f(t,"quick brown"); assert f(t,"lazy dog")==8, f(t,"lazy dog"); assert f(t,"missing")==-1; print("TAMAM")'''}
+  - {path: docs/search.py, kind: program, run: 'python3 -c ''from docs.search import find_phrase as f; t=open("doc.txt").read(); assert f(t,"brown quick")==-1, f(t,"brown quick"); assert f(t,"the fox")==-1, f(t,"the fox"); print("ZINCIR-TAMAM")'''}
+  - {path: docs/index.py, kind: program, run: 'python3 -c ''from docs.index import build_index as f; t=open("doc.txt").read(); idx=f(t); assert idx["the"]==1, idx["the"]; assert idx["quick"]==2, idx["quick"]; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from docs.index import build_index as f; t=open("doc.txt").read(); idx=f(t); assert idx["the"]==1, idx["the"]; assert idx["quick"]==2, idx["quick"]; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from docs.search import find_phrase as f; t=open("doc.txt").read(); assert f(t,"quick brown")==2, f(t,"quick brown"); assert f(t,"lazy dog")==8, f(t,"lazy dog"); assert f(t,"missing")==-1; print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from docs.search import find_phrase as f; t=open("doc.txt").read(); assert f(t,"brown quick")==-1, f(t,"brown quick"); assert f(t,"the fox")==-1, f(t,"the fox"); print("ZINCIR-TAMAM")''', value: ZINCIR-TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0868
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: off-by-one
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

@@ -1,0 +1,195 @@
+id: gen-k-1022-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Sabahtan beri netlog paketindeki log özetleme çıktısına bakıyorum ve bir türlü tutarlı sonuç alamadım. Aynı ana makine arka arkaya birçok satırda geçiyor, ama özet çıktısında ya sıfır görünüyor ya da toplamlar eksik çıkıyor; sanki sayaçlar her satırda baştan başlıyor gibi. Artık bunun düzelmesini istiyorum.
+
+  netlog/core/aggregator.py dosyasındaki HostAggregator sınıfını ve netlog/report/summary.py içindeki summarize akışını, her ana makine için istek sayısı ve bayt toplamının tüm girdi boyunca doğru birikmesini sağlayacak biçimde düzelt. summarize(stdin) çağrıldığında her host için (host, hits, total_bytes) demetlerini, hostların ilk görülme sırasını koruyarak döndürsün ve arka arkaya gelen aynı host satırlarında sonucu sıfırlamasın.
+
+setup: |
+  mkdir -p netlog/core netlog/report
+  cat > netlog/core/__init__.py <<'EOF'
+  EOF
+  cat > netlog/report/__init__.py <<'EOF'
+  EOF
+  cat > netlog/core/parser.py <<'EOF'
+  def parse_lines(stream):
+      entries = []
+      for raw in stream:
+          line = raw.strip()
+          if not line:
+              continue
+          parts = line.split()
+          status = int(parts[0])
+          host = parts[1]
+          bytes_sent = int(parts[2])
+          entries.append((status, host, bytes_sent))
+      return entries
+  EOF
+  cat > netlog/core/aggregator.py <<'EOF'
+  class HostAggregator:
+      def __init__(self):
+          self._hits = {}
+          self._bytes = {}
+          self._current_host = None
+
+      def begin_host(self, host):
+          self._current_host = host
+          if host not in self._hits:
+              self._hits[host] = 0
+              self._bytes[host] = 0
+
+      def add_entry(self, status, host, bytes_sent):
+          self.begin_host(host)
+          self._hits[host] += 1
+          self._bytes[host] += bytes_sent
+
+      def end_host(self, host):
+          self._hits[host] = 0
+          self._bytes[host] = 0
+          self._current_host = None
+
+      def totals(self, host):
+          return (self._hits.get(host, 0), self._bytes.get(host, 0))
+  EOF
+  cat > netlog/report/summary.py <<'EOF'
+  import sys
+
+  from netlog.core.parser import parse_lines
+  from netlog.core.aggregator import HostAggregator
+
+
+  def summarize(stream):
+      entries = parse_lines(stream)
+      agg = HostAggregator()
+      order = []
+      for status, host, bytes_sent in entries:
+          if host not in order:
+              order.append(host)
+          agg.begin_host(host)
+          agg.add_entry(status, host, bytes_sent)
+          agg.end_host(host)
+      result = []
+      for host in order:
+          hits, total = agg.totals(host)
+          result.append((host, hits, total))
+      return result
+
+
+  def main():
+      for host, hits, total in summarize(sys.stdin):
+          print(host, hits, total)
+
+
+  if __name__ == "__main__":
+      main()
+  EOF
+
+goal_tr: >
+  netlog paketindeki HostAggregator ve summarize akisini, her ana makine
+  icin istek sayisi ve bayt toplaminin tum girdi boyunca dogru birikmesini
+  saglayacak bicimde duzelt; summarize(stdin) her host icin (host, hits,
+  total_bytes) demetlerini ilk gorulme sirasinda dondursun ve ard arda gelen
+  ayni host satirlarinda sonucu sifirlamasin.
+
+reference_solution: |
+  cat > netlog/core/aggregator.py <<'EOF'
+  class HostAggregator:
+      def __init__(self):
+          self._hits = {}
+          self._bytes = {}
+          self._current_host = None
+
+      def begin_host(self, host):
+          self._current_host = host
+          if host not in self._hits:
+              self._hits[host] = 0
+              self._bytes[host] = 0
+
+      def add_entry(self, status, host, bytes_sent):
+          if host != self._current_host:
+              self.begin_host(host)
+          self._hits[host] += 1
+          self._bytes[host] += bytes_sent
+
+      def end_host(self, host):
+          self._current_host = None
+
+      def totals(self, host):
+          return (self._hits.get(host, 0), self._bytes.get(host, 0))
+  EOF
+  cat > netlog/report/summary.py <<'EOF'
+  import sys
+
+  from netlog.core.parser import parse_lines
+  from netlog.core.aggregator import HostAggregator
+
+
+  def summarize(stream):
+      entries = parse_lines(stream)
+      agg = HostAggregator()
+      order = []
+      for status, host, bytes_sent in entries:
+          if host not in order:
+              order.append(host)
+          agg.begin_host(host)
+          agg.add_entry(status, host, bytes_sent)
+      result = []
+      for host in order:
+          hits, total = agg.totals(host)
+          result.append((host, hits, total))
+      return result
+
+
+  def main():
+      for host, hits, total in summarize(sys.stdin):
+          print(host, hits, total)
+
+
+  if __name__ == "__main__":
+      main()
+  EOF
+
+outputs:
+  - {path: netlog/core/aggregator.py, kind: program, run: 'python3 -c ''from netlog.core.aggregator import HostAggregator as A; a=A(); a.begin_host("h"); a.add_entry(200,"h",10); a.end_host("h"); a.begin_host("h"); a.add_entry(200,"h",5); a.end_host("h"); assert a.totals("h")==(2,15), a.totals("h"); b=A(); b.begin_host("x"); b.add_entry(200,"x",1); b.add_entry(200,"x",1); b.add_entry(200,"x",1); b.end_host("x"); assert b.totals("x")==(3,3), b.totals("x"); import io; from netlog.report.summary import summarize as f; s=io.StringIO("200 a.com 10\n200 a.com 5\n404 a.com 2\n200 b.com 7\n"); r=f(s); assert r==[("a.com",3,17),("b.com",1,7)], r; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from netlog.core.aggregator import HostAggregator as A; a=A(); a.begin_host("h"); a.add_entry(200,"h",10); a.end_host("h"); a.begin_host("h"); a.add_entry(200,"h",5); a.end_host("h"); assert a.totals("h")==(2,15), a.totals("h"); b=A(); b.begin_host("x"); b.add_entry(200,"x",1); b.add_entry(200,"x",1); b.add_entry(200,"x",1); b.end_host("x"); assert b.totals("x")==(3,3), b.totals("x"); import io; from netlog.report.summary import summarize as f; s=io.StringIO("200 a.com 10\n200 a.com 5\n404 a.com 2\n200 b.com 7\n"); r=f(s); assert r==[("a.com",3,17),("b.com",1,7)], r; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1022
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: web-erisim-loglari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: zor
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-durum-sifirlama
+      karmasiklik: duz
+      kalip: durumlu-sinif
+      akis: stdin-boru
+      topoloji: paket-alt-paket
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

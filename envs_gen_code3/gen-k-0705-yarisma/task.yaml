@@ -1,0 +1,142 @@
+id: gen-k-0705-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 18
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  sessions/greedy.py dosyasını sıfırdan yaz. Bu dosyada, sessions/events.py içindeki parse_events fonksiyonunu kullanarak olayları okuyan bir greedy_sessions(text) fonksiyonu üret. Fonksiyon her kullanıcı için olayları artan zaman sırasına göre işlesin ve oturumları açgözlü biçimde gruplasın. Bir oturumun bitip yenisinin başlayıp başlamayacağı sessions/policy.py içindeki is_new_session ile belirlensin. Her oturum için başlangıç zamanı ve olay sayısı tutulsun. Fonksiyon oturumları önce olay sayısına göre azalan, olay sayısı eşitse başlangıç zamanına göre artan sırada döndürsün.
+
+  Şu şartlar sağlanmalı:
+  - sessions/greedy.py dosyası sıfırdan oluşturulmalı.
+  - Dosyada greedy_sessions(text) adlı bir fonksiyon bulunmalı.
+  - Olaylar sessions/events.py içindeki parse_events ile okunmalı.
+  - Her kullanıcının olayları artan zaman sırasına göre işlenmeli.
+  - Oturum sınırı sessions/policy.py içindeki is_new_session ile belirlenmeli.
+  - Her oturum için başlangıç zamanı ve olay sayısı tutulmalı.
+  - Döndürülen oturumlar önce olay sayısına göre azalan sırada olmalı.
+  - Olay sayısı eşit olan oturumlar başlangıç zamanına göre artan sırada olmalı.
+
+setup: |
+  mkdir -p sessions
+  cat > sessions/events.py <<'EVENTS'
+  def parse_events(text):
+      out = []
+      for line in text.strip().splitlines():
+          user, action, ts = line.split(',')
+          out.append((user, action, int(ts) - 1))
+      return out
+  EVENTS
+  cat > sessions/policy.py <<'POLICY'
+  def session_gap_limit():
+      return 300
+
+
+  def is_new_session(prev_ts, ts):
+      return ts - prev_ts > session_gap_limit()
+  POLICY
+  cat > data.txt <<'DATA'
+  alice,login,10
+  alice,click,50
+  alice,click,700
+  bob,login,20
+  bob,click,30
+  bob,click,900
+  bob,click,950
+  DATA
+
+goal_tr: >
+  sessions/greedy.py dosyasini sifirdan yaz: parse_events ile olaylari
+  okuyup her kullanici icin artan zaman sirasinda oturumlari acgozlu bicimde
+  gruplayan, her oturumun baslangic zamanini ve olay sayisini tutan, ve
+  oturumlari once olay sayisina gore azalan sonra baslangic zamanina gore
+  artan sirada donduren bir greedy_sessions(text) fonksiyonu uret; oturum
+  siniri policy.is_new_session ile belirlenir.
+
+reference_solution: |
+  cat > sessions/events.py <<'EVENTS'
+  def parse_events(text):
+      out = []
+      for line in text.strip().splitlines():
+          user, action, ts = line.split(',')
+          out.append((user, action, int(ts)))
+      return out
+  EVENTS
+  cat > sessions/greedy.py <<'GREEDY'
+  from sessions.events import parse_events
+  from sessions.policy import is_new_session
+
+
+  def greedy_sessions(text):
+      events = parse_events(text)
+      by_user = {}
+      for user, action, ts in events:
+          by_user.setdefault(user, []).append(ts)
+      sessions = []
+      for user in sorted(by_user):
+          stamps = sorted(by_user[user])
+          start = stamps[0]
+          count = 1
+          prev = stamps[0]
+          for ts in stamps[1:]:
+              if is_new_session(prev, ts):
+                  sessions.append((user, start, count))
+                  start = ts
+                  count = 1
+              else:
+                  count += 1
+              prev = ts
+          sessions.append((user, start, count))
+      sessions.sort(key=lambda s: (-s[2], s[1]))
+      return sessions
+  GREEDY
+
+ara_adim: |
+  cat > sessions/events.py <<'EVENTS'
+  def parse_events(text):
+      out = []
+      for line in text.strip().splitlines():
+          user, action, ts = line.split(',')
+          out.append((user, action, int(ts)))
+      return out
+  EVENTS
+
+outputs:
+  - {path: sessions/greedy.py, kind: program, run: 'python3 -c ''from sessions.greedy import greedy_sessions as f; t=open("data.txt").read(); r=f(t); assert r==[("alice",10,2),("bob",20,2),("bob",900,2),("alice",700,1)], r; print("TAMAM")'''}
+  - {path: sessions/greedy.py, kind: program, run: 'python3 -c ''from sessions.events import parse_events as p; from sessions.policy import is_new_session as n; assert p("u,a,1\nu,b,2")==[("u","a",1),("u","b",2)]; assert n(0,300)==False; assert n(0,301)==True; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sessions.greedy import greedy_sessions as f; t=open("data.txt").read(); r=f(t); assert r==[("alice",10,2),("bob",20,2),("bob",900,2),("alice",700,1)], r; print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sessions.events import parse_events as p; from sessions.policy import is_new_session as n; assert p("u,a,1\nu,b,2")==[("u","a",1),("u","b",2)]; assert n(0,300)==False; assert n(0,301)==True; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0705
+    bundle: yarisma
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: orta
+    adim: 6
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: acgozlu
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

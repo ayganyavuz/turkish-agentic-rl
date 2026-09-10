@@ -1,0 +1,137 @@
+id: gen-k-1144-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) bistro/report/ticket.py dosyasını oluştur.
+
+  2) Bu dosyada, bistro/core/items.py içindeki load_menu fonksiyonunu kullanarak menüyü okuyacak bir ortak_etiketler(menu_yolu, siparis_yolu) fonksiyonu yaz.
+
+  3) Fonksiyon, siparis_yolu dosyasındaki her sipariş satırını işlesin; her satırdaki yemekleri menüden bularak Dish.__add__ aşırı yüklemesiyle tek bir Dish olarak birleştirsin.
+
+  4) Her sipariş için elde edilen Dish'in etiket kümesini al; tüm siparişlerin etiket kümelerinin kesişimini (her siparişte ortak olan etiketler) döndür.
+
+setup: |
+  mkdir -p bistro/core bistro/report
+  cat > bistro/core/items.py <<'PY'
+  class Dish:
+      def __init__(self, name, tags, price):
+          self.name = name
+          self.tags = frozenset(tags)
+          self.price = price
+
+      def __add__(self, other):
+          if isinstance(other, Dish):
+              return Dish(self.name + "+" + other.name,
+                          self.tags | other.tags,
+                          self.price + other.price)
+          return Dish(self.name, self.tags, self.price + other)
+
+      def __radd__(self, other):
+          return self.__add__(other)
+
+      def __repr__(self):
+          return "Dish(%r, %r, %r)" % (self.name, sorted(self.tags), self.price)
+
+
+  def load_menu(path):
+      menu = {}
+      with open(path) as fh:
+          for line in fh:
+              line = line.strip()
+              if not line:
+                  continue
+              name, tags, price = line.split(";")
+              menu[name] = Dish(name, tags.split(","), float(price))
+      return menu
+  PY
+  cat > bistro/core/__init__.py <<'PY'
+  PY
+  cat > bistro/report/__init__.py <<'PY'
+  PY
+  cat > data/menu.txt <<'PY'
+  PY
+  mkdir -p data
+  cat > data/menu.txt <<'TXT'
+  soup;vegan,starter;4.5
+  steak;grill,main;18.0
+  salad;vegan,starter;6.0
+  cake;dessert;7.5
+  TXT
+  cat > data/orders.txt <<'TXT'
+  soup|steak
+  salad|cake|soup
+  steak|cake
+  TXT
+
+goal_tr: >
+  bistro/report/ticket.py dosyasini yaz: load_menu ile menuyu okuyup her
+  siparis satirindaki yemekleri Dish'lerin toplami olarak birlestiren, ve
+  tum siparislerin etiket kumelerinin kesisimini (her sipariste ortak olan
+  etiketler) donduren ortak_etiketler(menu_yolu, siparis_yolu) fonksiyonunu,
+  operator asiri yuklemesini (Dish.__add__) kullanarak gerceklestir.
+
+reference_solution: |
+  cat > bistro/report/ticket.py <<'PY'
+  from bistro.core.items import load_menu
+
+
+  def ortak_etiketler(menu_yolu, siparis_yolu):
+      menu = load_menu(menu_yolu)
+      with open(siparis_yolu) as fh:
+          lines = [ln.strip() for ln in fh if ln.strip()]
+      if not lines:
+          return frozenset()
+      common = None
+      for line in lines:
+          names = line.split("|")
+          total = sum(menu[n] for n in names)
+          if common is None:
+              common = total.tags
+          else:
+              common = common & total.tags
+      return frozenset(common)
+  PY
+
+outputs:
+  - {path: bistro/report/ticket.py, kind: program, run: 'python3 -c ''from bistro.report.ticket import ortak_etiketler as f; r=f("data/menu.txt","data/orders.txt"); assert r==frozenset(), r; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bistro.report.ticket import ortak_etiketler as f; r=f("data/menu.txt","data/orders.txt"); assert r==frozenset(), r; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1144
+    bundle: yarisma
+    tools:
+    - python3
+    konu: restoran-siparisleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kume-islemleri
+      karmasiklik: duz
+      kalip: operator-asiri-yukleme
+      akis: cok-dosya-birlestirme
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

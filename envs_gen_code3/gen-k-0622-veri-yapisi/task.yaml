@@ -1,0 +1,191 @@
+id: gen-k-0622-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 26
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) cal/query.py dosyasındaki reachable ve chain fonksiyonlarını, takvim etkinlikleri arasındaki bağlantılar çift yönlü sayılacak şekilde düzelt.
+
+  2) reachable fonksiyonu, çağrıldığı düğümün kendisini de erişilebilir etkinlikler arasında kapsayacak hale gelsin.
+
+  3) chain fonksiyonu, hedef etkinliğe hiçbir yol yoksa None döndürecek şekilde çalışsın.
+
+  4) Düzeltmeler cal/store.py içindeki Calendar yapısındaki bağlantılarla uyumlu olsun; cal/query.py dışında yeni bir dosya oluşturma.
+
+setup: |
+  mkdir -p cal
+  cat > cal/model.py <<'MODEL'
+  class Event:
+      def __init__(self, name, start, end):
+          self.name = name
+          self.start = start
+          self.end = end
+  MODEL
+  cat > cal/store.py <<'STORE'
+  from cal.model import Event
+
+
+  class Calendar:
+      def __init__(self):
+          self.events = []
+          self.adj = {}
+
+      def add(self, name, start, end):
+          self.events.append(Event(name, start, end))
+          self.adj.setdefault(name, [])
+          return name
+
+      def link(self, a, b):
+          self.adj.setdefault(a, [])
+          self.adj.setdefault(b, [])
+          self.adj[a].append(b)
+  STORE
+  cat > cal/query.py <<'QUERY'
+  from cal.store import Calendar
+
+
+  def reachable(cal, start):
+      raise NotImplementedError
+
+
+  def chain(cal, start, target):
+      raise NotImplementedError
+  QUERY
+
+goal_tr: >
+  Takvim etkinlikleri arasindaki baglantilar uzerinde gezinme bozuk
+  calisiyor: bir etkinlikten yalnizca ileri yonde erisilebilenler bulunuyor,
+  geri yonde bagli etkinlikler kayboluyor ve iki etkinlik arasindaki yol
+  bazen hic bulunamiyor; cal/query.py icindeki reachable ve chain
+  fonksiyonlarini, baglantilar cift yonlu sayilacak, reachable cagrildigi
+  dugumun kendisini de kapsayacak ve erisilemeyen hedef icin chain None
+  donecek bicimde duzelt.
+
+reference_solution: |
+  cat > cal/store.py <<'STORE'
+  from cal.model import Event
+
+
+  class Calendar:
+      def __init__(self):
+          self.events = []
+          self.adj = {}
+
+      def add(self, name, start, end):
+          self.events.append(Event(name, start, end))
+          self.adj.setdefault(name, [])
+          return name
+
+      def link(self, a, b):
+          self.adj.setdefault(a, [])
+          self.adj.setdefault(b, [])
+          self.adj[a].append(b)
+          self.adj[b].append(a)
+  STORE
+  cat > cal/query.py <<'QUERY'
+  from cal.store import Calendar
+
+
+  def reachable(cal, start):
+      seen = set()
+      stack = [start]
+      while stack:
+          node = stack.pop()
+          if node in seen:
+              continue
+          seen.add(node)
+          for nxt in cal.adj.get(node, []):
+              if nxt not in seen:
+                  stack.append(nxt)
+      return sorted(seen)
+
+
+  def chain(cal, start, target):
+      if start == target:
+          return [start]
+      prev = {start: None}
+      queue = [start]
+      idx = 0
+      while idx < len(queue):
+          node = queue[idx]
+          idx += 1
+          for nxt in cal.adj.get(node, []):
+              if nxt in prev:
+                  continue
+              prev[nxt] = node
+              if nxt == target:
+                  path = [nxt]
+                  cur = node
+                  while cur is not None:
+                      path.append(cur)
+                      cur = prev[cur]
+                  path.reverse()
+                  return path
+              queue.append(nxt)
+      return None
+  QUERY
+
+ara_adim: |
+  cat > cal/store.py <<'STORE'
+  from cal.model import Event
+
+
+  class Calendar:
+      def __init__(self):
+          self.events = []
+          self.adj = {}
+
+      def add(self, name, start, end):
+          self.events.append(Event(name, start, end))
+          self.adj.setdefault(name, [])
+          return name
+
+      def link(self, a, b):
+          self.adj.setdefault(a, [])
+          self.adj.setdefault(b, [])
+          self.adj[a].append(b)
+          self.adj[b].append(a)
+  STORE
+
+outputs:
+  - {path: cal/query.py, kind: program, run: 'python3 -c ''from cal.store import Calendar; from cal.query import reachable as f, chain as g; c=Calendar(); [c.add(n, 0, 1) for n in ["a","b","c","d","e"]]; c.link("a","b"); c.link("b","c"); c.link("d","e"); assert f(c,"a")==["a","b","c"], f(c,"a"); assert f(c,"c")==["a","b","c"], f(c,"c"); assert f(c,"d")==["d","e"], f(c,"d"); assert g(c,"a","c")==["a","b","c"], g(c,"a","c"); assert g(c,"c","a")==["c","b","a"], g(c,"c","a"); assert g(c,"a","d") is None; assert g(c,"b","b")==["b"]; print("TAMAM")'''}
+  - {path: cal/store.py, kind: program, run: 'python3 -c ''from cal.store import Calendar; c=Calendar(); c.add("x", 0, 1); c.add("y", 2, 3); c.link("x","y"); assert c.adj["x"]==["y"], c.adj["x"]; assert c.adj["y"]==["x"], c.adj["y"]; assert len(c.events)==2; assert c.events[0].name=="x" and c.events[1].name=="y"; print("REGRESYON-TAMAM")'''}
+  - {path: cal/query.py, kind: program, run: 'python3 -c ''from cal.store import Calendar; from cal.query import reachable as f; c=Calendar(); c.add("p",0,1); c.add("q",0,1); assert f(c,"p")==["p"], f(c,"p"); assert f(c,"q")==["q"]; print("IZOLE-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from cal.store import Calendar; from cal.query import reachable as f, chain as g; c=Calendar(); [c.add(n, 0, 1) for n in ["a","b","c","d","e"]]; c.link("a","b"); c.link("b","c"); c.link("d","e"); assert f(c,"a")==["a","b","c"], f(c,"a"); assert f(c,"c")==["a","b","c"], f(c,"c"); assert f(c,"d")==["d","e"], f(c,"d"); assert g(c,"a","c")==["a","b","c"], g(c,"a","c"); assert g(c,"c","a")==["c","b","a"], g(c,"c","a"); assert g(c,"a","d") is None; assert g(c,"b","b")==["b"]; print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from cal.store import Calendar; from cal.query import reachable as f; c=Calendar(); c.add("p",0,1); c.add("q",0,1); assert f(c,"p")==["p"], f(c,"p"); assert f(c,"q")==["q"]; print("IZOLE-TAMAM")''', value: IZOLE-TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from cal.store import Calendar; c=Calendar(); c.add("x", 0, 1); c.add("y", 2, 3); c.link("x","y"); assert c.adj["x"]==["y"], c.adj["x"]; assert c.adj["y"]==["x"], c.adj["y"]; assert len(c.events)==2; assert c.events[0].name=="x" and c.events[1].name=="y"; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0622
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 10
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: graf-gezinme
+      karmasiklik: derin
+      zincir: 3
+      regresyon: true
+      bagimli: true
+      kesif_zor: true

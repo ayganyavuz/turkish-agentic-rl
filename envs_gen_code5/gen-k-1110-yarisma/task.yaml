@@ -1,0 +1,140 @@
+id: gen-k-1110-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) callcenter/parsers/stream.py dosyasını oluştur; içinde parse_stream adlı bir generator fonksiyonu olsun. Bu fonksiyon bir metin akışını satır satır okusun, her satırı "tur|ajan|ss:dd:sn" biçiminde ayrıştırsın ve ayrıştırılmış kayıtları parça parça üretsin.
+
+  2) parse_stream, başında # bulunan yorum satırlarını ve yalnızca boşluk içeren boş satırları atlamalı; bu satırlar için hiçbir kayıt üretmemeli.
+
+  3) parse_stream, biçimi bozuk satırlarla karşılaştığında callcenter/errors.py içindeki MalformedLineError hatasını fırlatsın; hata sınıfları yalnızca callcenter/errors.py içinde kalsın, stream.py içinde yeniden tanımlanmasın.
+
+  4) parse_stream, süre alanı geçersiz olduğunda callcenter/errors.py içindeki BadDurationError hatasını fırlatsın.
+
+  5) stream.py içine ayrıca agent_totals adlı bir fonksiyon ekle; bu fonksiyon bir metin akışını okuyup toplam süreyi ajana göre sözlük olarak döndürsün.
+
+setup: |
+  mkdir -p callcenter/parsers data
+  cat > callcenter/__init__.py <<'EOF'
+  EOF
+  cat > callcenter/parsers/__init__.py <<'EOF'
+  EOF
+  cat > callcenter/errors.py <<'EOF'
+  class CallRecordError(Exception):
+      pass
+
+
+  class MalformedLineError(CallRecordError):
+      def __init__(self, line_no, raw):
+          super().__init__("malformed line %d" % line_no)
+          self.line_no = line_no
+          self.raw = raw
+
+
+  class BadDurationError(CallRecordError):
+      def __init__(self, line_no, value):
+          super().__init__("bad duration %r on line %d" % (value, line_no))
+          self.line_no = line_no
+          self.value = value
+  EOF
+  cat > data/chunk1.txt <<'EOF'
+  # agent=ayse
+  in|ayse|00:01:30
+  out|mehmet|00:00:45
+  in|ayse|00:02:00
+  EOF
+  cat > data/chunk2.txt <<'EOF'
+  out|mehmet|00:00:15
+  in|zeynep|00:03:00
+  EOF
+
+goal_tr: >
+  callcenter/parsers/stream.py dosyasini yaz: her satiri "tur|ajan|ss:dd:sn"
+  biciminde ayristiran, yorum ve bos satirlari atlayan, bozuk satirlarda
+  MalformedLineError, gecersiz surede BadDurationError firlatan ve satirlari
+  parca parca ureten parse_stream generator fonksiyonunu, ayrica toplam
+  sureyi ajana gore sozluk olarak donduren agent_totals fonksiyonunu
+  icerecek sekilde olustur; hata siniflari callcenter/errors.py icinde
+  kalir.
+
+reference_solution: |
+  cat > callcenter/parsers/stream.py <<'EOF'
+  from callcenter.errors import MalformedLineError, BadDurationError
+
+
+  def _parse_duration(token, line_no):
+      parts = token.split(":")
+      if len(parts) != 3:
+          raise BadDurationError(line_no, token)
+      try:
+          h, m, s = (int(p) for p in parts)
+      except ValueError:
+          raise BadDurationError(line_no, token)
+      if h < 0 or m < 0 or s < 0 or m > 59 or s > 59:
+          raise BadDurationError(line_no, token)
+      return h * 3600 + m * 60 + s
+
+
+  def parse_stream(lines):
+      for line_no, raw in enumerate(lines, start=1):
+          line = raw.strip()
+          if not line or line.startswith("#"):
+              continue
+          fields = line.split("|")
+          if len(fields) != 3:
+              raise MalformedLineError(line_no, raw)
+          kind, agent, duration = fields
+          if kind not in ("in", "out") or not agent:
+              raise MalformedLineError(line_no, raw)
+          yield kind, agent, _parse_duration(duration, line_no)
+
+
+  def agent_totals(lines):
+      totals = {}
+      for _kind, agent, seconds in parse_stream(lines):
+          totals[agent] = totals.get(agent, 0) + seconds
+      return totals
+  EOF
+
+outputs:
+  - {path: callcenter/parsers/stream.py, kind: program, run: 'python3 -c ''import io; from callcenter.parsers.stream import parse_stream, agent_totals; from callcenter.errors import MalformedLineError, BadDurationError, CallRecordError; d1=open("data/chunk1.txt").read().splitlines(); d2=open("data/chunk2.txt").read().splitlines(); assert list(parse_stream(d1))==[("in","ayse",90),("out","mehmet",45),("in","ayse",120)]; assert agent_totals(d1+d2)=={"ayse":210,"mehmet":60,"zeynep":180}; assert issubclass(MalformedLineError, CallRecordError) and issubclass(BadDurationError, CallRecordError); ok=[False]; exec("try:\n    list(parse_stream(d1+[\"in|ayse\"]))\nexcept MalformedLineError:\n    ok[0]=True"); assert ok[0]; ok2=[False]; exec("try:\n    list(parse_stream([\"in|ayse|00:99:00\"]))\nexcept BadDurationError:\n    ok2[0]=True"); assert ok2[0]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import io; from callcenter.parsers.stream import parse_stream, agent_totals; from callcenter.errors import MalformedLineError, BadDurationError, CallRecordError; d1=open("data/chunk1.txt").read().splitlines(); d2=open("data/chunk2.txt").read().splitlines(); assert list(parse_stream(d1))==[("in","ayse",90),("out","mehmet",45),("in","ayse",120)]; assert agent_totals(d1+d2)=={"ayse":210,"mehmet":60,"zeynep":180}; assert issubclass(MalformedLineError, CallRecordError) and issubclass(BadDurationError, CallRecordError); ok=[False]; exec("try:\n    list(parse_stream(d1+[\"in|ayse\"]))\nexcept MalformedLineError:\n    ok[0]=True"); assert ok[0]; ok2=[False]; exec("try:\n    list(parse_stream([\"in|ayse|00:99:00\"]))\nexcept BadDurationError:\n    ok2[0]=True"); assert ok2[0]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1110
+    bundle: yarisma
+    tools:
+    - python3
+    konu: cagri-merkezi-kayitlari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: zor
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: metin-ayristirma
+      karmasiklik: duz
+      kalip: istisna-hiyerarsisi
+      akis: parcali-akis
+      topoloji: paket-alt-paket
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

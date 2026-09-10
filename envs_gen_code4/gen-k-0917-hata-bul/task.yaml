@@ -1,0 +1,122 @@
+id: gen-k-0917-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Klinikte hasta kayıtları ve randevu listeleriyle uğraşıyoruz; gün içinde hemşireden ve sekreterden gelen notları tek bir düzene sokmaya çalışıyoruz. Randevu listesini yaş gruplarına göre etiketlemek istiyoruz ama şu anki çıktı bizi kesmiyor. Bu yüzden clinic/report.py dosyasındaki build_agenda fonksiyonunu düzeltmeni istiyorum: fonksiyon, 18 yaşından küçük hastaları "pediatric", 65 yaş ve üzeri hastaları "geriatric", diğerlerini ise "adult" etiketiyle döndürsün.
+
+setup: |
+  mkdir -p clinic
+  cat > clinic/records.py <<'RECORDS'
+  PATIENTS = {
+      "p1": {"name": "Ada", "age": 34},
+      "p2": {"name": "Bora", "age": 7},
+      "p3": {"name": "Cem", "age": 71},
+  }
+  RECORDS
+  cat > clinic/schedule.py <<'SCHEDULE'
+  from clinic.records import PATIENTS
+
+
+  def load_slots(text):
+      slots = []
+      for line in text.strip().splitlines():
+          pid, slot = line.split(";")
+          slots.append((pid, slot))
+      return slots
+
+
+  def resolve(slots):
+      out = []
+      for pid, slot in slots:
+          rec = PATIENTS[pid]
+          out.append((rec["name"], slot, rec["age"]))
+      return out
+  SCHEDULE
+  cat > clinic/report.py <<'REPORT'
+  from clinic.schedule import load_slots, resolve
+
+
+  def build_agenda(text):
+      rows = resolve(load_slots(text))
+      lines = []
+      for name, slot, age in rows:
+          if age < 18:
+              tag = "pediatric"
+          else:
+              tag = "adult"
+          lines.append(name + "|" + slot + "|" + tag)
+      return lines
+  REPORT
+  cat > slots.txt <<'SLOTS'
+  p1;09:00
+  p2;09:30
+  p3;10:00
+  SLOTS
+
+goal_tr: >
+  clinic/report.py icindeki build_agenda fonksiyonunu, 18 yasindan kucuk
+  hastalari "pediatric", 65 yas ve uzeri hastalari "geriatric", digerlerini
+  "adult" etiketiyle dondurecek bicimde duzelt.
+
+reference_solution: |
+  cat > clinic/report.py <<'REPORT'
+  from clinic.schedule import load_slots, resolve
+
+
+  def build_agenda(text):
+      rows = resolve(load_slots(text))
+      lines = []
+      for name, slot, age in rows:
+          if age < 18:
+              tag = "pediatric"
+          elif age >= 65:
+              tag = "geriatric"
+          else:
+              tag = "adult"
+          lines.append(name + "|" + slot + "|" + tag)
+      return lines
+  REPORT
+
+outputs:
+  - {path: clinic/report.py, kind: program, run: 'python3 -c ''from clinic.report import build_agenda as f; t=open("slots.txt").read(); r=f(t); assert r==["Ada|09:00|adult","Bora|09:30|pediatric","Cem|10:00|geriatric"], r; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from clinic.report import build_agenda as f; t=open("slots.txt").read(); r=f(t); assert r==["Ada|09:00|adult","Bora|09:30|pediatric","Cem|10:00|geriatric"], r; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0917
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: hastane-randevulari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: tip-karismasi
+      karmasiklik: duz
+      kalip: duz-fonksiyon
+      akis: bellek-ici
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

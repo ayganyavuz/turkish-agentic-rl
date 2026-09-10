@@ -1,0 +1,103 @@
+id: gen-k-1136-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  cal/report.py dosyasını oluştur. Bu dosyada EventCounter adında bir sınıf tanımla; sınıfın count_by_date çıktısını tutan bir counts alanı olsun. Sınıf, her çağrıldığında tarihleri artan sırada tek tek döndüren bir __iter__ metodu ile iterator protokolünü sağlasın. Ayrıca sınıfta toplam etkinlik sayısını veren bir total() metodu bulunsun.
+
+setup: |
+  mkdir -p cal
+  cat > cal/events.py <<'EVENTS'
+  def parse_events(lines):
+      out = []
+      for line in lines:
+          line = line.strip()
+          if not line:
+              continue
+          date, kind, count = line.split('|')
+          out.append((date, kind, int(count)))
+      return out
+  EVENTS
+  cat > cal/counting.py <<'COUNTING'
+  from cal.events import parse_events
+
+
+  def count_by_date(lines):
+      counts = {}
+      for date, kind, count in parse_events(lines):
+          counts[date] = counts.get(date, 0) + count
+      return counts
+  COUNTING
+  cat > events.txt <<'TXT'
+  2024-03-01|meeting|2
+  2024-03-01|call|1
+  2024-03-02|meeting|3
+  2024-03-02|call|4
+  2024-03-03|meeting|1
+  TXT
+
+goal_tr: >
+  cal/report.py dosyasini yaz; EventCounter sinifi, count_by_date ciktisini
+  tutan bir counts alanini ve her cagrida tarihleri artan sirada tek tek
+  donduren bir __iter__ metodu (iterator protokolu) saglasin; ayrica total()
+  toplam etkinlik sayisini versin.
+
+reference_solution: |
+  cat > cal/report.py <<'REPORT'
+  from cal.counting import count_by_date
+
+
+  class EventCounter:
+      def __init__(self, lines):
+          self.counts = count_by_date(lines)
+
+      def __iter__(self):
+          for date in sorted(self.counts):
+              yield date, self.counts[date]
+
+      def total(self):
+          return sum(self.counts.values())
+  REPORT
+
+outputs:
+  - {path: cal/report.py, kind: program, run: 'python3 -c ''from cal.report import EventCounter; lines=open("events.txt").read().splitlines(); c=EventCounter(lines); assert c.counts=={"2024-03-01":3,"2024-03-02":7,"2024-03-03":1}, c.counts; assert list(c)==[("2024-03-01",3),("2024-03-02",7),("2024-03-03",1)], list(c); assert c.total()==11, c.total(); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from cal.report import EventCounter; lines=open("events.txt").read().splitlines(); c=EventCounter(lines); assert c.counts=={"2024-03-01":3,"2024-03-02":7,"2024-03-03":1}, c.counts; assert list(c)==[("2024-03-01",3),("2024-03-02",7),("2024-03-03",1)], list(c); assert c.total()==11, c.total(); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1136
+    bundle: yarisma
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: yarisma
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sayma
+      karmasiklik: duz
+      kalip: iterator-protokolu
+      akis: cok-dosya-birlestirme
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

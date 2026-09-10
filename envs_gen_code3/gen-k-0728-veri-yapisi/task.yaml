@@ -1,0 +1,138 @@
+id: gen-k-0728-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  sessions/merge.py dosyasındaki merge_intervals ve total_span fonksiyonlarını gerçekleştir. merge_intervals aralıkları birleştirmeli, total_span ise birleştirilmiş aralıkların toplam kapsanan süresini doğru biçimde hesaplamalı; böylece sessions/report.py içindeki active_users her kullanıcı için doğru sonucu döndürsün. Çalışma dizini /workspace; sessions/records.py ve sessions/report.py olduğu gibi kalmalı, sadece sessions/merge.py üzerinde çalış.
+
+setup: |
+  mkdir -p sessions
+  cat > sessions/records.py <<'RECORDS'
+  def parse_sessions(text):
+      rows = []
+      for line in text.strip().splitlines():
+          user, start, end = line.split(';')
+          rows.append((user, int(start), int(end)))
+      return rows
+  RECORDS
+  cat > sessions/merge.py <<'MERGE'
+  def merge_intervals(intervals):
+      raise NotImplementedError
+
+
+  def total_span(intervals):
+      raise NotImplementedError
+  MERGE
+  cat > sessions/report.py <<'REPORT'
+  from sessions.records import parse_sessions
+  from sessions.merge import merge_intervals, total_span
+
+
+  def active_users(text):
+      rows = parse_sessions(text)
+      by_user = {}
+      for user, start, end in rows:
+          by_user.setdefault(user, []).append((start, end))
+      result = {}
+      for user, spans in by_user.items():
+          merged = merge_intervals(spans)
+          result[user] = total_span(merged)
+      return result
+  REPORT
+  cat > log.txt <<'LOG'
+  ann;0;10
+  bob;5;20
+  ann;8;15
+  bob;30;40
+  ann;25;30
+  LOG
+
+goal_tr: >
+  sessions/merge.py icindeki merge_intervals ve total_span fonksiyonlarini,
+  aralik birlestirme yapip toplam kapsanan sureyi dogru hesaplayacak bicimde
+  gerceklestir; boylece sessions/report.py icindeki active_users dogru sonuc
+  dondursun.
+
+reference_solution: |
+  cat > sessions/merge.py <<'MERGE'
+  def merge_intervals(intervals):
+      if not intervals:
+          return []
+      ordered = sorted(intervals, key=lambda p: (p[0], p[1]))
+      merged = [list(ordered[0])]
+      for start, end in ordered[1:]:
+          last = merged[-1]
+          if start <= last[1]:
+              if end > last[1]:
+                  last[1] = end
+          else:
+              merged.append([start, end])
+      return [tuple(p) for p in merged]
+
+
+  def total_span(intervals):
+      return sum(end - start for start, end in intervals)
+  MERGE
+
+ara_adim: |
+  cat > sessions/merge.py <<'MERGE'
+  def merge_intervals(intervals):
+      if not intervals:
+          return []
+      ordered = sorted(intervals, key=lambda p: (p[0], p[1]))
+      merged = [list(ordered[0])]
+      for start, end in ordered[1:]:
+          last = merged[-1]
+          if start <= last[1]:
+              if end > last[1]:
+                  last[1] = end
+          else:
+              merged.append([start, end])
+      return [tuple(p) for p in merged]
+
+
+  def total_span(intervals):
+      raise NotImplementedError
+  MERGE
+
+outputs:
+  - {path: sessions/merge.py, kind: program, run: 'python3 -c ''from sessions.report import active_users as f; t=open("log.txt").read(); r=f(t); assert r["ann"]==20, r; assert r["bob"]==25, r; print("TAMAM")'''}
+  - {path: sessions/merge.py, kind: program, run: 'python3 -c ''from sessions.merge import merge_intervals as m; assert m([(1,5),(2,6)])==[(1,6)], m([(1,5),(2,6)]); assert m([])==[]; assert m([(4,7),(1,3)])==[(1,3),(4,7)]; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sessions.report import active_users as f; t=open("log.txt").read(); r=f(t); assert r["ann"]==20, r; assert r["bob"]==25, r; print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sessions.merge import merge_intervals as m; assert m([(1,5),(2,6)])==[(1,6)], m([(1,5),(2,6)]); assert m([])==[]; assert m([(4,7),(1,3)])==[(1,3),(4,7)]; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0728
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: aralik-birlestirme
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

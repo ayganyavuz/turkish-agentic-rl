@@ -1,0 +1,161 @@
+id: gen-k-1103-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  arena/store.py, arena/trie.py ve arena/board.py dosyalarını, scores.txt içindeki "isim:skor" biçimindeki satırlardan her oyuncunun toplam skorunu bir trie yapısında tutan ve en yüksek skorlu k oyuncuyu döndüren çalışan bir zincir oluşturacak şekilde tamamla. arena/board.py içindeki build_board ve top_players fonksiyonları bu zinciri kullanarak çalışsın; build_board kayıtları işleyip toplam skorları trie üzerinden hesaplasın, top_players ise en yüksek skorlu k oyuncuyu döndürsün. scores.txt içindeki her satırda bir "isim:skor" kaydı bulunuyor ve aynı isim birden fazla kez geçebiliyor; bu durumda o oyuncunun skorları toplanmalı.
+
+setup: |
+  mkdir -p arena
+  cat > arena/store.py <<'STORE'
+  def make_score_store():
+      raise NotImplementedError
+
+
+  def normalize_name(name):
+      raise NotImplementedError
+  STORE
+  cat > arena/trie.py <<'TRIE'
+  from arena.store import make_score_store
+
+
+  def make_score_trie():
+      raise NotImplementedError
+  TRIE
+  cat > arena/board.py <<'BOARD'
+  from arena.trie import make_score_trie
+
+
+  def build_board(records):
+      raise NotImplementedError
+
+
+  def top_players(records, k):
+      raise NotImplementedError
+  BOARD
+  cat > scores.txt <<'TXT'
+  ada:120
+  bora:75
+  cem:120
+  ada:30
+  deniz:75
+  bora:200
+  cem:10
+  TXT
+
+goal_tr: >
+  arena/store.py, arena/trie.py ve arena/board.py dosyalarini; scores.txt
+  icindeki "isim:skor" satirlarindan her oyuncunun toplam skorunu trie ile
+  tutan ve en yuksek skorlu k oyuncuyu donduren calisan bir zincir olacak
+  sekilde tamamla.
+
+reference_solution: |
+  cat > arena/store.py <<'STORE'
+  def make_score_store():
+      root = {}
+      return root
+
+
+  def normalize_name(name):
+      return name.strip().lower()
+  STORE
+  cat > arena/trie.py <<'TRIE'
+  from arena.store import make_score_store, normalize_name
+
+
+  def make_score_trie():
+      root = make_score_store()
+
+      def add(name, amount):
+          node = root
+          for ch in normalize_name(name):
+              node = node.setdefault(ch, {})
+          node["#"] = node.get("#", 0) + amount
+          return node["#"]
+
+      def total(name):
+          node = root
+          for ch in normalize_name(name):
+              if ch not in node:
+                  return 0
+              node = node[ch]
+          return node.get("#", 0)
+
+      def collect():
+          out = []
+
+          def walk(node, prefix):
+              if "#" in node:
+                  out.append((prefix, node["#"]))
+              for key in node:
+                  if key != "#":
+                      walk(node[key], prefix + key)
+
+          walk(root, "")
+          return out
+
+      return add, total, collect
+  TRIE
+  cat > arena/board.py <<'BOARD'
+  from arena.trie import make_score_trie
+
+
+  def build_board(records):
+      add, total, collect = make_score_trie()
+      for line in records:
+          line = line.strip()
+          if not line:
+              continue
+          name, score = line.split(":")
+          add(name, int(score))
+      return collect()
+
+
+  def top_players(records, k):
+      board = build_board(records)
+      board.sort(key=lambda pair: (-pair[1], pair[0]))
+      return [(name, score) for name, score in board[:k]]
+  BOARD
+
+outputs:
+  - {path: arena/board.py, kind: program, run: 'python3 -c ''from arena.board import top_players as f; r=open("scores.txt").read().splitlines(); assert f(r,2)==[("bora",275),("ada",150)], f(r,2); assert f(r,1)==[("bora",275)]; assert f(r,4)==[("bora",275),("ada",150),("cem",130),("deniz",75)]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from arena.board import top_players as f; r=open("scores.txt").read().splitlines(); assert f(r,2)==[("bora",275),("ada",150)], f(r,2); assert f(r,1)==[("bora",275)]; assert f(r,4)==[("bora",275),("ada",150),("cem",130),("deniz",75)]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1103
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: oyun-skor-tablosu
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: trie
+      karmasiklik: duz
+      kalip: closure-fabrika
+      akis: cok-dosya-birlestirme
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

@@ -1,0 +1,104 @@
+id: gen-s-0581-bol
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  siparisler klasöründeki aylık CSV dosyalarını birleştir; bu dosyaların ilk satırı tarih,sube,urun,adet,fiyat başlıklarını içeriyor. Her şube için o şubenin toplam ciro değerini hesapla; toplam ciro, satırlardaki adet ile fiyat çarpımlarının toplamıdır. Şube adını dosya adı yaparak her şube için bolumler/<sube>.txt dosyası oluştur; bu dosyada yalnızca toplam ciro sayısı olsun. Merkez, Kuzey ve Guney şubeleri için bolumler/Merkez.txt, bolumler/Kuzey.txt ve bolumler/Guney.txt dosyalarını üret. Tüm bu çıktıları gzip ile sıkıştırılmış tek bir bolumler.tar.gz arşivinde topla.
+
+  Şu şartlar sağlanmalı:
+  - bolumler dizini oluşturulmuş olmalı.
+  - bolumler/Merkez.txt, bolumler/Kuzey.txt ve bolumler/Guney.txt dosyalarının her biri var olmalı.
+  - Her şube dosyasında yalnızca o şubenin toplam ciro sayısı bulunmalı; başka metin ya da sütun olmamalı.
+  - Toplam ciro değerleri, siparisler klasöründeki tüm CSV dosyalarındaki ilgili şube satırlarındaki adet*fiyat toplamına eşit olmalı.
+  - bolumler.tar.gz dosyası var olmalı ve gzip ile sıkıştırılmış olmalı.
+  - bolumler.tar.gz arşivi bolumler dizinindeki şube çıktı dosyalarını içermeli.
+
+setup: |
+  mkdir -p siparisler
+  cat > siparisler/ocak.csv <<'CSV'
+  tarih,sube,urun,adet,fiyat
+  2024-01-03,Merkez,Adana Kebap,2,180
+  2024-01-03,Merkez,Ayran,3,25
+  2024-01-04,Kuzey,Lahmacun,5,60
+  2024-01-04,Kuzey,Adana Kebap,1,180
+  CSV
+  cat > siparisler/subat.csv <<'CSV'
+  tarih,sube,urun,adet,fiyat
+  2024-02-01,Merkez,Kunefe,2,95
+  2024-02-01,Guney,Ayran,4,25
+  2024-02-02,Guney,Lahmacun,3,60
+  2024-02-02,Kuzey,Kunefe,1,95
+  CSV
+  cat > siparisler/mart.csv <<'CSV'
+  tarih,sube,urun,adet,fiyat
+  2024-03-05,Merkez,Adana Kebap,3,180
+  2024-03-05,Guney,Kunefe,2,95
+  2024-03-06,Kuzey,Ayran,2,25
+  2024-03-06,Merkez,Lahmacun,4,60
+  CSV
+  printf 'tarih,sube,urun,adet,fiyat\n2024-03-07,Merkez,Adana Kebap,2,180\n' > siparisler/nisan.csv
+
+goal_tr: >
+  siparisler klasorundeki aylik CSV dosyalarini (ilk satiri baslik olan,
+  tarih,sube,urun,adet,fiyat sutunlu) birlestirip her sube icin o subenin
+  toplam ciro degerini (adet*fiyat toplami) hesapla; sube adini dosya adi
+  yapip her sube icin bolumler/<sube>.txt dosyasina yalnizca toplam ciro
+  sayisini yaz ve tum ciktilari gzip ile sikistirilmis tek bir
+  bolumler.tar.gz arsivinde topla
+
+reference_solution: |
+  mkdir -p bolumler
+  cat siparisler/*.csv | tail -n +2 | grep -v '^tarih,sube' | awk -F, '$4 ~ /^[0-9]+$/ && $5 ~ /^[0-9]+$/ {toplam[$2]+=$4*$5} END {for (s in toplam) print s, toplam[s]}' | sort > toplamlar.txt
+  while read -r sube ciro; do printf '%s\n' "$ciro" > "bolumler/$sube.txt"; done < toplamlar.txt
+  tar -cf bolumler.tar bolumler
+  gzip -f bolumler.tar
+  rm -f toplamlar.txt
+
+outputs:
+  - {path: bolumler, kind: dir}
+  - {path: bolumler/Merkez.txt, kind: file}
+  - {path: bolumler/Kuzey.txt, kind: file}
+  - {path: bolumler/Guney.txt, kind: file}
+  - {path: bolumler.tar.gz, kind: file}
+
+checks:
+  - {op: dir_entries_eq, path: bolumler, value: [Guney.txt, Kuzey.txt, Merkez.txt]}
+  - {op: run_stdout_eq, cmd: tar -tzf bolumler.tar.gz | sort, value: 'bolumler/
+
+    bolumler/Guney.txt
+
+    bolumler/Kuzey.txt
+
+    bolumler/Merkez.txt'}
+  - {op: file_content_eq, path: bolumler/Guney.txt, value: '470'}
+  - {op: file_content_eq, path: bolumler/Kuzey.txt, value: '625'}
+  - {op: file_content_eq, path: bolumler/Merkez.txt, value: '1765'}
+
+metadata:
+  domain: bol
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0581
+    bundle: arsiv
+    tools:
+    - tar
+    - gzip
+    konu: restoran-siparisleri
+    hedef: bol
+    girdi: csv
+    kaynak: cok-dosya
+    cikti: birden-cok-dosya
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

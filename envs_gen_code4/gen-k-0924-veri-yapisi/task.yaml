@@ -1,0 +1,130 @@
+id: gen-k-0924-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  release/versions.py içindeki VersionQueue sınıfını, eklenen sürümleri sıra ile tüketen bir kuyruk olacak şekilde tamamla. add metodu verilen sürümü kuyruğa eklesin, next metodu kuyruktaki en eski sürümü döndürüp kuyruktan çıkarsın, pending metodu kuyrukta kalan sürüm sayısını döndürsün. Aynı sürüm numarası tekrar eklenirse kuyrukta yalnızca bir kez yer alsın. Sınıf, release/queue_base.py içindeki Queue temel yapısını kullanmaya devam etsin; diğer dosyalarda değişiklik yapma.
+
+setup: |
+  mkdir -p release
+  cat > release/queue_base.py <<'QUEUE'
+  class Queue:
+      def __init__(self):
+          self._items = []
+
+      def push(self, item):
+          self._items.append(item)
+
+      def pop(self):
+          if not self._items:
+              raise IndexError("pop from empty queue")
+          return self._items.pop(0)
+
+      def __len__(self):
+          return len(self._items)
+  QUEUE
+  cat > release/versions.py <<'VERS'
+  from release.queue_base import Queue
+
+
+  class VersionQueue:
+      def __init__(self):
+          self._q = Queue()
+
+      def add(self, version):
+          raise NotImplementedError
+
+      def next(self):
+          raise NotImplementedError
+
+      def pending(self):
+          raise NotImplementedError
+  VERS
+  cat > release/pipeline.py <<'PIPE'
+  from release.versions import VersionQueue
+
+
+  def drain(versions):
+      vq = VersionQueue()
+      for v in versions:
+          vq.add(v)
+      out = []
+      while vq.pending() > 0:
+          out.append(vq.next())
+      return out
+  PIPE
+
+goal_tr: >
+  release/versions.py icindeki VersionQueue sinifini, eklenen surumleri sira
+  ile tuketen bir kuyruk olacak sekilde tamamla; add surumu kuyruga eklesin,
+  next en eski surumu dondurup kuyruktan cikarsin, pending kalan surum
+  sayisini dondursun ve ayni surum numarasi tekrar eklenirse kuyrukta
+  yalnizca bir kez yer alsin.
+
+reference_solution: |
+  cat > release/versions.py <<'VERS'
+  from release.queue_base import Queue
+
+
+  class VersionQueue:
+      def __init__(self):
+          self._q = Queue()
+          self._seen = set()
+
+      def add(self, version):
+          if version in self._seen:
+              return
+          self._seen.add(version)
+          self._q.push(version)
+
+      def next(self):
+          version = self._q.pop()
+          self._seen.discard(version)
+          return version
+
+      def pending(self):
+          return len(self._q)
+  VERS
+
+outputs:
+  - {path: release/versions.py, kind: program, run: 'python3 -c ''from release.pipeline import drain; from release.versions import VersionQueue; assert drain([1,2,3])==[1,2,3]; assert drain(["a","b","a","c"])==["a","b","c"]; q=VersionQueue(); q.add(7); q.add(7); assert q.pending()==1; assert q.next()==7; assert q.pending()==0; q.add(7); assert q.pending()==1; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from release.pipeline import drain; from release.versions import VersionQueue; assert drain([1,2,3])==[1,2,3]; assert drain(["a","b","a","c"])==["a","b","c"]; q=VersionQueue(); q.add(7); q.add(7); assert q.pending()==1; assert q.next()==7; assert q.pending()==0; q.add(7); assert q.pending()==1; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0924
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: yazilim-surumleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kuyruk
+      karmasiklik: duz
+      kalip: dekorator
+      akis: cok-dosya-birlestirme
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

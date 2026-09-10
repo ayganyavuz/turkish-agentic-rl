@@ -1,0 +1,130 @@
+id: gen-k-1135-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  fx.py'yi Node ve RateList sınıflarıyla bağlı liste yapısına çevir; Node value ve next, RateList head ile append ve add_rate taşısın. convert_chain aynı para biriminde başlayıp biten zinciri bağlı liste üzerinde yürüsün.
+
+setup: |
+  cat > fx.py <<'PY'
+  def pair_rate(base, quote):
+      table = {
+          ("USD", "EUR"): 0.92,
+          ("EUR", "USD"): 1.09,
+          ("USD", "TRY"): 34.0,
+          ("TRY", "USD"): 0.029,
+      }
+      return table[(base, quote)]
+
+
+  def convert(base, quote, amount):
+      return amount * pair_rate(base, quote)
+
+
+  def convert_chain(legs, amount):
+      total = amount
+      for base, quote in legs:
+          total = convert(base, quote, total)
+      return total
+  PY
+
+goal_tr: >
+  fx.py icindeki pair_rate, convert ve convert_chain fonksiyonlarini, doviz
+  cevrimi icin bagli liste dugumu (Node) kullanan bir yapiya cevir: Node
+  sinifi value ve next alanlarini tasisin, RateList sinifi head tutsun ve
+  append ile add_rate eklesin, convert_chain ayni para biriminden baslayip
+  biten bir cevrim zincirini bagli liste uzerinde yurusun.
+
+reference_solution: |
+  cat > fx.py <<'PY'
+  class Node:
+      def __init__(self, value, next=None):
+          self.value = value
+          self.next = next
+
+
+  class RateList:
+      def __init__(self):
+          self.head = None
+
+      def append(self, value):
+          node = Node(value)
+          if self.head is None:
+              self.head = node
+              return node
+          cur = self.head
+          while cur.next is not None:
+              cur = cur.next
+          cur.next = node
+          return node
+
+      def add_rate(self, base, quote, rate):
+          return self.append((base, quote, rate))
+
+      def lookup(self, base, quote):
+          cur = self.head
+          while cur is not None:
+              b, q, r = cur.value
+              if b == base and q == quote:
+                  return r
+              cur = cur.next
+          raise KeyError((base, quote))
+
+
+  def pair_rate(rates, base, quote):
+      return rates.lookup(base, quote)
+
+
+  def convert(rates, base, quote, amount):
+      return amount * pair_rate(rates, base, quote)
+
+
+  def convert_chain(rates, legs, amount):
+      total = amount
+      for base, quote in legs:
+          total = convert(rates, base, quote, total)
+      return total
+  PY
+
+outputs:
+  - {path: fx.py, kind: program, run: 'python3 -c ''from fx import Node, RateList, pair_rate, convert, convert_chain; r=RateList(); r.add_rate("USD","EUR",0.92); r.add_rate("EUR","TRY",34.0); assert isinstance(r.head, Node); assert r.head.value==("USD","EUR",0.92); assert r.head.next.value==("EUR","TRY",34.0); assert r.head.next.next is None; assert pair_rate(r,"USD","EUR")==0.92; assert convert(r,"USD","EUR",100)==92.0; assert convert_chain(r,[("USD","EUR"),("EUR","TRY")],10)==312.8; assert convert_chain(r,[],7)==7; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from fx import Node, RateList, pair_rate, convert, convert_chain; r=RateList(); r.add_rate("USD","EUR",0.92); r.add_rate("EUR","TRY",34.0); assert isinstance(r.head, Node); assert r.head.value==("USD","EUR",0.92); assert r.head.next.value==("EUR","TRY",34.0); assert r.head.next.next is None; assert pair_rate(r,"USD","EUR")==0.92; assert convert(r,"USD","EUR",100)==92.0; assert convert_chain(r,[("USD","EUR"),("EUR","TRY")],10)==312.8; assert convert_chain(r,[],7)==7; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1135
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: kur-cevrimleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: bagli-liste
+      karmasiklik: duz
+      kalip: duz-fonksiyon
+      akis: bellek-ici
+      topoloji: elmas
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

@@ -1,0 +1,80 @@
+id: gen-s-0596-yeniden-duzenle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  ham klasöründeki istasyon_a.txt, istasyon_b.txt ve istasyon_c.txt dosyalarının her birinden tarih ve sıcaklık alanlarını al; her kayda ilgili istasyon adını da ekle ve tüm kayıtları tek bir geçerli JSON dizisi olarak sicakliklar.json dosyasına yaz. Sıcaklık değeri sayı olmayan satırları atla.
+
+  Şu şartlar sağlanmalı:
+  - sicakliklar.json dosyası oluşturulmalı ve içeriği geçerli bir JSON dizisi olmalı.
+  - Dizi, ham klasöründeki üç istasyon dosyasındaki (istasyon_a.txt, istasyon_b.txt, istasyon_c.txt) tüm geçerli kayıtları içermeli.
+  - Her kayıtta tarih, sıcaklık ve istasyon adı bulunmalı.
+  - Sıcaklık değeri sayı olmayan satırlar (örneğin istasyon_b.txt içindeki N/A satırı) sicakliklar.json dosyasına dahil edilmemeli.
+  - Başlık satırları kayıt olarak alınmamalı.
+
+setup: |
+  mkdir -p ham
+  cat > ham/istasyon_a.txt <<'EOF'
+  tarih sicaklik nem
+  2024-03-01 12 45
+  2024-03-02 14 50
+  2024-03-03 11 48
+  EOF
+  cat > ham/istasyon_b.txt <<'EOF'
+  tarih sicaklik nem
+  2024-03-01 15 60
+  2024-03-02 N/A 55
+  2024-03-03 13 58
+  EOF
+  cat > ham/istasyon_c.txt <<'EOF'
+  tarih sicaklik nem
+  2024-03-01 10 40
+  2024-03-02 12 42
+  2024-03-03 9 39
+  EOF
+
+goal_tr: >
+  ham klasorundeki her istasyon dosyasindan tarih ve sicaklik alanlarini
+  alip istasyon adini da ekleyerek tum kayitlari tek bir gecerli JSON dizisi
+  olarak sicakliklar.json dosyasina yaz; sicaklik degeri sayi olmayan
+  satirlari atla.
+
+reference_solution: |
+  find ham -type f -name '*.txt' | sort | xargs -I{} awk 'NR>1 && $2+0==$2 {print FILENAME"\t"$1"\t"$2}' {} > gecici.tsv
+  awk 'BEGIN{print "["} {n=split($1,p,"/"); sub(/\.txt$/,"",p[n]); gsub(/"/,"\\\"",p[n]); printf "%s{\"istasyon\":\"%s\",\"tarih\":\"%s\",\"sicaklik\":%s}\n", (NR>1?",":""), p[n], $2, $3} END{print "]"}' gecici.tsv > sicakliklar.json
+  rm gecici.tsv
+
+outputs:
+  - {path: sicakliklar.json, kind: json}
+
+checks:
+  - {op: json_eq, path: sicakliklar.json, value: [{istasyon: istasyon_a, tarih: '2024-03-01', sicaklik: 12}, {istasyon: istasyon_a, tarih: '2024-03-02', sicaklik: 14}, {istasyon: istasyon_a, tarih: '2024-03-03', sicaklik: 11}, {istasyon: istasyon_b, tarih: '2024-03-01', sicaklik: 15}, {istasyon: istasyon_b, tarih: '2024-03-03', sicaklik: 13}, {istasyon: istasyon_c, tarih: '2024-03-01', sicaklik: 10}, {istasyon: istasyon_c, tarih: '2024-03-02', sicaklik: 12}, {istasyon: istasyon_c, tarih: '2024-03-03', sicaklik: 9}]}
+
+metadata:
+  domain: yeniden-duzenle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0596
+    bundle: bul-tasi
+    tools:
+    - find
+    - xargs
+    konu: hava-durumu-kayitlari
+    hedef: yeniden-duzenle
+    girdi: duz-metin
+    kaynak: cok-dosya
+    cikti: json
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

@@ -1,0 +1,115 @@
+id: gen-k-0508-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) sensor/stats.py dosyasındaki window_means fonksiyonunu düzelt: drop_last doğru olduğunda atılan pencere ilk pencere değil, son pencere olsun.
+
+  2) Aynı fonksiyonda, sonda eksik kalan pencere (uzunluğu width'ten küçük olan) ortalamaya hiç katılmasın; yalnızca tam pencerelerin ortalamaları alınsın.
+
+  3) Kalan tam pencerelerin ortalamaları, pencerelerin sırasına uygun olarak sırayla döndürülsün.
+
+setup: |
+  mkdir -p sensor
+  cat > sensor/reader.py <<'READER'
+  def parse_readings(text):
+      values = []
+      for line in text.strip().splitlines():
+          line = line.strip()
+          if not line:
+              continue
+          values.append(float(line))
+      return values
+  READER
+  cat > sensor/segments.py <<'SEG'
+  def split_segments(values, width):
+      segments = []
+      start = 0
+      while start < len(values):
+          segments.append(values[start:start + width])
+          start += width
+      return segments
+  SEG
+  cat > sensor/stats.py <<'STATS'
+  from sensor.reader import parse_readings
+  from sensor.segments import split_segments
+
+
+  def window_means(text, width, drop_last):
+      values = parse_readings(text)
+      segments = split_segments(values, width)
+      if drop_last:
+          segments = segments[1:]
+      means = []
+      for seg in segments:
+          means.append(sum(seg) / len(seg))
+      return means
+  STATS
+  cat > readings.txt <<'TXT'
+  1.0
+  2.0
+  3.0
+  4.0
+  5.0
+  6.0
+  7.0
+  TXT
+
+goal_tr: >
+  sensor/stats.py icindeki window_means fonksiyonunu duzelt: drop_last dogru
+  oldugunda ILK pencere degil SON pencere atilmali, ve sonu eksik kalan
+  pencere (uzunlugu width'ten kucuk olan) ortalamaya hic katilmamali; kalan
+  tam pencerelerin ortalamalari sirayla dondurulmeli.
+
+reference_solution: |
+  cat > sensor/stats.py <<'STATS'
+  from sensor.reader import parse_readings
+  from sensor.segments import split_segments
+
+
+  def window_means(text, width, drop_last):
+      values = parse_readings(text)
+      segments = split_segments(values, width)
+      segments = [seg for seg in segments if len(seg) == width]
+      if drop_last:
+          segments = segments[:-1]
+      means = []
+      for seg in segments:
+          means.append(sum(seg) / len(seg))
+      return means
+  STATS
+
+outputs:
+  - {path: sensor/stats.py, kind: program, run: 'python3 -c ''from sensor.stats import window_means as f; t=open("readings.txt").read(); assert f(t,3,False)==[2.0,5.0], f(t,3,False); assert f(t,3,True)==[2.0], f(t,3,True); assert f(t,2,False)==[1.5,3.5,5.5], f(t,2,False); assert f(t,2,True)==[1.5,3.5], f(t,2,True); assert f(t,7,False)==[4.0], f(t,7,False); assert f(t,7,True)==[], f(t,7,True); assert f(t,1,False)==[1.0,2.0,3.0,4.0,5.0,6.0,7.0], f(t,1,False); assert f(t,1,True)==[1.0,2.0,3.0,4.0,5.0,6.0], f(t,1,True); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor.stats import window_means as f; t=open("readings.txt").read(); assert f(t,3,False)==[2.0,5.0], f(t,3,False); assert f(t,3,True)==[2.0], f(t,3,True); assert f(t,2,False)==[1.5,3.5,5.5], f(t,2,False); assert f(t,2,True)==[1.5,3.5], f(t,2,True); assert f(t,7,False)==[4.0], f(t,7,False); assert f(t,7,True)==[], f(t,7,True); assert f(t,1,False)==[1.0,2.0,3.0,4.0,5.0,6.0,7.0], f(t,1,False); assert f(t,1,True)==[1.0,2.0,3.0,4.0,5.0,6.0], f(t,1,True); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0508
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: zor
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: off-by-one

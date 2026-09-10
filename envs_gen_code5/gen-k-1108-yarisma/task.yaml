@@ -1,0 +1,159 @@
+id: gen-k-1108-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) routing/network.py dosyasını oluştur.
+
+  2) Bu dosyada SegmentSource adında bir abc-protokol sınıfı tanımla; içinde iter_segments adında soyut bir metot bulunsun.
+
+  3) Aynı dosyada ListSource adında bir sınıf tanımla.
+
+  4) Aynı dosyada CountingGraph adında bir sınıf tanımla; bu sınıf bir SegmentSource protokolünden beslensin.
+
+  5) CountingGraph sınıfına out_degree(node) metodunu ekle; bu metot verilen düğümün giden kenar sayısını döndürsün.
+
+  6) CountingGraph sınıfına edge_total() metodunu ekle; bu metot tüm düğümler için toplam kenar sayısını döndürsün.
+
+setup: |
+  mkdir -p routing
+  cat > routing/segments.py <<'SEG'
+  """Streaming segment source for a road network."""
+
+  SEGMENTS = [
+      "A>B:12",
+      "B>C:7",
+      "A>C:30",
+      "C>D:5",
+      "B>D:20",
+      "D>E:4",
+      "C>E:25",
+  ]
+
+
+  def iter_segments(chunks):
+      """Yield (src, dst, cost) triples from an iterable of text chunks.
+
+      Each chunk holds one or more lines of the form 'SRC>DST:COST'.
+      Lines may be split across chunk boundaries.
+      """
+      buffer = ""
+      for chunk in chunks:
+          buffer += chunk
+          while "\n" in buffer:
+              line, buffer = buffer.split("\n", 1)
+              line = line.strip()
+              if not line:
+                  continue
+              edge, cost = line.split(":")
+              src, dst = edge.split(">")
+              yield (src, dst, int(cost))
+      tail = buffer.strip()
+      if tail:
+          edge, cost = tail.split(":")
+          src, dst = edge.split(">")
+          yield (src, dst, int(cost))
+  SEG
+
+  cat > routing/stream.py <<'STREAM'
+  """Chunked reader used by the routing layer."""
+
+  CHUNKS = [
+      "A>B:12\nB>C:7\nA>C:",
+      "30\nC>D:5\nB>D:20\n",
+      "D>E:4\nC>E:25\n",
+  ]
+
+
+  def read_chunks():
+      return list(CHUNKS)
+  STREAM
+
+goal_tr: >
+  routing/network.py dosyasini yaz: SegmentSource adinda bir abc-protokol
+  sinifi (iter_segments soyut metodu) ve ListSource ile CountingGraph
+  siniflarini tanimla; CountingGraph protokolden beslenip her dugumun giden
+  kenar sayisini sayan out_degree(node) ve tum dugumler icin toplam kenar
+  sayisini donduren edge_total() metotlarini sunsun.
+
+reference_solution: |
+  cat > routing/network.py <<'NET'
+  """Counting view over a streaming segment source."""
+
+  from abc import ABC, abstractmethod
+
+  from routing.segments import iter_segments
+
+
+  class SegmentSource(ABC):
+      @abstractmethod
+      def iter_segments(self):
+          raise NotImplementedError
+
+
+  class ListSource(SegmentSource):
+      def __init__(self, chunks):
+          self._chunks = list(chunks)
+
+      def iter_segments(self):
+          return iter_segments(self._chunks)
+
+
+  class CountingGraph:
+      def __init__(self, source):
+          self._source = source
+          self._out = {}
+          self._total = 0
+          for src, dst, cost in source.iter_segments():
+              self._out[src] = self._out.get(src, 0) + 1
+              self._total += 1
+
+      def out_degree(self, node):
+          return self._out.get(node, 0)
+
+      def edge_total(self):
+          return self._total
+  NET
+
+outputs:
+  - {path: routing/network.py, kind: program, run: 'python3 -c ''from routing.network import SegmentSource, ListSource, CountingGraph; from routing.stream import read_chunks; g=CountingGraph(ListSource(read_chunks())); assert g.edge_total()==7, g.edge_total(); assert g.out_degree("A")==2, g.out_degree("A"); assert g.out_degree("B")==2; assert g.out_degree("C")==2; assert g.out_degree("D")==1; assert g.out_degree("E")==0; assert g.out_degree("Z")==0; assert issubclass(ListSource, SegmentSource); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from routing.network import SegmentSource, ListSource, CountingGraph; from routing.stream import read_chunks; g=CountingGraph(ListSource(read_chunks())); assert g.edge_total()==7, g.edge_total(); assert g.out_degree("A")==2, g.out_degree("A"); assert g.out_degree("B")==2; assert g.out_degree("C")==2; assert g.out_degree("D")==1; assert g.out_degree("E")==0; assert g.out_degree("Z")==0; assert issubclass(ListSource, SegmentSource); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1108
+    bundle: yarisma
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sayma
+      karmasiklik: duz
+      kalip: abc-protokol
+      akis: parcali-akis
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

@@ -1,0 +1,81 @@
+id: gen-s-0387-yeniden-duzenle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  kutuphane dizini altında, alt dizinler dahil, .ini uzantılı dosyalarda geçen toplam yil satırı sayısını bul ve sonuc.txt dosyasına sadece sayı olarak yaz.
+
+setup: |
+  mkdir -p kutuphane/arsiv
+  cat > kutuphane/kitaplar.ini <<'INI'
+  [kitap-1]
+  ad = Simyaci
+  yazar = Coelho
+  yil = 1988
+  [kitap-2]
+  ad = Tutunamayanlar
+  yazar = Atay
+  yil = 1971
+  INI
+  cat > kutuphane/uyeler.ini <<'INI'
+  [uye-1]
+  ad = Ali
+  sehir = Ankara
+  [uye-2]
+  ad = Veli
+  sehir = Izmir
+  INI
+  cat > kutuphane/arsiv/eski.ini <<'INI'
+  [kitap-0]
+  ad = Eski Kayit
+  yil = 1900
+  INI
+  cat > kutuphane/arsiv/notlar.txt <<'TXT'
+  bu bir ini dosyasi degil
+  [sahte]
+  yil = 9999
+  TXT
+
+goal_tr: >
+  kutuphane dizini altinda (alt dizinler dahil) .ini uzantili dosyalardaki
+  toplam yil satiri sayisini sonuc.txt'ye sadece sayi olarak yaz
+
+reference_solution: |
+  find kutuphane -type f -name '*.ini' > /tmp/ini_listesi.txt
+  tar -cf /tmp/ini_dosyalari.tar -T /tmp/ini_listesi.txt
+  tar -xf /tmp/ini_dosyalari.tar -O | grep -c '^yil[[:space:]]*=' > sonuc.txt
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '3'}
+
+metadata:
+  domain: yeniden-duzenle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0387
+    bundle: secerek-arsivle
+    tools:
+    - tar
+    - find
+    konu: kutuphane-kayitlari
+    hedef: yeniden-duzenle
+    girdi: ini
+    kaynak: cok-dosya
+    cikti: tek-sayi
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: tuzak-dosya
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

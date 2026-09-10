@@ -1,0 +1,105 @@
+id: gen-k-0407-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) sensor/runlen.py dosyasındaki max_flat_run fonksiyonunu, verilen sayı listesinde ardışık eşit değerlerin oluşturduğu en uzun blokların uzunluklarını soldan sağa bir liste olarak döndürecek biçimde yaz.
+
+  2) Bu fonksiyonu bir yığın kullanarak gerçekleştir: her yeni değeri yığının tepesindeki değerle karşılaştır, eşitse yığına ekle, farklıysa yığını boşaltıp uzunluğunu kaydet ve yeni değeri yığına koy.
+
+  3) Döngü bittikten sonra kalan yığını da boşaltıp uzunluğunu kaydet.
+
+  4) Boş liste verildiğinde boş liste döndür.
+
+  5) sensor/readings.py dosyasındaki parse_series fonksiyonu ile series.txt dosyasını okuyup değerlerin sütununu max_flat_run fonksiyonuna veren bir doğrulama çalıştır.
+
+setup: |
+  mkdir -p sensor
+  cat > sensor/readings.py <<'READINGS'
+  def parse_series(text):
+      out = []
+      for line in text.strip().splitlines():
+          t, v = line.split(',')
+          out.append((int(t), float(v)))
+      return out
+  READINGS
+  cat > sensor/runlen.py <<'RUNLEN'
+  def max_flat_run(values):
+      raise NotImplementedError
+  RUNLEN
+  cat > series.txt <<'DATA'
+  0,1.0
+  1,1.0
+  2,1.0
+  3,2.5
+  4,2.5
+  5,1.0
+  6,1.0
+  7,7.0
+  8,7.0
+  9,7.0
+  10,7.0
+  DATA
+
+goal_tr: >
+  1) sensor/runlen.py icindeki max_flat_run fonksiyonunu, verilen sayi
+  listesinde ardisik esit degerlerin olusturdugu en uzun bloklarin
+  uzunluklarini soldan saga liste olarak dondurecek bicimde yaz; 2)
+  fonksiyonu bir yigin kullanarak gerceklestir: her yeni degeri yiginin
+  tepesindeki degerle karsilastir, esitse yigina ekle, farkliysa yigini
+  bosaltip uzunlugunu kaydet ve yeni degeri yigina koy; 3) dongu bittikten
+  sonra kalan yigini da bosaltip uzunlugunu kaydet; 4) bos liste icin bos
+  liste dondur; 5) sensor/readings.py icindeki parse_series ile series.txt
+  dosyasini okuyup degerlerin sutununu max_flat_run'a veren bir dogrulama
+  calistir.
+
+reference_solution: |
+  cat > sensor/runlen.py <<'RUNLEN'
+  def max_flat_run(values):
+      runs = []
+      stack = []
+      for v in values:
+          if stack and stack[-1] != v:
+              runs.append(len(stack))
+              stack = []
+          stack.append(v)
+      if stack:
+          runs.append(len(stack))
+      return runs
+  RUNLEN
+  python3 -c 'from sensor.readings import parse_series; from sensor.runlen import max_flat_run; rows=parse_series(open("series.txt").read()); vals=[r[1] for r in rows]; assert max_flat_run(vals)==[3,2,2,4], max_flat_run(vals); assert max_flat_run([])==[]; print("TAMAM")'
+
+outputs:
+  - {path: sensor/runlen.py, kind: program, run: 'python3 -c ''from sensor.readings import parse_series; from sensor.runlen import max_flat_run as f; rows=parse_series(open("series.txt").read()); vals=[r[1] for r in rows]; assert f(vals)==[3,2,2,4], f(vals); assert f([])==[]; assert f([5.0])==[1]; assert f([1.0,2.0,3.0])==[1,1,1]; assert f([2.0,2.0,9.0,9.0,9.0])==[2,3]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor.readings import parse_series; from sensor.runlen import max_flat_run as f; rows=parse_series(open("series.txt").read()); vals=[r[1] for r in rows]; assert f(vals)==[3,2,2,4], f(vals); assert f([])==[]; assert f([5.0])==[1]; assert f([1.0,2.0,3.0])==[1,1,1]; assert f([2.0,2.0,9.0,9.0,9.0])==[2,3]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0407
+    bundle: yarisma
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yigin-kullanimi

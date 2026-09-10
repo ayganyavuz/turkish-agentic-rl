@@ -1,0 +1,163 @@
+id: gen-k-0329-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  docs/catalog.py dosyasında, docs/record.py içindeki Doc sınıfını kullanan DocTree sınıfını bir ikili arama ağacı olarak gerçekleştir. Ağaç anahtar benzersizliğini korumalı; insert aynı anahtarla çağrıldığında yeni düğüm eklemek yerine mevcut düğümün başlığını güncellemeli. search verilen anahtara karşılık gelen Doc nesnesini döndürmeli, anahtar ağaçta yoksa None döndürmeli. keys_in_order ağaçtaki tüm anahtarları küçükten büyüğe sıralı bir liste olarak vermeli. height ise boş ağaçta 0 döndürmeli. DocTree'nin __init__, insert, search, keys_in_order ve height metotları docs/catalog.py içinde tanımlı kalmalı.
+
+setup: |
+  mkdir -p docs
+  cat > docs/record.py <<'RECORD'
+  class Doc:
+      def __init__(self, key, title):
+          self.key = key
+          self.title = title
+
+      def __repr__(self):
+          return "Doc(%r, %r)" % (self.key, self.title)
+  RECORD
+  cat > docs/catalog.py <<'CATALOG'
+  from docs.record import Doc
+
+
+  class DocTree:
+      """Binary search tree over document keys."""
+
+      def __init__(self):
+          raise NotImplementedError
+
+      def insert(self, key, title):
+          raise NotImplementedError
+
+      def search(self, key):
+          raise NotImplementedError
+
+      def keys_in_order(self):
+          raise NotImplementedError
+
+      def height(self):
+          raise NotImplementedError
+  CATALOG
+  cat > docs/__init__.py <<'INIT'
+  INIT
+
+goal_tr: >
+  docs/catalog.py icindeki DocTree sinifini, anahtar benzersizligini
+  koruyan, arama ve sirali dolasim yapan bir ikili arama agaci olarak
+  gerceklestir; insert ayni anahtarla cagrilirsa baslik guncellensin, search
+  Doc nesnesini (yoksa None) dondursun, keys_in_order kucukten buyuge
+  anahtar listesi versin, height bos agacta 0 olsun.
+
+reference_solution: |
+  cat > docs/catalog.py <<'CATALOG'
+  from docs.record import Doc
+
+
+  class _Node:
+      def __init__(self, key, title):
+          self.key = key
+          self.title = title
+          self.left = None
+          self.right = None
+
+
+  class DocTree:
+      """Binary search tree over document keys."""
+
+      def __init__(self):
+          self._root = None
+
+      def insert(self, key, title):
+          if self._root is None:
+              self._root = _Node(key, title)
+              return
+          node = self._root
+          while True:
+              if key == node.key:
+                  node.title = title
+                  return
+              if key < node.key:
+                  if node.left is None:
+                      node.left = _Node(key, title)
+                      return
+                  node = node.left
+              else:
+                  if node.right is None:
+                      node.right = _Node(key, title)
+                      return
+                  node = node.right
+
+      def search(self, key):
+          node = self._root
+          while node is not None:
+              if key == node.key:
+                  return Doc(node.key, node.title)
+              if key < node.key:
+                  node = node.left
+              else:
+                  node = node.right
+          return None
+
+      def keys_in_order(self):
+          out = []
+          stack = []
+          node = self._root
+          while stack or node is not None:
+              while node is not None:
+                  stack.append(node)
+                  node = node.left
+              node = stack.pop()
+              out.append(node.key)
+              node = node.right
+          return out
+
+      def height(self):
+          if self._root is None:
+              return 0
+          best = 0
+          stack = [(self._root, 1)]
+          while stack:
+              node, depth = stack.pop()
+              if depth > best:
+                  best = depth
+              if node.left is not None:
+                  stack.append((node.left, depth + 1))
+              if node.right is not None:
+                  stack.append((node.right, depth + 1))
+          return best
+  CATALOG
+
+outputs:
+  - {path: docs/catalog.py, kind: program, run: 'python3 -c ''from docs.catalog import DocTree; t=DocTree(); assert t.height()==0; assert t.keys_in_order()==[]; assert t.search("a") is None; t.insert("m","Middle"); t.insert("c","Charlie"); t.insert("x","Xray"); t.insert("a","Alpha"); t.insert("z","Zulu"); assert t.keys_in_order()==["a","c","m","x","z"], t.keys_in_order(); assert t.height()==3, t.height(); d=t.search("c"); assert d is not None and d.title=="Charlie" and d.key=="c"; assert t.search("q") is None; t.insert("c","Charlie2"); assert t.search("c").title=="Charlie2"; assert t.keys_in_order()==["a","c","m","x","z"]; t.insert("b","Bravo"); t.insert("d","Delta"); assert t.keys_in_order()==["a","b","c","d","m","x","z"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from docs.catalog import DocTree; t=DocTree(); assert t.height()==0; assert t.keys_in_order()==[]; assert t.search("a") is None; t.insert("m","Middle"); t.insert("c","Charlie"); t.insert("x","Xray"); t.insert("a","Alpha"); t.insert("z","Zulu"); assert t.keys_in_order()==["a","c","m","x","z"], t.keys_in_order(); assert t.height()==3, t.height(); d=t.search("c"); assert d is not None and d.title=="Charlie" and d.key=="c"; assert t.search("q") is None; t.insert("c","Charlie2"); assert t.search("c").title=="Charlie2"; assert t.keys_in_order()==["a","c","m","x","z"]; t.insert("b","Bravo"); t.insert("d","Delta"); assert t.keys_in_order()==["a","b","c","d","m","x","z"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0329
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: ikili-arama-agaci

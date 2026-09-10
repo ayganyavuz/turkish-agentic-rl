@@ -1,0 +1,87 @@
+id: gen-k-0355-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) katalog/rapor.py dosyasını aç ve içindeki ucuzdan_pahaliya fonksiyonunu, ürünleri fiyata göre artan sırada döndürecek biçimde düzelt.
+
+  2) Aynı fiyata sahip ürünlerin, girdide göründükleri sırayı korumasını sağla; yani eşit fiyatlı kayıtların kendi aralarındaki sırası değişmesin.
+
+  3) Fonksiyonun dönüş biçimini değiştirme: yine yalnızca ürün adlarından oluşan bir liste dönsün.
+
+setup: |
+  mkdir -p katalog
+  cat > katalog/veri.py <<'VERI'
+  def fiyatlari_yukle(metin):
+      kayitlar = []
+      for satir in metin.strip().splitlines():
+          ad, fiyat = satir.split(',')
+          kayitlar.append((ad, int(fiyat)))
+      return kayitlar
+  VERI
+  cat > katalog/rapor.py <<'RAPOR'
+  from katalog.veri import fiyatlari_yukle
+
+
+  def ucuzdan_pahaliya(metin):
+      kayitlar = fiyatlari_yukle(metin)
+      kayitlar.sort(key=lambda k: k[1], reverse=True)
+      return [k[0] for k in kayitlar]
+  RAPOR
+  cat > fiyatlar.csv <<'CSV'
+  kalem,50
+  defter,20
+  silgi,20
+  cetvel,35
+  CSV
+
+goal_tr: >
+  katalog/rapor.py icindeki ucuzdan_pahaliya fonksiyonunu, urunleri fiyata
+  gore artan sirada ve ayni fiyatli urunleri girdide gorundugu sirayla
+  dondurecek bicimde duzelt.
+
+reference_solution: |
+  cat > katalog/rapor.py <<'RAPOR'
+  from katalog.veri import fiyatlari_yukle
+
+
+  def ucuzdan_pahaliya(metin):
+      kayitlar = fiyatlari_yukle(metin)
+      kayitlar.sort(key=lambda k: k[1])
+      return [k[0] for k in kayitlar]
+  RAPOR
+
+outputs:
+  - {path: katalog/rapor.py, kind: program, run: 'python3 -c ''from katalog.rapor import ucuzdan_pahaliya as f; t=open("fiyatlar.csv").read(); r=f(t); assert r==["defter","silgi","cetvel","kalem"], r; t2="a,5\nb,1\nc,5\nd,1\n"; r2=f(t2); assert r2==["b","d","a","c"], r2; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from katalog.rapor import ucuzdan_pahaliya as f; t=open("fiyatlar.csv").read(); r=f(t); assert r==["defter","silgi","cetvel","kalem"], r; t2="a,5\nb,1\nc,5\nd,1\n"; r2=f(t2); assert r2==["b","d","a","c"], r2; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0355
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: siralama-kararsizligi

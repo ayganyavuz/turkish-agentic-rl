@@ -1,0 +1,276 @@
+id: gen-k-0857-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 18
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Dükkânda stok ve fiyat takibi için yazdığımız küçük bir araç var; müşterilere indirimli fiyat gösterirken bazen aynı ürünün birden fazla kaydı karışıyor ve toplamlar tutmuyor. Bugün de o yüzden bütün öğleden sonrayı eski kayıtları karşılaştırarak geçirdim, artık elle kontrol etmekten yoruldum. Bu yüzden fiyat listesinin ve raporun kendiliğinden düzgün çalışması lazım.
+
+  pricing/catalog.py içindeki PriceList bağlı-liste sınıfını, fiyat listesini sku'ya göre sıralı tutacak şekilde tamamla; insert, remove, find, to_list ve total metotları düzgün çalışsın. pricing/discounts.py içindeki fonksiyonlar da bu yapıyla uyumlu olsun. pricing/report.py içindeki fonksiyonlar ise bu liste üzerinden raporu doğru üretsin.
+
+setup: |
+  mkdir -p pricing
+  cat > pricing/catalog.py <<'CATALOG'
+  class Node:
+      def __init__(self, sku, price):
+          self.sku = sku
+          self.price = price
+          self.next = None
+
+
+  class PriceList:
+      """Singly linked list of (sku, price) nodes kept sorted by sku."""
+
+      def __init__(self):
+          self.head = None
+
+      def insert(self, sku, price):
+          raise NotImplementedError
+
+      def remove(self, sku):
+          raise NotImplementedError
+
+      def find(self, sku):
+          raise NotImplementedError
+
+      def to_list(self):
+          raise NotImplementedError
+
+      def total(self):
+          raise NotImplementedError
+  CATALOG
+  cat > pricing/discounts.py <<'DISCOUNTS'
+  from pricing.catalog import PriceList
+
+
+  def discounted_total(price_list, percent):
+      raise NotImplementedError
+
+
+  def cheapest(price_list):
+      raise NotImplementedError
+  DISCOUNTS
+  cat > pricing/report.py <<'REPORT'
+  from pricing.discounts import discounted_total, cheapest
+
+
+  def summary(price_list, percent):
+      raise NotImplementedError
+  REPORT
+
+goal_tr: >
+  pricing/catalog.py icindeki PriceList bagli-liste sinifini (insert,
+  remove, find, to_list, total) ve pricing/discounts.py ile
+  pricing/report.py icindeki fonksiyonlari, fiyat listesini sku'ya gore
+  sirali tutacak ve raporu dogru uretecek bicimde gerceklestir.
+
+reference_solution: |
+  cat > pricing/catalog.py <<'CATALOG'
+  class Node:
+      def __init__(self, sku, price):
+          self.sku = sku
+          self.price = price
+          self.next = None
+
+
+  class PriceList:
+      """Singly linked list of (sku, price) nodes kept sorted by sku."""
+
+      def __init__(self):
+          self.head = None
+
+      def insert(self, sku, price):
+          new_node = Node(sku, price)
+          if self.head is None or self.head.sku > sku:
+              new_node.next = self.head
+              self.head = new_node
+              return
+          prev = self.head
+          while prev.next is not None and prev.next.sku < sku:
+              prev = prev.next
+          if prev.next is not None and prev.next.sku == sku:
+              prev.next.price = price
+              return
+          new_node.next = prev.next
+          prev.next = new_node
+
+      def remove(self, sku):
+          prev = None
+          cur = self.head
+          while cur is not None:
+              if cur.sku == sku:
+                  if prev is None:
+                      self.head = cur.next
+                  else:
+                      prev.next = cur.next
+                  return True
+              prev = cur
+              cur = cur.next
+          return False
+
+      def find(self, sku):
+          cur = self.head
+          while cur is not None:
+              if cur.sku == sku:
+                  return cur.price
+              cur = cur.next
+          return None
+
+      def to_list(self):
+          out = []
+          cur = self.head
+          while cur is not None:
+              out.append((cur.sku, cur.price))
+              cur = cur.next
+          return out
+
+      def total(self):
+          acc = 0.0
+          cur = self.head
+          while cur is not None:
+              acc += cur.price
+              cur = cur.next
+          return acc
+  CATALOG
+  cat > pricing/discounts.py <<'DISCOUNTS'
+  from pricing.catalog import PriceList
+
+
+  def discounted_total(price_list, percent):
+      base = price_list.total()
+      return round(base * (100 - percent) / 100, 2)
+
+
+  def cheapest(price_list):
+      cur = price_list.head
+      if cur is None:
+          return None
+      best = cur
+      while cur is not None:
+          if cur.price < best.price:
+              best = cur
+          cur = cur.next
+      return best.sku
+  DISCOUNTS
+  cat > pricing/report.py <<'REPORT'
+  from pricing.discounts import discounted_total, cheapest
+
+
+  def summary(price_list, percent):
+      return {
+          "count": len(price_list.to_list()),
+          "total": round(price_list.total(), 2),
+          "discounted": discounted_total(price_list, percent),
+          "cheapest": cheapest(price_list),
+      }
+  REPORT
+
+ara_adim: |
+  cat > pricing/catalog.py <<'CATALOG'
+  class Node:
+      def __init__(self, sku, price):
+          self.sku = sku
+          self.price = price
+          self.next = None
+
+
+  class PriceList:
+      """Singly linked list of (sku, price) nodes kept sorted by sku."""
+
+      def __init__(self):
+          self.head = None
+
+      def insert(self, sku, price):
+          new_node = Node(sku, price)
+          if self.head is None or self.head.sku > sku:
+              new_node.next = self.head
+              self.head = new_node
+              return
+          prev = self.head
+          while prev.next is not None and prev.next.sku < sku:
+              prev = prev.next
+          if prev.next is not None and prev.next.sku == sku:
+              prev.next.price = price
+              return
+          new_node.next = prev.next
+          prev.next = new_node
+
+      def remove(self, sku):
+          prev = None
+          cur = self.head
+          while cur is not None:
+              if cur.sku == sku:
+                  if prev is None:
+                      self.head = cur.next
+                  else:
+                      prev.next = cur.next
+                  return True
+              prev = cur
+              cur = cur.next
+          return False
+
+      def find(self, sku):
+          cur = self.head
+          while cur is not None:
+              if cur.sku == sku:
+                  return cur.price
+              cur = cur.next
+          return None
+
+      def to_list(self):
+          out = []
+          cur = self.head
+          while cur is not None:
+              out.append((cur.sku, cur.price))
+              cur = cur.next
+          return out
+
+      def total(self):
+          acc = 0.0
+          cur = self.head
+          while cur is not None:
+              acc += cur.price
+              cur = cur.next
+          return acc
+  CATALOG
+
+outputs:
+  - {path: pricing/report.py, kind: program, run: 'python3 -c ''from pricing.catalog import PriceList; from pricing.report import summary as f; p=PriceList(); p.insert("c",30.0); p.insert("a",10.0); p.insert("b",20.0); r=f(p,10); assert r=={"count":3,"total":60.0,"discounted":54.0,"cheapest":"a"}, r; p.remove("a"); r2=f(p,0); assert r2=={"count":2,"total":50.0,"discounted":50.0,"cheapest":"b"}, r2; print("TAMAM")'''}
+  - {path: pricing/catalog.py, kind: program, run: 'python3 -c ''from pricing.catalog import PriceList; p=PriceList(); p.insert("b",2.0); p.insert("a",1.0); p.insert("c",3.0); assert p.to_list()==[("a",1.0),("b",2.0),("c",3.0)], p.to_list(); assert p.find("b")==2.0; assert p.find("z") is None; assert p.remove("b") is True; assert p.remove("b") is False; assert p.to_list()==[("a",1.0),("c",3.0)]; assert p.total()==4.0; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from pricing.catalog import PriceList; p=PriceList(); p.insert("b",2.0); p.insert("a",1.0); p.insert("c",3.0); assert p.to_list()==[("a",1.0),("b",2.0),("c",3.0)], p.to_list(); assert p.find("b")==2.0; assert p.find("z") is None; assert p.remove("b") is True; assert p.remove("b") is False; assert p.to_list()==[("a",1.0),("c",3.0)]; assert p.total()==4.0; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from pricing.catalog import PriceList; from pricing.report import summary as f; p=PriceList(); p.insert("c",30.0); p.insert("a",10.0); p.insert("b",20.0); r=f(p,10); assert r=={"count":3,"total":60.0,"discounted":54.0,"cheapest":"a"}, r; p.remove("a"); r2=f(p,0); assert r2=={"count":2,"total":50.0,"discounted":50.0,"cheapest":"b"}, r2; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0857
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 6
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: bagli-liste
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

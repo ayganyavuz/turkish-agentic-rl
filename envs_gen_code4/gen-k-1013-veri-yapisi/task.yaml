@@ -1,0 +1,151 @@
+id: gen-k-1013-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  stream/alarms.py dosyasındaki AlarmQueue sınıfını FIFO kuyruk olarak gerçekleştir. Aynı dosyadaki alarm_rule dekoratörünü de gerçekleştir; dekoratör bir limit değeri alsın ve sardığı feed fonksiyonunu, işlenen okuma bu limiti aştığında kuyruğa (sensor, value) ikilisini ekleyecek biçimde sarmalasın. feed fonksiyonu stdin'den okunan her satırı işlesin; her satır için stream/events.py içindeki parse_line kullanılarak elde edilen sensör ve değer, eşik aşıldığında kuyruğa eklensin. feed, akış sonunda kuyruğu döndürsün.
+
+setup: |
+  mkdir -p stream
+  cat > stream/events.py <<'EVENTS'
+  def parse_line(line):
+      """Return (sensor_id, reading) or None for blank/comment lines."""
+      line = line.strip()
+      if not line or line.startswith("#"):
+          return None
+      sensor, value = line.split("=")
+      return sensor.strip(), float(value)
+  EVENTS
+  cat > stream/alarms.py <<'ALARMS'
+  from stream.events import parse_line
+
+
+  class AlarmQueue:
+      def __init__(self):
+          raise NotImplementedError
+
+      def push(self, sensor, value):
+          raise NotImplementedError
+
+      def pop(self):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+
+      def __bool__(self):
+          raise NotImplementedError
+
+
+  def alarm_rule(limit):
+      def decorate(fn):
+          raise NotImplementedError
+      return decorate
+
+
+  @alarm_rule(limit=5.0)
+  def feed(line, queue):
+      raise NotImplementedError
+  ALARMS
+
+goal_tr: >
+  stream/alarms.py icindeki AlarmQueue sinifini FIFO kuyruk olarak ve
+  alarm_rule dekoratorunu, feed fonksiyonu stdin'den okunan her satiri
+  isleyip esik asildiginda kuyruga (sensor, value) ekleyecek bicimde
+  gerceklestir; feed satirlari akis sonunda kuyrugu dondursun.
+
+reference_solution: |
+  cat > stream/alarms.py <<'ALARMS'
+  import sys
+
+  from stream.events import parse_line
+
+
+  class AlarmQueue:
+      def __init__(self):
+          self._items = []
+
+      def push(self, sensor, value):
+          self._items.append((sensor, value))
+
+      def pop(self):
+          return self._items.pop(0)
+
+      def __len__(self):
+          return len(self._items)
+
+      def __bool__(self):
+          return bool(self._items)
+
+
+  def alarm_rule(limit):
+      def decorate(fn):
+          def wrapper(line, queue):
+              parsed = parse_line(line)
+              if parsed is None:
+                  return None
+              sensor, value = parsed
+              if value >= limit:
+                  queue.push(sensor, value)
+                  return (sensor, value)
+              return None
+          return wrapper
+      return decorate
+
+
+  @alarm_rule(limit=5.0)
+  def feed(line, queue):
+      return None
+
+
+  def run(stream=None):
+      if stream is None:
+          stream = sys.stdin
+      queue = AlarmQueue()
+      for line in stream:
+          feed(line, queue)
+      return queue
+  ALARMS
+
+outputs:
+  - {path: stream/alarms.py, kind: program, run: 'python3 -c ''import io; from stream.alarms import run, AlarmQueue; data="temp=3.0\n# note\ntemp=7.5\n\npress=5.0\npress=1.2\nvib=9.9\n"; q=run(io.StringIO(data)); assert isinstance(q, AlarmQueue); assert len(q)==3, len(q); assert q.pop()==("temp",7.5); assert q.pop()==("press",5.0); assert q.pop()==("vib",9.9); assert len(q)==0; assert not q; q2=run(io.StringIO("")); assert len(q2)==0; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import io; from stream.alarms import run, AlarmQueue; data="temp=3.0\n# note\ntemp=7.5\n\npress=5.0\npress=1.2\nvib=9.9\n"; q=run(io.StringIO(data)); assert isinstance(q, AlarmQueue); assert len(q)==3, len(q); assert q.pop()==("temp",7.5); assert q.pop()==("press",5.0); assert q.pop()==("vib",9.9); assert len(q)==0; assert not q; q2=run(io.StringIO("")); assert len(q2)==0; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1013
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: sensor-alarm-kurallari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kuyruk
+      karmasiklik: duz
+      kalip: dekorator
+      akis: stdin-boru
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

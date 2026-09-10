@@ -1,0 +1,145 @@
+id: gen-k-0880-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 20
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Sabah toplantıda kayıt işlerinin hâlâ elle yapıldığından şikâyet ettiler, ben de öğrenci notlarını artık tek bir yerden takip edelim dedim. Günün geri kalanı başka işlerle geçti, şimdi oturup şu işi bitirmem lazım.
+
+  core/transcripts.py dosyasını oluştur. Bu dosyada üç fonksiyon olsun. build_transcripts(text) her öğrencinin not ortalamasını bir sözlük olarak döndürsün. count_grades(text) her harf notunun kaç kez geçtiğini saysın. sorted_transcripts(text) ise öğrenci kimliğine göre sıralı bir liste döndürsün. Bu fonksiyonlar registrar/records.py, core/grades.py ve core/transcript_helpers.py modüllerini kullansın.
+
+setup: |
+  mkdir -p registrar core
+  cat > registrar/records.py <<'REC'
+  def parse_rows(text):
+      rows = []
+      for line in text.strip().splitlines():
+          parts = line.split(';')
+          if len(parts) != 4:
+              continue
+          sid, course, term, grade = parts
+          rows.append((sid.strip(), course.strip(), term.strip(), grade.strip()))
+      return rows
+  REC
+  cat > core/grades.py <<'GR'
+  POINTS = {"A": 4.0, "B": 3.0, "C": 2.0, "D": 1.0, "F": 0.0}
+
+
+  def grade_points(grade):
+      return POINTS.get(grade, 0.0)
+
+
+  def weighted_average(entries):
+      if not entries:
+          return 0.0
+      total = 0.0
+      for course, term, grade in entries:
+          total += grade_points(grade)
+      return round(total / len(entries), 3)
+  GR
+  cat > core/transcript_helpers.py <<'HLP'
+  def sort_students(mapping):
+      return sorted(mapping.items())
+  HLP
+  cat > data.txt <<'DATA'
+  S1;MATH101;2020F;A
+  S1;PHYS201;2021S;B
+  S1;CHEM110;2021F;C
+  S2;MATH101;2020F;B
+  S2;BIO100;2021S;A
+  S3;HIST200;2020F;D
+  S3;ART150;2021S;F
+  DATA
+
+goal_tr: >
+  core/transcripts.py dosyasini yaz: build_transcripts(text) her ogrencinin
+  not ortalamasini sozluk olarak dondursun, count_grades(text) her harf
+  notunun kac kez gectigini saysin ve sorted_transcripts(text) ogrenci
+  kimligine gore sirali liste dondursun; bu fonksiyonlar
+  registrar/records.py, core/grades.py ve core/transcript_helpers.py
+  modullerini kullansin.
+
+reference_solution: |
+  cat > core/transcripts.py <<'TR'
+  from registrar.records import parse_rows
+  from core.grades import weighted_average
+  from core.transcript_helpers import sort_students
+
+
+  def build_transcripts(text):
+      by_student = {}
+      for sid, course, term, grade in parse_rows(text):
+          by_student.setdefault(sid, []).append((course, term, grade))
+      out = {}
+      for sid, entries in by_student.items():
+          out[sid] = weighted_average(entries)
+      return out
+
+
+  def count_grades(text):
+      counts = {}
+      for sid, course, term, grade in parse_rows(text):
+          counts[grade] = counts.get(grade, 0) + 1
+      return counts
+
+
+  def sorted_transcripts(text):
+      return sort_students(build_transcripts(text))
+  TR
+
+ara_adim: |
+  cat > core/transcripts.py <<'TR'
+  from registrar.records import parse_rows
+  from core.grades import weighted_average
+
+
+  def build_transcripts(text):
+      by_student = {}
+      for sid, course, term, grade in parse_rows(text):
+          by_student.setdefault(sid, []).append((course, term, grade))
+      out = {}
+      for sid, entries in by_student.items():
+          out[sid] = weighted_average(entries)
+      return out
+  TR
+
+outputs:
+  - {path: core/transcripts.py, kind: program, run: 'python3 -c ''from core.transcripts import build_transcripts as f; t=open("data.txt").read(); r=f(t); assert r=={"S1":3.0,"S2":3.5,"S3":0.5}, r; print("TAMAM")'''}
+  - {path: core/transcripts.py, kind: program, run: 'python3 -c ''from core.transcripts import count_grades as f; t=open("data.txt").read(); r=f(t); assert r=={"A":2,"B":2,"C":1,"D":1,"F":1}, r; print("SAYIM-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from core.transcripts import build_transcripts as f; t=open("data.txt").read(); r=f(t); assert r=={"S1":3.0,"S2":3.5,"S3":0.5}, r; print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from core.transcripts import count_grades as f; t=open("data.txt").read(); r=f(t); assert r=={"A":2,"B":2,"C":1,"D":1,"F":1}, r; print("SAYIM-TAMAM")''', value: SAYIM-TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0880
+    bundle: yarisma
+    tools:
+    - python3
+    konu: ogrenci-transkripti
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: zor
+    adim: 7
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sayma
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

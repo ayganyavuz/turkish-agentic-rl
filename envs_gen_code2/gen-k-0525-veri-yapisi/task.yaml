@@ -1,0 +1,118 @@
+id: gen-k-0525-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  sensor/series.py içindeki SensorTrie sınıfını gerçekleştir: add aynı sensor_id'nin değerlerini biriktirsin, prefix verilen önekle başlayan id'leri alfabetik sırada döndürsün, total tüm değerlerin toplamını versin. sensor/stream.py'deki readings ile data.txt kayıtlarını yükleyip bu üç metodu çalıştır.
+
+setup: |
+  mkdir -p sensor
+  cat > sensor/stream.py <<'STREAM'
+  def readings(text):
+      out = []
+      for line in text.strip().splitlines():
+          parts = line.split()
+          out.append((parts[0], parts[1:]))
+      return out
+  STREAM
+  cat > sensor/series.py <<'SERIES'
+  class SensorTrie:
+      def __init__(self):
+          raise NotImplementedError
+
+      def add(self, sensor_id, values):
+          raise NotImplementedError
+
+      def prefix(self, p):
+          raise NotImplementedError
+
+      def total(self, sensor_id):
+          raise NotImplementedError
+  SERIES
+  cat > sensor/__init__.py <<'INIT'
+  INIT
+  cat > data.txt <<'DATA'
+  temp01 3 4 5
+  temp02 1
+  tempX 9
+  hum01 2 2
+  DATA
+
+goal_tr: >
+  sensor/series.py icindeki SensorTrie sinifini gerceklestir: add
+  sensor_id'yi values listesiyle kaydetsin (ayni id tekrar gelirse degerler
+  biriksin), prefix verilen onekle baslayan sensor_id'leri alfabetik sirada
+  dondursun, total sensor_id'nin tum degerlerinin toplamini dondursun;
+  sensor/stream.py'deki readings ciktisini kullanarak data.txt'teki tum
+  kayitlari yukleyip bu uc metodu dogru calistir.
+
+reference_solution: |
+  cat > sensor/series.py <<'SERIES'
+  class SensorTrie:
+      def __init__(self):
+          self._root = {}
+          self._sums = {}
+
+      def add(self, sensor_id, values):
+          node = self._root
+          for ch in sensor_id:
+              node = node.setdefault(ch, {})
+          node.setdefault('$', [])
+          node['$'].extend(values)
+          self._sums[sensor_id] = self._sums.get(sensor_id, 0) + sum(values)
+
+      def prefix(self, p):
+          node = self._root
+          for ch in p:
+              if ch not in node:
+                  return []
+              node = node[ch]
+          found = []
+          stack = [(node, p)]
+          while stack:
+              cur, acc = stack.pop()
+              if '$' in cur:
+                  found.append(acc)
+              for ch in cur:
+                  if ch != '$':
+                      stack.append((cur[ch], acc + ch))
+          return sorted(found)
+
+      def total(self, sensor_id):
+          return self._sums.get(sensor_id, 0)
+  SERIES
+
+outputs:
+  - {path: sensor/series.py, kind: program, run: 'python3 -c ''from sensor.series import SensorTrie as T; from sensor.stream import readings as R; t=T(); [t.add(sid,[int(v) for v in vals]) for sid,vals in R(open("data.txt").read())]; assert t.prefix("temp")==["temp01","temp02","tempX"], t.prefix("temp"); assert t.prefix("hum")==["hum01"]; assert t.prefix("zzz")==[]; assert t.total("temp01")==12; assert t.total("hum01")==4; assert t.total("none")==0; t.add("temp01",[10]); assert t.total("temp01")==22; assert t.prefix("temp")==["temp01","temp02","tempX"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor.series import SensorTrie as T; from sensor.stream import readings as R; t=T(); [t.add(sid,[int(v) for v in vals]) for sid,vals in R(open("data.txt").read())]; assert t.prefix("temp")==["temp01","temp02","tempX"], t.prefix("temp"); assert t.prefix("hum")==["hum01"]; assert t.prefix("zzz")==[]; assert t.total("temp01")==12; assert t.total("hum01")==4; assert t.total("none")==0; t.add("temp01",[10]); assert t.total("temp01")==22; assert t.prefix("temp")==["temp01","temp02","tempX"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0525
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: terse
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: trie

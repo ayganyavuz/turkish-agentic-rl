@@ -1,0 +1,113 @@
+id: gen-k-0527-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) docs/query.py dosyasındaki first_occurrences fonksiyonunu, belgede bulunmayan kelimeler için -1 döndürecek şekilde düzelt.
+
+  2) Belgede bulunan kelimeler için ilk konum değerinin aynen korunmasını sağla.
+
+setup: |
+  mkdir -p docs
+  cat > docs/store.py <<'STORE'
+  def add_document(store, doc_id, text):
+      store[doc_id] = text
+
+
+  def get_document(store, doc_id):
+      return store[doc_id]
+
+
+  def word_positions(store, doc_id):
+      positions = {}
+      for index, word in enumerate(store[doc_id].split()):
+          positions.setdefault(word, []).append(index)
+      return positions
+  STORE
+  cat > docs/query.py <<'QUERY'
+  from docs.store import get_document, word_positions
+
+
+  def first_occurrences(store, doc_id, words):
+      positions = word_positions(store, doc_id)
+      result = {}
+      for word in words:
+          result[word] = positions[word][0]
+      return result
+
+
+  def contains_all(store, doc_id, words):
+      text_words = set(get_document(store, doc_id).split())
+      return all(word in text_words for word in words)
+  QUERY
+  cat > build_store.py <<'BUILD'
+  from docs.store import add_document
+
+  STORE = {}
+  add_document(STORE, "a", "red blue green red")
+  add_document(STORE, "b", "green yellow")
+
+  if __name__ == "__main__":
+      print(STORE)
+  BUILD
+
+goal_tr: >
+  docs/query.py icindeki first_occurrences fonksiyonunu, belgede bulunmayan
+  kelimeler icin -1 dondurecek sekilde duzelt; belgede bulunan kelimeler
+  icin ilk konum aynen kalsin.
+
+reference_solution: |
+  cat > docs/query.py <<'QUERY'
+  from docs.store import get_document, word_positions
+
+
+  def first_occurrences(store, doc_id, words):
+      positions = word_positions(store, doc_id)
+      result = {}
+      for word in words:
+          if word in positions:
+              result[word] = positions[word][0]
+          else:
+              result[word] = -1
+      return result
+
+
+  def contains_all(store, doc_id, words):
+      text_words = set(get_document(store, doc_id).split())
+      return all(word in text_words for word in words)
+  QUERY
+
+outputs:
+  - {path: docs/query.py, kind: program, run: 'python3 -c ''from docs.store import add_document; from docs.query import first_occurrences as f, contains_all as g; s={}; add_document(s,"a","red blue green red"); add_document(s,"b","green yellow"); assert f(s,"a",["red","green"])=={"red":0,"green":2}, f(s,"a",["red","green"]); assert f(s,"a",["blue","red"])=={"blue":1,"red":0}; assert f(s,"a",["purple","red"])=={"purple":-1,"red":0}, f(s,"a",["purple","red"]); assert f(s,"b",["yellow","pink"])=={"yellow":1,"pink":-1}; assert g(s,"a",["red","green"]) is True; assert g(s,"a",["red","pink"]) is False; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from docs.store import add_document; from docs.query import first_occurrences as f, contains_all as g; s={}; add_document(s,"a","red blue green red"); add_document(s,"b","green yellow"); assert f(s,"a",["red","green"])=={"red":0,"green":2}, f(s,"a",["red","green"]); assert f(s,"a",["blue","red"])=={"blue":1,"red":0}; assert f(s,"a",["purple","red"])=={"purple":-1,"red":0}, f(s,"a",["purple","red"]); assert f(s,"b",["yellow","pink"])=={"yellow":1,"pink":-1}; assert g(s,"a",["red","green"]) is True; assert g(s,"a",["red","pink"]) is False; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0527
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: metin-belgeleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sozluk-anahtar-hatasi

@@ -1,0 +1,105 @@
+id: gen-k-0523-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  planner/window.py dosyasındaki range_events fonksiyonu şu an [start, end] aralığındaki günleri kapsayacak şekilde çalışıyor; bunu [start, end) yarı açık aralığına çevir, yani end günü sonuca dahil edilmesin. Bu düzeltmeden sonra planner/agenda.py içindeki agenda fonksiyonu, verilen aralıkta yer alan etkinliklerin yalnızca başlıklarını döndürmeli; aralık dışındaki günlerdeki etkinlikler sonuca girmemeli.
+
+setup: |
+  mkdir -p planner
+  cat > planner/store.py <<'STORE'
+  def index_events(events):
+      by_day = {}
+      for ev in events:
+          day = ev["day"]
+          by_day.setdefault(day, []).append(ev)
+      return by_day
+
+
+  def events_on(by_day, day):
+      return list(by_day.get(day, []))
+  STORE
+  cat > planner/window.py <<'WINDOW'
+  from planner.store import events_on
+
+
+  def range_events(by_day, start, end):
+      out = []
+      day = start
+      while day <= end:
+          out.extend(events_on(by_day, day))
+          day += 1
+      return out
+  WINDOW
+  cat > planner/agenda.py <<'AGENDA'
+  from planner.store import index_events
+  from planner.window import range_events
+
+
+  def agenda(events, start, end):
+      by_day = index_events(events)
+      picked = range_events(by_day, start, end)
+      picked.sort(key=lambda ev: (ev["day"], ev["start"]))
+      return [ev["title"] for ev in picked]
+  AGENDA
+  cat > events.txt <<'DATA'
+  1|standup|9
+  1|review|14
+  2|workshop|10
+  3|retro|16
+  DATA
+
+goal_tr: >
+  planner/window.py icindeki range_events fonksiyonunu, [start, end) yari
+  acik araligindaki gunleri kapsayacak sekilde duzelt (end gunu DAHIL
+  EDILMEYECEK); boylece planner/agenda.py icindeki agenda yalnizca aralik
+  icindeki etkinliklerin basliklarini dondurur.
+
+reference_solution: |
+  cat > planner/window.py <<'WINDOW'
+  from planner.store import events_on
+
+
+  def range_events(by_day, start, end):
+      out = []
+      day = start
+      while day < end:
+          out.extend(events_on(by_day, day))
+          day += 1
+      return out
+  WINDOW
+
+outputs:
+  - {path: planner/window.py, kind: program, run: 'python3 -c ''from planner.agenda import agenda; rows=[l.split("|") for l in open("events.txt").read().strip().splitlines()]; evs=[{"day":int(d),"title":t,"start":int(s)} for d,t,s in rows]; assert agenda(evs,1,3)==["standup","review","workshop"], agenda(evs,1,3); assert agenda(evs,1,2)==["standup","review"], agenda(evs,1,2); assert agenda(evs,3,4)==["retro"], agenda(evs,3,4); assert agenda(evs,1,1)==[], agenda(evs,1,1); assert agenda(evs,2,3)==["workshop"], agenda(evs,2,3); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from planner.agenda import agenda; rows=[l.split("|") for l in open("events.txt").read().strip().splitlines()]; evs=[{"day":int(d),"title":t,"start":int(s)} for d,t,s in rows]; assert agenda(evs,1,3)==["standup","review","workshop"], agenda(evs,1,3); assert agenda(evs,1,2)==["standup","review"], agenda(evs,1,2); assert agenda(evs,3,4)==["retro"], agenda(evs,3,4); assert agenda(evs,1,1)==[], agenda(evs,1,1); assert agenda(evs,2,3)==["workshop"], agenda(evs,2,3); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0523
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kapsam-hatasi

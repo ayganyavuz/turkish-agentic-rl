@@ -1,0 +1,68 @@
+id: gen-s-0327-ayikla
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  loglar.txt dosyasındaki her satırın en sondaki alanını ters çevirip, bu ters çevrilmiş alanın ilk üç karakteri "edc" olan satırların sayısını bul. Bu sayıyı sonuc.txt dosyasına yalnızca sayı olarak yaz.
+
+setup: |
+  cat > loglar.txt <<'LOG'
+  2024-05-01T10:00:00Z INFO  node01 ok
+  2024-05-01T10:00:01Z ERROR node02 disk
+  2024-05-01T10:00:02Z INFO  node03 ok
+  2024-05-01T10:00:03Z ERROR node01 timeout
+  2024-05-01T10:00:04Z WARN  node02 mem
+  2024-05-01T10:00:05Z ERROR node04 conn
+  2024-05-01T10:00:06Z INFO  node01 ok
+  2024-05-01T10:00:07Z ERROR node03 disk
+  2024-05-01T10:00:08Z WARN  node04 cpu
+  2024-05-01T10:00:09Z ERROR node02 conn
+  2024-05-01T10:00:10Z INFO  node05 ok
+  2024-05-01T10:00:11Z ERROR node05 timeout
+  LOG
+
+goal_tr: >
+  loglar.txt dosyasindaki her satirin en sondaki alanini ters cevirip ilk uc
+  karakteri "edc" olan satir sayisini sonuc.txt dosyasina sadece sayi olarak
+  yaz
+
+reference_solution: |
+  rev loglar.txt > ters.txt
+  cut -c1-3 ters.txt > ilk3.txt
+  grep -c '^edc' ilk3.txt > sonuc.txt
+  rm ters.txt ilk3.txt
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '0'}
+
+metadata:
+  domain: ayikla
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0327
+    bundle: ters-cevir
+    tools:
+    - rev
+    - cut
+    konu: sunucu-loglari
+    hedef: ayikla
+    girdi: sabit-genislik
+    kaynak: tek-dosya
+    cikti: tek-sayi
+    kesif: dolayli-hedef
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: olcek
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

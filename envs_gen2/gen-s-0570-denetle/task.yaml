@@ -1,0 +1,82 @@
+id: gen-s-0570-denetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  girdi/olcumler.log dosyasını okuyup buradaki her sensör için, sensör adından türetilen bir alt dizin oluştur; her sensörün tekrar etmeyen ölçüm satırlarını kendi alt dizinindeki kayitlar.txt dosyasına yaz. Yani çıktı olarak cikti/A/kayitlar.txt, cikti/B/kayitlar.txt ve cikti/C/kayitlar.txt dosyaları oluşmalı; her dosyada yalnızca ilgili sensöre ait benzersiz ölçüm satırları bulunmalı.
+
+setup: |
+  mkdir -p girdi
+  cat > girdi/olcumler.log <<'LOG'
+  sensor A sicaklik 21
+  sensor B sicaklik 22
+  sensor A sicaklik 21
+  sensor C nem 40
+  sensor B sicaklik 22
+  sensor A nem 41
+  LOG
+
+goal_tr: >
+  girdi/olcumler.log icindeki her sensor icin, sensor adindan turetilen bir
+  alt dizin olusturup o sensorun tekrar etmeyen olcum satirlarini o
+  dizindeki kayitlar.txt dosyasina yaz.
+
+reference_solution: |
+  python3 - <<'PY'
+  import os
+  sensors = {}
+  with open('girdi/olcumler.log') as f:
+      for line in f:
+          line = line.rstrip('\n')
+          if not line:
+              continue
+          parts = line.split()
+          sensor = parts[1]
+          sensors.setdefault(sensor, set()).add(line)
+  for sensor, lines in sensors.items():
+      d = os.path.join('cikti', sensor)
+      os.makedirs(d, exist_ok=True)
+      with open(os.path.join(d, 'kayitlar.txt'), 'w') as out:
+          for line in sorted(lines):
+              out.write(line + '\n')
+  PY
+
+outputs:
+  - {path: cikti, kind: dir}
+  - {path: cikti/A/kayitlar.txt, kind: file}
+  - {path: cikti/B/kayitlar.txt, kind: file}
+  - {path: cikti/C/kayitlar.txt, kind: file}
+
+checks:
+  - {op: dir_entries_eq, path: cikti, value: [A, B, C]}
+  - {op: file_lines_eq, path: cikti/A/kayitlar.txt, value: [sensor A nem 41, sensor A sicaklik 21]}
+  - {op: file_content_eq, path: cikti/B/kayitlar.txt, value: sensor B sicaklik 22}
+  - {op: file_content_eq, path: cikti/C/kayitlar.txt, value: sensor C nem 40}
+
+metadata:
+  domain: denetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0570
+    bundle: python-veri
+    tools:
+    - python3
+    konu: sensor-olcumleri
+    hedef: denetle
+    girdi: log-satiri
+    kaynak: tek-dosya
+    cikti: dizin-yapisi
+    kesif: dolayli-hedef
+    uslup: duz-hedef
+    direnc: tekrar-eden-kayit
+    bukulme: yok
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

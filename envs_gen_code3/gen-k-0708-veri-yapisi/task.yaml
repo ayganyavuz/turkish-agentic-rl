@@ -1,0 +1,155 @@
+id: gen-k-0708-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 20
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  pricing/price_engine.py dosyasındaki PriceEngine sınıfını tamamlamanı istiyorum. reachable(start) metodu, start düğümünden ulaşılabilen tüm düğümleri (start dahil) içeren bir küme döndürmeli. cheapest_path(start, goal) metodu ise kenar faktörlerinin çarpımını en küçük yapan düğüm listesini (start ve goal dahil) döndürmeli; goal düğümüne ulaşılamıyorsa boş liste döndürmeli. Graf yapısı pricing/product_graph.py içindeki build_graph ve neighbors fonksiyonlarıyla kurulmuş durumda, sınıfın __init__ metodu bunu zaten kullanıyor.
+
+setup: |
+  mkdir -p pricing
+  cat > pricing/product_graph.py <<'GRAPH'
+  def build_graph(edges):
+      graph = {}
+      for src, dst, factor in edges:
+          graph.setdefault(src, []).append((dst, factor))
+      return graph
+
+
+  def neighbors(graph, node):
+      return graph.get(node, [])
+  GRAPH
+  cat > pricing/price_engine.py <<'ENGINE'
+  from pricing.product_graph import build_graph, neighbors
+
+
+  class PriceEngine:
+      def __init__(self, edges):
+          self.graph = build_graph(edges)
+
+      def reachable(self, start):
+          raise NotImplementedError
+
+      def cheapest_path(self, start, goal):
+          raise NotImplementedError
+  ENGINE
+  cat > catalog.txt <<'CAT'
+  A B 2.0
+  A C 5.0
+  B C 1.0
+  C D 3.0
+  B D 10.0
+  CAT
+
+goal_tr: >
+  pricing/price_engine.py icindeki PriceEngine sinifini tamamla:
+  reachable(start) baslangictan ulasilabilen tum dugumleri (baslangic dahil)
+  donen bir kume dondursun, cheapest_path(start, goal) ise kenar
+  faktorlerinin carpimini en kucuk yapan dugum listesini (baslangic ve hedef
+  dahil) dondursun; hedefe ulasilamiyorsa bos liste dondursun.
+
+reference_solution: |
+  cat > pricing/price_engine.py <<'ENGINE'
+  from pricing.product_graph import build_graph, neighbors
+
+
+  class PriceEngine:
+      def __init__(self, edges):
+          self.graph = build_graph(edges)
+
+      def reachable(self, start):
+          seen = {start}
+          stack = [start]
+          while stack:
+              node = stack.pop()
+              for dst, _factor in neighbors(self.graph, node):
+                  if dst not in seen:
+                      seen.add(dst)
+                      stack.append(dst)
+          return seen
+
+      def cheapest_path(self, start, goal):
+          if start == goal:
+              return [start]
+          best = None
+          best_cost = None
+          stack = [(start, [start], 1.0)]
+          while stack:
+              node, path, cost = stack.pop()
+              for dst, factor in neighbors(self.graph, node):
+                  if dst in path:
+                      continue
+                  new_cost = cost * factor
+                  if dst == goal:
+                      if best_cost is None or new_cost < best_cost:
+                          best_cost = new_cost
+                          best = path + [dst]
+                  else:
+                      stack.append((dst, path + [dst], new_cost))
+          return best if best is not None else []
+  ENGINE
+
+ara_adim: |
+  cat > pricing/price_engine.py <<'ENGINE'
+  from pricing.product_graph import build_graph, neighbors
+
+
+  class PriceEngine:
+      def __init__(self, edges):
+          self.graph = build_graph(edges)
+
+      def reachable(self, start):
+          seen = {start}
+          stack = [start]
+          while stack:
+              node = stack.pop()
+              for dst, _factor in neighbors(self.graph, node):
+                  if dst not in seen:
+                      seen.add(dst)
+                      stack.append(dst)
+          return seen
+
+      def cheapest_path(self, start, goal):
+          raise NotImplementedError
+  ENGINE
+
+outputs:
+  - {path: pricing/price_engine.py, kind: program, run: 'python3 -c ''from pricing.price_engine import PriceEngine as E; e=E([("A","B",2.0),("A","C",5.0),("B","C",1.0),("C","D",3.0),("B","D",10.0)]); assert e.cheapest_path("A","D")==["A","B","C","D"], e.cheapest_path("A","D"); assert e.cheapest_path("A","B")==["A","B"]; assert e.cheapest_path("D","A")==[]; print("TAMAM")'''}
+  - {path: pricing/price_engine.py, kind: program, run: 'python3 -c ''from pricing.price_engine import PriceEngine as E; e=E([("A","B",2.0),("A","C",5.0),("B","C",1.0),("C","D",3.0),("B","D",10.0)]); assert e.reachable("A")=={"A","B","C","D"}, e.reachable("A"); assert e.reachable("D")=={"D"}; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from pricing.price_engine import PriceEngine as E; e=E([("A","B",2.0),("A","C",5.0),("B","C",1.0),("C","D",3.0),("B","D",10.0)]); assert e.cheapest_path("A","D")==["A","B","C","D"], e.cheapest_path("A","D"); assert e.cheapest_path("A","B")==["A","B"]; assert e.cheapest_path("D","A")==[]; print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from pricing.price_engine import PriceEngine as E; e=E([("A","B",2.0),("A","C",5.0),("B","C",1.0),("C","D",3.0),("B","D",10.0)]); assert e.reachable("A")=={"A","B","C","D"}, e.reachable("A"); assert e.reachable("D")=={"D"}; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0708
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 7
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: graf-gezinme
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

@@ -1,0 +1,67 @@
+id: gen-s-0589-bol
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) /workspace dizinindeki kalemler.csv dosyasını incele; ilk satır başlık, sonraki satırlar veri satırlarıdır.
+
+  2) kalemler.csv içindeki başlık satırını atlayarak, kalan tüm veri satırlarını dosyadaki sırayı koruyarak ele al.
+
+  3) Her veri satırının son alanındaki tutar değerini, her satırda yalnızca bir tutar olacak şekilde tutarlar.txt dosyasına yaz.
+
+  4) tutarlar.txt dosyasını /workspace dizininde oluştur.
+
+setup: |
+  cat > kalemler.csv <<'CSV'
+  tarih,hesap,tutar
+  2024-01-03,kira,1500
+  2024-01-05,malzeme,300
+  2024-01-07,kira,1500
+  2024-01-09,personel,2200
+  2024-01-11,malzeme,450
+  2024-01-13,kira,1500
+  CSV
+
+goal_tr: >
+  kalemler.csv dosyasindaki veri satirlarini (baslik haric) dosyadaki sirayi
+  koruyarak, her satirin son alani olan tutar degerini tutarlar.txt
+  dosyasina birer satir olarak yaz
+
+reference_solution: |
+  head -n 1 kalemler.csv > /dev/null
+  tail -n +2 kalemler.csv | cut -d, -f3 > tutarlar.txt
+
+outputs:
+  - {path: tutarlar.txt, kind: lines}
+
+checks:
+  - {op: file_lines_eq, path: tutarlar.txt, value: ['1500', '300', '1500', '2200', '450', '1500']}
+
+metadata:
+  domain: bol
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0589
+    bundle: satir-araligi
+    tools:
+    - head
+    - tail
+    konu: muhasebe-kalemleri
+    hedef: bol
+    girdi: csv
+    kaynak: tek-dosya
+    cikti: satir-listesi
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: yok
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

@@ -1,0 +1,168 @@
+id: gen-k-1003-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Atölyedeki ağ izleme panosu yine eksik çıktı; bir kök düğümden tüm düğümlere olan mesafeleri elle hesaplamaktan yorulduk, bu yüzden küçük bir yardımcı sınıfa ihtiyacımız var. Mevcut Segment kayıtları ve RouteGraph zaten yerinde duruyor, üzerine önek tabanlı bir yönlendirici koymak istiyoruz.
+
+  routepack/net/prefix.py dosyasını yaz. İçine, RouteGraph üzerinde çalışan bir PrefixRouter sınıfı koy: bir kök düğümden başlayıp her düğüme en kısa mesafeyi hesaplasın, grafiği dataclass ile doğrulanan Segment kayıtlarından alsın, kenar ağırlıklarını kökten gelen önek toplamlarıyla biriktirsin. Sınıfın distances metodu mesafeleri sözlük olarak döndürsün, path metodu ise en kısa yolu liste olarak döndürsün.
+
+setup: |
+  mkdir -p routepack/core routepack/net
+  cat > routepack/core/segment.py <<'SEG'
+  from dataclasses import dataclass
+
+
+  @dataclass(frozen=True)
+  class Segment:
+      src: str
+      dst: str
+      cost: int
+  SEG
+  cat > routepack/net/graph.py <<'GRP'
+  from routepack.core.segment import Segment
+
+
+  class RouteGraph:
+      def __init__(self, segments):
+          self._edges = {}
+          for seg in segments:
+              self._edges.setdefault(seg.src, []).append(seg)
+
+      def neighbours(self, node):
+          return self._edges.get(node, [])
+  GRP
+  cat > routepack/net/loader.py <<'LDR'
+  from routepack.core.segment import Segment
+  from routepack.net.graph import RouteGraph
+
+
+  def load_graph(path):
+      segments = []
+      with open(path) as fh:
+          for line in fh:
+              line = line.strip()
+              if not line:
+                  continue
+              src, dst, cost = line.split(',')
+              segments.append(Segment(src, dst, int(cost)))
+      return RouteGraph(segments)
+  LDR
+  cat > net.txt <<'NET'
+  A,B,4
+  A,C,2
+  B,D,5
+  C,D,1
+  D,E,3
+  NET
+
+goal_tr: >
+  routepack/net/prefix.py dosyasini yaz: RouteGraph uzerinde bir kok
+  dugumden her dugume en kisa mesafeyi hesaplayan PrefixRouter sinifini
+  tanimla; sinif dataclass ile dogrulanan Segment kayitlarindan olusan
+  grafigi kullanmali, kenar agirliklarini kokten onek toplamlariyla
+  biriktirmeli ve mesafeleri sozluk donduren distances metodu ile en kisa
+  yolu liste donduren path metodu sunmali.
+
+reference_solution: |
+  cat > routepack/net/prefix.py <<'PREFIX'
+  import heapq
+  from dataclasses import dataclass
+
+
+  @dataclass(frozen=True)
+  class Reach:
+      node: str
+      total: int
+
+
+  class PrefixRouter:
+      def __init__(self, graph):
+          self._graph = graph
+          self._dist = {}
+          self._prev = {}
+          self._settle(graph)
+
+      def _settle(self, graph):
+          start = self._root(graph)
+          if start is None:
+              return
+          heap = [(0, start)]
+          self._dist[start] = 0
+          while heap:
+              total, node = heapq.heappop(heap)
+              if total > self._dist.get(node, total):
+                  continue
+              for seg in graph.neighbours(node):
+                  cand = total + seg.cost
+                  if cand < self._dist.get(seg.dst, float('inf')):
+                      self._dist[seg.dst] = cand
+                      self._prev[seg.dst] = node
+                      heapq.heappush(heap, (cand, seg.dst))
+
+      @staticmethod
+      def _root(graph):
+          nodes = set()
+          targets = set()
+          for src, edges in graph._edges.items():
+              nodes.add(src)
+              for seg in edges:
+                  targets.add(seg.dst)
+          roots = sorted(nodes - targets)
+          return roots[0] if roots else None
+
+      def distances(self):
+          return {Reach(node, total).node: total for node, total in self._dist.items()}
+
+      def path(self, target):
+          if target not in self._dist:
+              return []
+          chain = [target]
+          while chain[-1] in self._prev:
+              chain.append(self._prev[chain[-1]])
+          chain.reverse()
+          return chain
+  PREFIX
+
+outputs:
+  - {path: routepack/net/prefix.py, kind: program, run: 'python3 -c ''from routepack.net.loader import load_graph; from routepack.net.prefix import PrefixRouter; g=load_graph("net.txt"); r=PrefixRouter(g); assert r.distances()=={"A":0,"B":4,"C":2,"D":3,"E":6}, r.distances(); assert r.path("E")==["A","C","D","E"], r.path("E"); assert r.path("B")==["A","B"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from routepack.net.loader import load_graph; from routepack.net.prefix import PrefixRouter; g=load_graph("net.txt"); r=PrefixRouter(g); assert r.distances()=={"A":0,"B":4,"C":2,"D":3,"E":6}, r.distances(); assert r.path("E")==["A","C","D","E"], r.path("E"); assert r.path("B")==["A","B"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1003
+    bundle: yarisma
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: onek-toplam
+      karmasiklik: duz
+      kalip: dataclass-dogrulama
+      akis: cok-dosya-birlestirme
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

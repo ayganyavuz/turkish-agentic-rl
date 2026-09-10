@@ -1,0 +1,217 @@
+id: gen-k-0804-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  bank/queuecore.py içindeki MinHeap sınıfını tam olarak gerçekleştir; push, pop, peek ve __len__ metotları çalışsın. Aynı şekilde bank/ledger.py içindeki Ledger sınıfını da tam olarak gerçekleştir; deposit, withdraw, next_transaction ve pending_count metotları çalışsın. İşlemler öncelik kuyruğunda tutulsun ve her zaman küçük öncelik değerine sahip işlem önce çıksın; aynı öncelik değerine sahip işlemler arasında ise eklenme sırası, yani FIFO düzeni korunsun.
+
+setup: |
+  mkdir -p bank
+  cat > bank/queuecore.py <<'QUEUECORE'
+  class MinHeap:
+      def __init__(self):
+          self._items = []
+
+      def push(self, priority, value):
+          raise NotImplementedError
+
+      def pop(self):
+          raise NotImplementedError
+
+      def peek(self):
+          raise NotImplementedError
+
+      def __len__(self):
+          raise NotImplementedError
+  QUEUECORE
+  cat > bank/ledger.py <<'LEDGER'
+  from bank.queuecore import MinHeap
+
+
+  class Ledger:
+      def __init__(self):
+          self._heap = MinHeap()
+
+      def deposit(self, tx_id, amount):
+          raise NotImplementedError
+
+      def withdraw(self, tx_id, amount):
+          raise NotImplementedError
+
+      def next_transaction(self):
+          raise NotImplementedError
+
+      def pending_count(self):
+          raise NotImplementedError
+  LEDGER
+
+goal_tr: >
+  bank/queuecore.py icindeki MinHeap sinifini (push, pop, peek, __len__) ve
+  bank/ledger.py icindeki Ledger sinifini (deposit, withdraw,
+  next_transaction, pending_count) tam olarak gerceklestir; islemler oncelik
+  kuyrugunda kucuk oncelik degeri once cikacak sekilde tutulsun ve ayni
+  oncelikte ekleme sirasi (FIFO) korunsun.
+
+reference_solution: |
+  cat > bank/queuecore.py <<'QUEUECORE'
+  class MinHeap:
+      def __init__(self):
+          self._items = []
+          self._counter = 0
+
+      def push(self, priority, value):
+          entry = (priority, self._counter, value)
+          self._counter += 1
+          self._items.append(entry)
+          i = len(self._items) - 1
+          while i > 0:
+              parent = (i - 1) // 2
+              if self._items[parent] <= self._items[i]:
+                  break
+              self._items[parent], self._items[i] = self._items[i], self._items[parent]
+              i = parent
+
+      def pop(self):
+          if not self._items:
+              raise IndexError("pop from empty heap")
+          top = self._items[0]
+          last = self._items.pop()
+          if self._items:
+              self._items[0] = last
+              i = 0
+              n = len(self._items)
+              while True:
+                  left = 2 * i + 1
+                  right = 2 * i + 2
+                  smallest = i
+                  if left < n and self._items[left] < self._items[smallest]:
+                      smallest = left
+                  if right < n and self._items[right] < self._items[smallest]:
+                      smallest = right
+                  if smallest == i:
+                      break
+                  self._items[i], self._items[smallest] = self._items[smallest], self._items[i]
+                  i = smallest
+          return top[2]
+
+      def peek(self):
+          if not self._items:
+              raise IndexError("peek from empty heap")
+          return self._items[0][2]
+
+      def __len__(self):
+          return len(self._items)
+  QUEUECORE
+  cat > bank/ledger.py <<'LEDGER'
+  from bank.queuecore import MinHeap
+
+
+  class Ledger:
+      def __init__(self):
+          self._heap = MinHeap()
+
+      def deposit(self, tx_id, amount):
+          self._heap.push(amount, tx_id)
+
+      def withdraw(self, tx_id, amount):
+          self._heap.push(amount, tx_id)
+
+      def next_transaction(self):
+          return self._heap.pop()
+
+      def pending_count(self):
+          return len(self._heap)
+  LEDGER
+
+ara_adim: |
+  cat > bank/queuecore.py <<'QUEUECORE'
+  class MinHeap:
+      def __init__(self):
+          self._items = []
+          self._counter = 0
+
+      def push(self, priority, value):
+          entry = (priority, self._counter, value)
+          self._counter += 1
+          self._items.append(entry)
+          i = len(self._items) - 1
+          while i > 0:
+              parent = (i - 1) // 2
+              if self._items[parent] <= self._items[i]:
+                  break
+              self._items[parent], self._items[i] = self._items[i], self._items[parent]
+              i = parent
+
+      def pop(self):
+          if not self._items:
+              raise IndexError("pop from empty heap")
+          top = self._items[0]
+          last = self._items.pop()
+          if self._items:
+              self._items[0] = last
+              i = 0
+              n = len(self._items)
+              while True:
+                  left = 2 * i + 1
+                  right = 2 * i + 2
+                  smallest = i
+                  if left < n and self._items[left] < self._items[smallest]:
+                      smallest = left
+                  if right < n and self._items[right] < self._items[smallest]:
+                      smallest = right
+                  if smallest == i:
+                      break
+                  self._items[i], self._items[smallest] = self._items[smallest], self._items[i]
+                  i = smallest
+          return top[2]
+
+      def peek(self):
+          if not self._items:
+              raise IndexError("peek from empty heap")
+          return self._items[0][2]
+
+      def __len__(self):
+          return len(self._items)
+  QUEUECORE
+
+outputs:
+  - {path: bank/ledger.py, kind: program, run: 'python3 -c ''from bank.ledger import Ledger as L; g=L(); g.deposit("t1",5); g.deposit("t2",1); g.deposit("t3",3); assert g.pending_count()==3; assert g.next_transaction()=="t2"; assert g.next_transaction()=="t3"; assert g.next_transaction()=="t1"; print("TAMAM")'''}
+  - {path: bank/queuecore.py, kind: program, run: 'python3 -c ''from bank.queuecore import MinHeap as H; h=H(); h.push(2,"a"); h.push(2,"b"); h.push(1,"c"); assert h.peek()=="c"; assert len(h)==3; assert h.pop()=="c"; assert h.pop()=="a"; assert h.pop()=="b"; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bank.ledger import Ledger as L; g=L(); g.deposit("t1",5); g.deposit("t2",1); g.deposit("t3",3); assert g.pending_count()==3; assert g.next_transaction()=="t2"; assert g.next_transaction()=="t3"; assert g.next_transaction()=="t1"; print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from bank.queuecore import MinHeap as H; h=H(); h.push(2,"a"); h.push(2,"b"); h.push(1,"c"); assert h.peek()=="c"; assert len(h)==3; assert h.pop()=="c"; assert h.pop()=="a"; assert h.pop()=="b"; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0804
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: banka-hareketleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: oncelik-kuyrugu
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

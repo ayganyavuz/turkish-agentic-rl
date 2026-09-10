@@ -1,0 +1,101 @@
+id: gen-k-0510-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  planner/events.py dosyasındaki make_event ve clone_event fonksiyonlarını, çağrılar arasında paylaşılan değiştirilebilir varsayılan değer kullanmayacak biçimde düzelt. Böylece bir etkinliğe eklenen etiketler başka etkinliklere sızmasın. planner/agenda.py ve check_agenda.py dosyalarındaki mevcut davranış korunmalı.
+
+setup: |
+  mkdir -p planner
+  cat > planner/events.py <<'EVENTS'
+  def make_event(title, day, tags=None):
+      return {"title": title, "day": day, "tags": tags}
+
+
+  def clone_event(event, extra_tags=[]):
+      tags = list(event["tags"]) if event["tags"] else []
+      tags.extend(extra_tags)
+      return {"title": event["title"], "day": event["day"], "tags": tags}
+  EVENTS
+  cat > planner/agenda.py <<'AGENDA'
+  from planner.events import make_event, clone_event
+
+
+  def build_week(titles):
+      week = []
+      for index, title in enumerate(titles):
+          day = index + 1
+          event = make_event(title, day)
+          week.append(event)
+      return week
+
+
+  def add_recurring(week, title, days):
+      recurring = make_event(title, days[0])
+      for day in days:
+          copy = clone_event(recurring)
+          copy["day"] = day
+          week.append(copy)
+      return week
+  AGENDA
+  cat > check_agenda.py <<'CHECK'
+  from planner.agenda import build_week, add_recurring
+
+  week = build_week(["standup", "review"])
+  add_recurring(week, "sync", [2, 4])
+  print(week)
+  CHECK
+
+goal_tr: >
+  planner/events.py icindeki make_event ve clone_event fonksiyonlarini,
+  cagrilar arasinda paylasilan degistirilebilir varsayilan deger
+  kullanmayacak bicimde duzelt; boylece bir etkinlige eklenen etiketler
+  baska etkinliklere sizmasin.
+
+reference_solution: |
+  cat > planner/events.py <<'EVENTS'
+  def make_event(title, day, tags=None):
+      return {"title": title, "day": day, "tags": list(tags) if tags else []}
+
+
+  def clone_event(event, extra_tags=None):
+      tags = list(event["tags"]) if event["tags"] else []
+      if extra_tags:
+          tags.extend(extra_tags)
+      return {"title": event["title"], "day": event["day"], "tags": tags}
+  EVENTS
+
+outputs:
+  - {path: planner/events.py, kind: program, run: 'python3 -c ''from planner.events import make_event as m, clone_event as c; a=m("a",1); b=m("b",2); a["tags"].append("x"); assert b["tags"]==[], b["tags"]; assert m("c",3)["tags"]==[]; e=m("d",4,["p"]); f=c(e); f["tags"].append("q"); assert e["tags"]==["p"], e["tags"]; g=c(e); h=c(e,["r"]); assert g["tags"]==["p"], g["tags"]; assert h["tags"]==["p","r"], h["tags"]; assert c(e)["tags"]==["p"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from planner.events import make_event as m, clone_event as c; a=m("a",1); b=m("b",2); a["tags"].append("x"); assert b["tags"]==[], b["tags"]; assert m("c",3)["tags"]==[]; e=m("d",4,["p"]); f=c(e); f["tags"].append("q"); assert e["tags"]==["p"], e["tags"]; g=c(e); h=c(e,["r"]); assert g["tags"]==["p"], g["tags"]; assert h["tags"]==["p","r"], h["tags"]; assert c(e)["tags"]==["p"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0510
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: mutable-varsayilan

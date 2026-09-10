@@ -1,0 +1,76 @@
+id: gen-s-0574-yeniden-duzenle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  olcumler klasöründeki .ini dosyalarında geçen benzersiz okuma değerlerinin toplamını hesapla; yedek klasöründeki dosyaları hesaba katma. Sonucu sonuc.txt dosyasına yalnızca sayı olarak yaz.
+
+setup: |
+  mkdir -p olcumler yedek
+  cat > olcumler/sensor_a.ini <<'INI'
+  [sensor]
+  id=A
+  okuma=12
+  okuma=12
+  okuma=15
+  okuma=18
+  INI
+  cat > olcumler/sensor_b.ini <<'INI'
+  [sensor]
+  id=B
+  okuma=12
+  okuma=20
+  okuma=20
+  okuma=7
+  INI
+  cat > yedek/sensor_a.ini <<'INI'
+  [sensor]
+  id=A
+  okuma=999
+  okuma=999
+  okuma=999
+  okuma=999
+  INI
+
+goal_tr: >
+  olcumler klasorundeki .ini dosyalarinda gecen benzersiz okuma degerlerinin
+  toplamini, yedek klasorundeki dosyalari saymadan, sonuc.txt dosyasina
+  sadece sayi olarak yaz.
+
+reference_solution: |
+  find olcumler -type f -name '*.ini' -print0 | xargs -0 grep -h '^okuma=' | cut -d= -f2 | sort -u | awk '{s+=$1} END {print s}' > sonuc.txt
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '72'}
+
+metadata:
+  domain: yeniden-duzenle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0574
+    bundle: bul-tasi
+    tools:
+    - find
+    - xargs
+    konu: sensor-olcumleri
+    hedef: yeniden-duzenle
+    girdi: ini
+    kaynak: iki-dosya-capraz
+    cikti: tek-sayi
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: tekrar-eden-kayit
+    bukulme: tuzak-dosya
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

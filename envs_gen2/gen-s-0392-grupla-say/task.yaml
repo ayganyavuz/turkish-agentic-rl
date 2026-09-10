@@ -1,0 +1,68 @@
+id: gen-s-0392-grupla-say
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  defter klasöründeki tüm .txt dosyalarındaki satis türündeki kalemlerin tutarlarını topla, sonucu tek sayı olarak toplam.txt dosyasına yaz.
+
+setup: |
+  mkdir -p defter
+  cat > defter/ocak.txt <<'K'
+  1001 1200 satis
+  1002  300 iade
+  1003  450 satis
+  K
+  cat > defter/subat.txt <<'K'
+  2001  900 iade
+  2002 1500 satis
+  K
+  cat > defter/mart.txt <<'K'
+  3001  700 satis
+  3002  250 iade
+  3003 1800 satis
+  3004  600 satis
+  K
+  : > defter/nisan.txt
+
+goal_tr: >
+  defter klasorundeki her .txt dosyasinda satis turundeki kalemleri bulup,
+  tum dosyalardaki satis kalemlerinin toplam tutarini tek sayi olarak
+  toplam.txt dosyasina yaz.
+
+reference_solution: |
+  find defter -name '*.txt' -type f | sort | xargs grep -h ' satis$' defter/*.txt 2>/dev/null | awk '{s+=$2} END {print s+0}' > toplam.txt
+
+outputs:
+  - {path: toplam.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: toplam.txt, value: '12500'}
+
+metadata:
+  domain: grupla-say
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0392
+    bundle: cok-dosya-ara
+    tools:
+    - xargs
+    - grep
+    konu: muhasebe-kalemleri
+    hedef: grupla-say
+    girdi: sabit-genislik
+    kaynak: cok-dosya
+    cikti: tek-sayi
+    kesif: yok
+    uslup: terse
+    direnc: bos-dosya
+    bukulme: olcek
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

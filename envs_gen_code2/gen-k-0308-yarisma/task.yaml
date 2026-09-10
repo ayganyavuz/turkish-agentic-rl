@@ -1,0 +1,113 @@
+id: gen-k-0308-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) sensor/report.py dosyasını sıfırdan oluştur; içinde load_series ile okunan kayıtları kullanarak her sensör adı için en uzun kesintisiz artan değer serisinin uzunluğunu hesaplayan en_uzun_seri fonksiyonu bulunsun.
+
+  2) en_uzun_seri fonksiyonu, döndürdüğü sözlükte sensör adlarını alfabetik sıralı olarak içersin; her sensör adı için değer, o sensörün en uzun kesintisiz artan değer serisinin uzunluğu olsun.
+
+setup: |
+  mkdir -p sensor
+  cat > sensor/lexer.py <<'LEX'
+  def tokenize(line):
+      """Split a raw log line into (name, value) fields.
+
+      Fields are separated by ';'. Each field is 'name=value'. Names may
+      contain letters, digits and underscores. Values are numeric.
+      Leading/trailing spaces around name and value are stripped.
+      Empty fields (from trailing ';') are ignored.
+      """
+      fields = []
+      for chunk in line.split(';'):
+          if chunk == '':
+              continue
+          name, value = chunk.split('=')
+          fields.append((name.strip(), float(value.strip())))
+      return fields
+  LEX
+  cat > sensor/stream.py <<'STREAM'
+  from sensor.lexer import tokenize
+
+
+  def load_series(text):
+      """Parse a multi-line sensor dump into a list of records.
+
+      Each non-empty line is 'timestamp:field;field;...'. Returns a list
+      of (timestamp, {name: value}) tuples in file order.
+      """
+      records = []
+      for line in text.splitlines():
+          line = line.strip()
+          if not line:
+              continue
+          stamp, rest = line.split(':', 1)
+          records.append((int(stamp), dict(tokenize(rest))))
+      return records
+  STREAM
+  cat > readings.txt <<'DATA'
+  100:temp=21.5;hum=40.0;
+  101:temp=22.0;hum=41.5;wind=3.2
+  102:temp=19.5;hum=39.0
+  103:temp=23.0;wind=2.0
+  DATA
+
+goal_tr: >
+  sensor/report.py dosyasini sifirdan yaz: load_series ile okunan
+  kayitlardan, her sensor adi icin en uzun kesintisiz artan deger serisinin
+  uzunlugunu, adi alfabetik sirali bir sozluk olarak donduren en_uzun_seri
+  fonksiyonunu icersin.
+
+reference_solution: |
+  cat > sensor/report.py <<'REPORT'
+  from sensor.stream import load_series
+
+
+  def en_uzun_seri(text):
+      records = load_series(text)
+      best = {}
+      for _, fields in records:
+          for name, value in fields.items():
+              run, prev = best.get(name, (0, None))
+              if prev is not None and value > prev:
+                  run += 1
+              else:
+                  run = 1
+              best[name] = (run, value)
+      return {name: run for name, (run, _) in sorted(best.items())}
+  REPORT
+
+outputs:
+  - {path: sensor/report.py, kind: program, run: 'python3 -c ''from sensor.report import en_uzun_seri as f; assert f("")=={}, f(""); assert f("1:x=1\n2:x=2\n3:x=3\n")=={"x":3}; assert f("1:x=5\n2:x=4\n3:x=3\n")=={"x":1}; assert f("1:a=1\n2:a=9\n3:a=2\n4:a=3\n5:a=4\n")=={"a":3}; assert f("1:b=1;c=9\n2:b=2;c=1\n3:b=3;c=5\n")=={"b":3,"c":2}; assert f("1:z=5\n2:z=5\n")=={"z":1}; assert f("1:m=1\n2:m=2\n3:n=0\n4:m=3\n5:n=1\n")=={"m":3,"n":2}; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor.report import en_uzun_seri as f; assert f("")=={}, f(""); assert f("1:x=1\n2:x=2\n3:x=3\n")=={"x":3}; assert f("1:x=5\n2:x=4\n3:x=3\n")=={"x":1}; assert f("1:a=1\n2:a=9\n3:a=2\n4:a=3\n5:a=4\n")=={"a":3}; assert f("1:b=1;c=9\n2:b=2;c=1\n3:b=3;c=5\n")=={"b":3,"c":2}; assert f("1:z=5\n2:z=5\n")=={"z":1}; assert f("1:m=1\n2:m=2\n3:n=0\n4:m=3\n5:n=1\n")=={"m":3,"n":2}; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0308
+    bundle: yarisma
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: metin-ayristirma

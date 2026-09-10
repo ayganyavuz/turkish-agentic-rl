@@ -1,0 +1,71 @@
+id: gen-s-0331-grupla-say
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  randevular.txt ve doktorlar.txt dosyalarındaki bilgileri bölüm bazında birleştirerek her bölüm için randevu sayısını ve o bölümün doktorunu, bölüm adına göre artan sırada gösteren bir randevu_ozet.csv dosyası oluştur. Bu dosyanın ilk satırı başlık olarak bölüm,randevu,doktor biçiminde olsun; sonraki her satırda bir bölüm yer alsın.
+
+setup: |
+  cat > randevular.txt <<'DATA'
+  AHMET|2024-03-01|kardiyoloji
+  AYSE|2024-03-01|noroloji
+  AHMET|2024-03-02|kardiyoloji
+  MEHMET|2024-03-02|ortopedi
+  AYSE|2024-03-03|noroloji
+  FATMA|2024-03-03|kardiyoloji
+  MEHMET|2024-03-04|ortopedi
+  AHMET|2024-03-04|noroloji
+  FATMA|2024-03-05|kardiyoloji
+  DATA
+  cat > doktorlar.txt <<'DATA'
+  kardiyoloji|DR_KAYA
+  noroloji|DR_DEMIR
+  ortopedi|DR_OZ
+  DATA
+
+goal_tr: >
+  randevular.txt ve doktorlar.txt dosyalarini bolum bazinda birlestirip her
+  bolum icin randevu sayisini ve o bolumun doktorunu, bolum adina gore artan
+  sirada, baslik satiri bolum,randevu,doktor olan randevu_ozet.csv dosyasina
+  yaz
+
+reference_solution: |
+  join -t'|' -1 3 -2 1 <(sort -t'|' -k3 randevular.txt) <(sort -t'|' -k1 doktorlar.txt) | cut -d'|' -f3 > birlesik.txt
+  grep -o '^[^|]*' birlesik.txt | sort | uniq -c | awk '{print $2","$1","}' > sayim.txt
+  wc -l < randevular.txt > /dev/null
+  join -t',' -1 1 -2 1 sayim.txt <(sort -t'|' -k1 doktorlar.txt | sed 's/|/,/') | cut -d',' -f1,2,3 | (echo "bolum,randevu,doktor"; cat) > randevu_ozet.csv
+
+outputs:
+  - {path: randevu_ozet.csv, kind: file}
+
+checks:
+  - {op: file_content_eq, path: randevu_ozet.csv, value: 'bolum,randevu,doktor'}
+
+metadata:
+  domain: grupla-say
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0331
+    bundle: say
+    tools:
+    - grep
+    - wc
+    konu: hastane-randevulari
+    hedef: grupla-say
+    girdi: duz-metin
+    kaynak: iki-dosya-capraz
+    cikti: csv
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: yok
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

@@ -1,0 +1,105 @@
+id: gen-k-0330-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  sensor/stats.py dosyasındaki mean_series ve peak_to_peak fonksiyonlarını düzelt. Şu an bu fonksiyonlar hiç ölçüm satırı olmayan bir girdiyle çağrıldığında, yani girdi boş olduğunda ya da yalnızca boş satırlardan oluştuğunda çöküyor. Bu durumda çökmek yerine mean_series 0.0, peak_to_peak de 0.0 döndürsün. Davranış diğer tüm girdilerde aynı kalsın.
+
+setup: |
+  mkdir -p sensor
+  cat > sensor/reader.py <<'READER'
+  def parse_series(text):
+      rows = []
+      for line in text.splitlines():
+          line = line.strip()
+          if not line:
+              continue
+          ts, value = line.split(',')
+          rows.append((int(ts), float(value)))
+      return rows
+  READER
+  cat > sensor/stats.py <<'STATS'
+  from sensor.reader import parse_series
+
+
+  def mean_series(text):
+      rows = parse_series(text)
+      total = 0.0
+      for _, value in rows:
+          total += value
+      return total / len(rows)
+
+
+  def peak_to_peak(text):
+      rows = parse_series(text)
+      values = [value for _, value in rows]
+      return max(values) - min(values)
+  STATS
+  cat > data.csv <<'CSV'
+  10,2.0
+  20,4.0
+  30,6.0
+  CSV
+
+goal_tr: >
+  sensor/stats.py icindeki mean_series ve peak_to_peak fonksiyonlarini, hic
+  olcum satiri olmayan (bos veya yalnizca bos satirlardan olusan) girdide
+  cokme yerine sirasiyla 0.0 ve 0.0 dondurecek bicimde duzelt
+
+reference_solution: |
+  cat > sensor/stats.py <<'STATS'
+  from sensor.reader import parse_series
+
+
+  def mean_series(text):
+      rows = parse_series(text)
+      if not rows:
+          return 0.0
+      total = 0.0
+      for _, value in rows:
+          total += value
+      return total / len(rows)
+
+
+  def peak_to_peak(text):
+      rows = parse_series(text)
+      if not rows:
+          return 0.0
+      values = [value for _, value in rows]
+      return max(values) - min(values)
+  STATS
+
+outputs:
+  - {path: sensor/stats.py, kind: program, run: 'python3 -c ''from sensor.stats import mean_series as m, peak_to_peak as p; t=open("data.csv").read(); assert m(t)==4.0, m(t); assert p(t)==4.0, p(t); assert m("")==0.0, m(""); assert p("")==0.0, p(""); assert m("\n  \n\n")==0.0, m("\n  \n\n"); assert p("\n  \n\n")==0.0, p("\n  \n\n"); assert m("5,3.0\n")==3.0, m("5,3.0\n"); assert p("5,3.0\n")==0.0, p("5,3.0\n"); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sensor.stats import mean_series as m, peak_to_peak as p; t=open("data.csv").read(); assert m(t)==4.0, m(t); assert p(t)==4.0, p(t); assert m("")==0.0, m(""); assert p("")==0.0, p(""); assert m("\n  \n\n")==0.0, m("\n  \n\n"); assert p("\n  \n\n")==0.0, p("\n  \n\n"); assert m("5,3.0\n")==3.0, m("5,3.0\n"); assert p("5,3.0\n")==0.0, p("5,3.0\n"); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0330
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: sensor-serisi
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum

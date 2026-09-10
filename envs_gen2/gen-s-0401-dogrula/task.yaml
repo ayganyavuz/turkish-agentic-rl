@@ -1,0 +1,74 @@
+id: gen-s-0401-dogrula
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) /workspace dizinindeki beklenen.csv ve gelen.csv dosyalarını satır satır karşılaştır.
+
+  2) Yalnızca bu iki dosyadan birinde bulunan satırların sayısını bul.
+
+  3) Bu sayıyı sonuc.txt dosyasına yalnızca sayı olarak yaz.
+
+setup: |
+  cat > beklenen.csv <<'CSV'
+  sehir,tarih,sicaklik
+  ankara,2024-01-01,5
+  istanbul,2024-01-01,9
+  izmir,2024-01-01,14
+  ankara,2024-01-02,4
+  istanbul,2024-01-02,10
+  CSV
+
+  cat > gelen.csv <<'CSV'
+  sehir,tarih,sicaklik
+  ankara,2024-01-01,5
+  istanbul,2024-01-01,9
+  izmir,2024-01-01,13
+  ankara,2024-01-02,4
+  istanbul,2024-01-02,10
+  CSV
+
+goal_tr: >
+  beklenen.csv ile gelen.csv dosyalarindaki satirlari karsilastirip yalnizca
+  birinde bulunan satir sayisini sonuc.txt'ye sadece sayi olarak yaz
+
+reference_solution: |
+  sort beklenen.csv > b.srt
+  sort gelen.csv > g.srt
+  comm -3 b.srt g.srt > fark.txt
+  diff b.srt g.srt | grep -c '^[<>]' > sonuc.txt || true
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '2'}
+
+metadata:
+  domain: dogrula
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0401
+    bundle: karsilastir
+    tools:
+    - diff
+    - comm
+    konu: hava-durumu-kayitlari
+    hedef: dogrula
+    girdi: csv
+    kaynak: iki-dosya-capraz
+    cikti: tek-sayi
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: yok
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

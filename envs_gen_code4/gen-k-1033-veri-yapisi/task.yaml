@@ -1,0 +1,140 @@
+id: gen-k-1033-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  loaner/core/merge.py dosyasındaki merge_intervals fonksiyonunu düzelt. Fonksiyon, iç içe geçmiş veya birbirine değerek çakışan aralıkları en küçük sayıda aralığa indirgemeli ve sonucu başlangıca göre artan sırada döndürmeli. Aralıkların başlangıç ve bitiş değerleri değişmemeli; sadece çakışanlar birleştirilmeli.
+
+setup: |
+  mkdir -p loaner/core loaner/app
+  cat > loaner/core/__init__.py <<'PY'
+  PY
+  cat > loaner/app/__init__.py <<'PY'
+  PY
+  cat > loaner/core/interval.py <<'PY'
+  from dataclasses import dataclass
+
+
+  @dataclass(frozen=True)
+  class Interval:
+      """Half-open interval [start, end)."""
+
+      start: int
+      end: int
+
+      def __post_init__(self):
+          if self.start > self.end:
+              raise ValueError("start must not exceed end")
+  PY
+  cat > loaner/core/merge.py <<'PY'
+  from loaner.core.interval import Interval
+
+
+  def merge_intervals(intervals):
+      """Merge overlapping/touching intervals into a minimal sorted list."""
+      ordered = sorted(intervals, key=lambda iv: (iv.start, iv.end))
+      merged = []
+      for iv in ordered:
+          if merged and merged[-1].end >= iv.start:
+              last = merged[-1]
+              merged[-1] = Interval(last.start, iv.end)
+          else:
+              merged.append(Interval(iv.start, iv.end))
+      return merged
+  PY
+  cat > loaner/app/reader.py <<'PY'
+  import sys
+
+  from loaner.core.interval import Interval
+
+
+  def parse_stream(stream):
+      """Read lines 'start end' from a text stream into Interval objects."""
+      intervals = []
+      for line in stream:
+          line = line.strip()
+          if not line:
+              continue
+          left, right = line.split()
+          intervals.append(Interval(int(left), int(right)))
+      return intervals
+
+
+  def read_stdin():
+      return parse_stream(sys.stdin)
+  PY
+  cat > loaner/app/report.py <<'PY'
+  from loaner.core.merge import merge_intervals
+
+
+  def summarize(intervals):
+      """Return merged intervals as a list of (start, end) tuples."""
+      return [(iv.start, iv.end) for iv in merge_intervals(intervals)]
+  PY
+
+goal_tr: >
+  loaner/core/merge.py icindeki merge_intervals fonksiyonunu, ic ice gecmis
+  veya birbirine degerek cakisan araliklari en kucuk sayida araliga
+  indirecek ve sonucu baslangica gore artan sirada dondurecek bicimde
+  duzelt.
+
+reference_solution: |
+  cat > loaner/core/merge.py <<'PY'
+  from loaner.core.interval import Interval
+
+
+  def merge_intervals(intervals):
+      """Merge overlapping/touching intervals into a minimal sorted list."""
+      ordered = sorted(intervals, key=lambda iv: (iv.start, iv.end))
+      merged = []
+      for iv in ordered:
+          if merged and merged[-1].end >= iv.start:
+              last = merged[-1]
+              merged[-1] = Interval(last.start, max(last.end, iv.end))
+          else:
+              merged.append(Interval(iv.start, iv.end))
+      return merged
+  PY
+
+outputs:
+  - {path: loaner/core/merge.py, kind: program, run: 'python3 -c ''import io; from loaner.app.reader import parse_stream; from loaner.app.report import summarize; s="1 4\n3 6\n8 9\n8 10\n12 12\n"; r=summarize(parse_stream(io.StringIO(s))); assert r==[(1,6),(8,10),(12,12)], r; s2="5 5\n5 7\n2 3\n"; r2=summarize(parse_stream(io.StringIO(s2))); assert r2==[(2,3),(5,7)], r2; s3="1 10\n2 3\n4 5\n"; r3=summarize(parse_stream(io.StringIO(s3))); assert r3==[(1,10)], r3; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import io; from loaner.app.reader import parse_stream; from loaner.app.report import summarize; s="1 4\n3 6\n8 9\n8 10\n12 12\n"; r=summarize(parse_stream(io.StringIO(s))); assert r==[(1,6),(8,10),(12,12)], r; s2="5 5\n5 7\n2 3\n"; r2=summarize(parse_stream(io.StringIO(s2))); assert r2==[(2,3),(5,7)], r2; s3="1 10\n2 3\n4 5\n"; r3=summarize(parse_stream(io.StringIO(s3))); assert r3==[(1,10)], r3; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1033
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: kutuphane-oduncleri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: aralik-birlestirme
+      karmasiklik: duz
+      kalip: dataclass-dogrulama
+      akis: stdin-boru
+      topoloji: paket-alt-paket
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

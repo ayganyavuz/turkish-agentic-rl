@@ -1,0 +1,103 @@
+id: gen-s-0305-denetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  "urun yorumlari" dizinindeki ayarlar.ini dosyasını oku. Bu dosyadaki her [urun] bölümü için ayrı bir denetim dosyası oluştur: birinci bölüm urun1.txt, ikinci bölüm urun2.txt, üçüncü bölüm urun3.txt olsun ve hepsi "urun yorumlari" dizinine kaydedilsin. Her dosyanın içinde o bölümdeki ad, puan ve yorum değerleri tek satırda "ad=<ad>,puan=<puan>,yorum=<yorum>" biçiminde yazılsın. "urun yorumlari" dizinindeki ayarlar.ini.yedek dosyası yok sayılsın; ondan hiçbir kayıt işlenmesin.
+
+  Şu şartlar sağlanmalı:
+  - "urun yorumlari" dizininde urun1.txt, urun2.txt ve urun3.txt adlı üç dosya bulunmalı.
+  - urun1.txt içeriği tek satır olmalı ve ad=Kirmizi Ceket,puan=4,yorum=Kaliteli kumas ama beden biraz dar biçiminde olmalı.
+  - urun2.txt içeriği tek satır olmalı ve ad=Mavi Gomlek,puan=2,yorum=Renk resimdeki gibi degil biçiminde olmalı.
+  - urun3.txt içeriği tek satır olmalı ve ad=Yesil Pantolon,puan=5,yorum=Cok rahat, tavsiye ederim biçiminde olmalı.
+  - ayarlar.ini.yedek dosyasındaki Sahte Kayit hiçbir denetim dosyasına yazılmamalı.
+  - Her denetim dosyasında yalnızca ilgili [urun] bölümünün ad, puan ve yorum değerleri yer almalı; başka bölümlerin değerleri karışmamalı.
+
+setup: |
+  mkdir -p "urun yorumlari"
+  cat > "urun yorumlari/ayarlar.ini" <<'INI'
+  [urun]
+  ad=Kirmizi Ceket
+  puan=4
+  yorum=Kaliteli kumas ama beden biraz dar
+  [urun]
+  ad=Mavi Gomlek
+  puan=2
+  yorum=Renk resimdeki gibi degil
+  [urun]
+  ad=Yesil Pantolon
+  puan=5
+  yorum=Cok rahat, tavsiye ederim
+  INI
+  cat > "urun yorumlari/ayarlar.ini.yedek" <<'INI'
+  [urun]
+  ad=Sahte Kayit
+  puan=1
+  yorum=Bu dosya yok sayilmali
+  INI
+
+goal_tr: >
+  "urun yorumlari" dizinindeki ayarlar.ini dosyasindaki her [urun] bolumunu
+  ayri bir denetim dosyasina yaz; ad degeri ad, puan degeri puan, yorum
+  degeri yorum olarak "ad=<ad>,puan=<puan>,yorum=<yorum>" biciminde tek
+  satirda, dosya adlari urun1.txt, urun2.txt, urun3.txt olsun ve ayni dizine
+  kaydedilsin.
+
+reference_solution: |
+  python3 - <<'PY'
+  import os, re
+  d = "urun yorumlari"
+  src = os.path.join(d, "ayarlar.ini")
+  with open(src, "r", encoding="utf-8") as f:
+      text = f.read()
+  blocks = [b for b in re.split(r'(?m)^\[urun\]\s*$', text) if b.strip()]
+  for i, b in enumerate(blocks, 1):
+      vals = {}
+      for line in b.splitlines():
+          line = line.strip()
+          if not line or "=" not in line:
+              continue
+          k, v = line.split("=", 1)
+          vals[k.strip()] = v.strip()
+      out = "ad=%s,puan=%s,yorum=%s" % (vals["ad"], vals["puan"], vals["yorum"])
+      with open(os.path.join(d, "urun%d.txt" % i), "w", encoding="utf-8") as g:
+          g.write(out + "\n")
+  PY
+
+outputs:
+  - {path: urun yorumlari/urun1.txt, kind: file}
+  - {path: urun yorumlari/urun2.txt, kind: file}
+  - {path: urun yorumlari/urun3.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: urun yorumlari/urun1.txt, value: 'ad=Kirmizi Ceket,puan=4,yorum=Kaliteli kumas ama beden biraz dar'}
+  - {op: file_content_eq, path: urun yorumlari/urun2.txt, value: 'ad=Mavi Gomlek,puan=2,yorum=Renk resimdeki gibi degil'}
+  - {op: file_content_eq, path: urun yorumlari/urun3.txt, value: 'ad=Yesil Pantolon,puan=5,yorum=Cok rahat, tavsiye ederim'}
+
+metadata:
+  domain: denetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0305
+    bundle: python-veri
+    tools:
+    - python3
+    konu: urun-yorumlari
+    hedef: denetle
+    girdi: ini
+    kaynak: tek-dosya
+    cikti: birden-cok-dosya
+    kesif: dolayli-hedef
+    uslup: kabul-kriteri
+    direnc: bosluklu-ad
+    bukulme: tuzak-dosya
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

@@ -1,0 +1,72 @@
+id: gen-s-0563-denetle
+split: single_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 8
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  randevular klasöründeki .json dosyalarını incele; durum alanı "onaylandi" olan her randevunun hasta kodunu, dosya adına göre artan sırada, her satırda bir hasta kodu olacak şekilde onaylanan.txt dosyasına yaz. Dosyanın en sonuna, onaylanan randevu sayısını wc ile ekle.
+
+setup: |
+  mkdir -p randevular
+  cat > randevular/r1.json <<'EOF'
+  {"hasta":"A101","bolum":"kardiyoloji","durum":"onaylandi","saat":"09:00"}
+  {"hasta":"A102","bolum":"dahiliye","durum":"iptal","saat":"10:30"}
+  {"hasta":"A103","bolum":"kardiyoloji","durum":"beklemede","saat":"11:15"}
+  EOF
+  cat > randevular/r2.json <<'EOF'
+  {"hasta":"A201","bolum":"ortopedi","durum":"onaylandi","saat":"08:45"}
+  {"hasta":"A202","bolum":"dahiliye","durum":"onaylandi","saat":"13:00"}
+  {"hasta":"A203","bolum":"kardiyoloji","durum":"iptal","saat":"14:20"}
+  EOF
+  cat > randevular/r3.json <<'EOF'
+  {"hasta":"A301","bolum":"ortopedi","durum":"beklemede","saat":"15:10"}
+  {"hasta":"A302","bolum":"kardiyoloji","durum":"onaylandi","saat":"16:40"}
+  EOF
+  cat > randevular/notlar.txt <<'EOF'
+  bu dosya json degil
+  onaylandi kelimesi burada da gecer
+  EOF
+
+goal_tr: >
+  randevular klasorundeki .json dosyalarinda durum alani "onaylandi" olan
+  her randevunun hasta kodunu bir satir olarak, dosya adina gore artan
+  sirada, onaylanan.txt dosyasina yaz ve en sona onaylanan randevu sayisini
+  wc ile ekle.
+
+reference_solution: |
+  find randevular -type f -name '*.json' | sort | xargs cat | grep '"durum":"onaylandi"' | sed 's/.*"hasta":"\([^"]*\)".*/\1/' > onaylanan.txt
+  wc -l < onaylanan.txt >> onaylanan.txt
+
+outputs:
+  - {path: onaylanan.txt, kind: lines}
+
+checks:
+  - {op: file_lines_eq, path: onaylanan.txt, value: [A101, A201, A202, A302, '4']}
+
+metadata:
+  domain: denetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0563
+    bundle: dizin-istatistik
+    tools:
+    - wc
+    - find
+    konu: hastane-randevulari
+    hedef: denetle
+    girdi: json
+    kaynak: cok-dosya
+    cikti: satir-listesi
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: tuzak-dosya
+    adim: 1
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

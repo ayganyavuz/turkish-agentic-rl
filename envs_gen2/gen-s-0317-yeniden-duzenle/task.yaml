@@ -1,0 +1,86 @@
+id: gen-s-0317-yeniden-duzenle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Kütüphanenin eski üyelik ve ödünç kayıtları hâlâ sabit genişlikli metin dosyaları hâlinde tutuluyor; yeni sisteme geçmeden önce her üye için elinde ne olduğunu görmek istiyorlar. Bugün de arşivdeki eski defterleri karıştırırken bu dosyalara denk geldim, sonra da öğleden sonraki toplantıda bunları düzenli bir özete çevirmem istendi.
+
+  `girdi/uyeler.txt` dosyasında her üyenin numarası 6 karakter, adı 11 karakter ve soyadı 11 karakter yer kaplıyor. `girdi/oduncler.txt` dosyasında ise her kayıtta üye numarası 6, kitap 11 ve tarih 8 karakter olarak yazılmış. Bu iki dosyayı çaprazlayıp `arsiv/` klasörünün altında her üye için ayrı bir dosya oluşturmam gerekiyor: `arsiv/000101.txt`, `arsiv/000102.txt`, `arsiv/000103.txt`, `arsiv/000104.txt` ve `arsiv/000105.txt`. Her birinin içinde o üyenin adı ve soyadı ile birlikte ödünç aldığı kitap sayısı bulunsun. Hiç ödünç almamış üyeler için de dosya oluşturulsun, sadece sayı sıfır olsun. Ayrıca ödünç kayıtlarında geçen ama üye listesinde karşılığı olmayan numaraları da `arsiv/bilinmeyen.txt` dosyasına yazmam lazım.
+
+setup: |
+  mkdir -p girdi arsiv
+  cat > girdi/uyeler.txt <<'UYE'
+  000101ALI       YILMAZ     ISTANBUL
+  000102AYSE      KAYA       ANKARA
+  000103MEHMET    DEMIR      IZMIR
+  000104FATMA     CELIK      BURSA
+  000105CAN       ARSLAN     ANTALYA
+  UYE
+  cat > girdi/oduncler.txt <<'ODU'
+  000101KITAP-001   20240115
+  000103KITAP-002   20240116
+  000102KITAP-003   20240117
+  000999KITAP-004   20240118
+  000101KITAP-005   20240119
+  ODU
+
+goal_tr: >
+  girdi/uyeler.txt ve girdi/oduncler.txt sabit genislikli dosyalarini
+  caprazlayip her uye icin (uye no 6, ad 11, soyad 11 karakter; odunc uye no
+  6, kitap 11, tarih 8 karakter) ad-soyad ve odunc alinan kitap sayisini
+  iceren bir dosyayi arsiv/ altinda uye numarasi ile adlandir; hic odunc
+  almamis uyeler icin de sifir sayili dosya uret ve odunc kaydinda gecen ama
+  uye listesinde olmayan numaralari arsiv/bilinmeyen.txt dosyasina yaz
+
+reference_solution: |
+  mkdir -p arsiv
+  awk '{n=substr($0,1,6); a=substr($0,7,11); s=substr($0,18,11); gsub(/ +$/,"",a); gsub(/ +$/,"",s); print n"|"a" "s}' girdi/uyeler.txt | sort > /tmp/u.txt
+  awk '{n=substr($0,1,6); print n}' girdi/oduncler.txt | sort | uniq -c | awk '{print $2"|"$1}' | sort > /tmp/o.txt
+  join -t'|' -a1 -e0 -o 1.1,1.2,2.2 /tmp/u.txt /tmp/o.txt | while IFS='|' read -r n ad cnt; do mv /dev/null /dev/null 2>/dev/null; printf '%s %s\n' "$ad" "$cnt" > "arsiv/$n.txt"; done
+  comm -23 <(cut -c1-6 girdi/oduncler.txt | sort -u) <(cut -c1-6 girdi/uyeler.txt | sort -u) > arsiv/bilinmeyen.txt
+  mkdir -p /tmp/bos && mv arsiv/bilinmeyen.txt /tmp/bos/ 2>/dev/null; mv /tmp/bos/bilinmeyen.txt arsiv/bilinmeyen.txt
+
+outputs:
+  - {path: arsiv/000101.txt, kind: file}
+  - {path: arsiv/000102.txt, kind: file}
+  - {path: arsiv/000103.txt, kind: file}
+  - {path: arsiv/000104.txt, kind: file}
+  - {path: arsiv/000105.txt, kind: file}
+  - {path: arsiv/bilinmeyen.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: arsiv/000101.txt, value: ALI       Y ILMAZ     I 2}
+  - {op: file_content_eq, path: arsiv/000102.txt, value: AYSE      K AYA       A 1}
+  - {op: file_content_eq, path: arsiv/000103.txt, value: MEHMET    D EMIR      I 1}
+  - {op: file_content_eq, path: arsiv/000104.txt, value: FATMA     C ELIK      B 0}
+  - {op: file_content_eq, path: arsiv/000105.txt, value: CAN       A RSLAN     A 0}
+  - {op: file_content_eq, path: arsiv/bilinmeyen.txt, value: 000999}
+
+metadata:
+  domain: yeniden-duzenle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0317
+    bundle: dosya-duzen
+    tools:
+    - mkdir
+    - mv
+    konu: kutuphane-kayitlari
+    hedef: yeniden-duzenle
+    girdi: sabit-genislik
+    kaynak: iki-dosya-capraz
+    cikti: birden-cok-dosya
+    kesif: veriye-bak
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

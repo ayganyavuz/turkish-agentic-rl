@@ -1,0 +1,183 @@
+id: gen-k-0812-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) sessions/store.py dosyasındaki SessionQueue sınıfında push, pop, size ve peek metotlarında NotImplementedError bırakan gövdeleri doldur; push kuyruğun sonuna eleman eklesin, pop kuyruğun başındaki elemanı çıkarıp döndürsün, size eleman sayısını versin, peek kuyruğun başındaki elemanı silmeden döndürsün.
+
+  2) sessions/manager.py dosyasındaki login, logout, active_count ve next_user fonksiyonlarındaki NotImplementedError bırakan gövdeleri doldur; login verilen kullanıcıyı kuyruğa eklesin, logout kuyruğun başındaki kullanıcıyı çıkarsın, active_count kuyruktaki eleman sayısını döndürsün, next_user kuyruğun başındaki kullanıcıyı silmeden döndürsün.
+
+  3) sessions/report.py dosyasındaki summary fonksiyonundaki NotImplementedError bırakan gövdeyi doldur; kuyruk doluysa "count=<n>;next=<user>" biçiminde, kuyruk boşken "count=0;next=-" döndürsün.
+
+setup: |
+  mkdir -p sessions
+  cat > sessions/store.py <<'STORE'
+  class SessionQueue:
+      def __init__(self):
+          self._items = []
+
+      def push(self, user):
+          raise NotImplementedError
+
+      def pop(self):
+          raise NotImplementedError
+
+      def size(self):
+          raise NotImplementedError
+
+      def peek(self):
+          raise NotImplementedError
+  STORE
+  cat > sessions/manager.py <<'MANAGER'
+  from sessions.store import SessionQueue
+
+
+  def login(queue, user):
+      raise NotImplementedError
+
+
+  def logout(queue):
+      raise NotImplementedError
+
+
+  def active_count(queue):
+      raise NotImplementedError
+
+
+  def next_user(queue):
+      raise NotImplementedError
+  MANAGER
+  cat > sessions/report.py <<'REPORT'
+  from sessions.manager import active_count, next_user
+
+
+  def summary(queue):
+      raise NotImplementedError
+  REPORT
+
+goal_tr: >
+  sessions/store.py, sessions/manager.py ve sessions/report.py icindeki tum
+  NotImplementedError govdelerini, FIFO kuyruk kuralina uyan oturum yonetimi
+  saglayacak sekilde doldur: push kuyrugun sonuna ekler, pop kuyrugun
+  basindan cikarir, peek basi silmeden dondurur, login kullaniciyi ekler,
+  logout basi cikarir, active_count eleman sayisini verir, next_user basi
+  silmeden dondurur, summary "count=<n>;next=<user>" ya da kuyruk bosken
+  "count=0;next=-" dondurur.
+
+reference_solution: |
+  cat > sessions/store.py <<'STORE'
+  class SessionQueue:
+      def __init__(self):
+          self._items = []
+
+      def push(self, user):
+          self._items.append(user)
+
+      def pop(self):
+          if not self._items:
+              return None
+          return self._items.pop(0)
+
+      def size(self):
+          return len(self._items)
+
+      def peek(self):
+          if not self._items:
+              return None
+          return self._items[0]
+  STORE
+  cat > sessions/manager.py <<'MANAGER'
+  from sessions.store import SessionQueue
+
+
+  def login(queue, user):
+      queue.push(user)
+      return queue.size()
+
+
+  def logout(queue):
+      return queue.pop()
+
+
+  def active_count(queue):
+      return queue.size()
+
+
+  def next_user(queue):
+      return queue.peek()
+  MANAGER
+  cat > sessions/report.py <<'REPORT'
+  from sessions.manager import active_count, next_user
+
+
+  def summary(queue):
+      count = active_count(queue)
+      if count == 0:
+          return "count=0;next=-"
+      return "count=%d;next=%s" % (count, next_user(queue))
+  REPORT
+
+ara_adim: |
+  cat > sessions/store.py <<'STORE'
+  class SessionQueue:
+      def __init__(self):
+          self._items = []
+
+      def push(self, user):
+          self._items.append(user)
+
+      def pop(self):
+          if not self._items:
+              return None
+          return self._items.pop(0)
+
+      def size(self):
+          return len(self._items)
+
+      def peek(self):
+          if not self._items:
+              return None
+          return self._items[0]
+  STORE
+
+outputs:
+  - {path: sessions/report.py, kind: program, run: 'python3 -c ''from sessions.store import SessionQueue as Q; from sessions.manager import login as L, logout as O, active_count as C, next_user as N; from sessions.report import summary as S; q=Q(); assert C(q)==0; assert S(q)=="count=0;next=-"; L(q,"ada"); L(q,"bob"); L(q,"cy"); assert C(q)==3; assert N(q)=="ada"; assert S(q)=="count=3;next=ada"; assert O(q)=="ada"; assert O(q)=="bob"; assert C(q)==1; assert S(q)=="count=1;next=cy"; print("TAMAM")'''}
+  - {path: sessions/report.py, kind: program, run: python3 -c 'from sessions.store import SessionQueue as Q; q=Q(); q.push("x"); q.push("y"); assert q.peek()=="x"; assert q.size()==2; assert q.pop()=="x"; assert q.pop()=="y"; assert q.pop() is None; assert q.peek() is None; assert q.size()==0; print("REGRESYON-TAMAM")'}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sessions.store import SessionQueue as Q; from sessions.manager import login as L, logout as O, active_count as C, next_user as N; from sessions.report import summary as S; q=Q(); assert C(q)==0; assert S(q)=="count=0;next=-"; L(q,"ada"); L(q,"bob"); L(q,"cy"); assert C(q)==3; assert N(q)=="ada"; assert S(q)=="count=3;next=ada"; assert O(q)=="ada"; assert O(q)=="bob"; assert C(q)==1; assert S(q)=="count=1;next=cy"; print("TAMAM")''', value: TAMAM}
+  - {op: run_stdout_eq, cmd: python3 -c 'from sessions.store import SessionQueue as Q; q=Q(); q.push("x"); q.push("y"); assert q.peek()=="x"; assert q.size()==2; assert q.pop()=="x"; assert q.pop()=="y"; assert q.pop() is None; assert q.peek() is None; assert q.size()==0; print("REGRESYON-TAMAM")', value: REGRESYON-TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0812
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kuyruk
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

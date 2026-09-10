@@ -1,0 +1,136 @@
+id: gen-k-1123-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  route/plan.py dosyasını sıfırdan oluştur. Bu dosyada, route/costs.py içindeki cheapest_route fonksiyonunu kullanarak çalışan plan_routes(edges, queries) fonksiyonunu tanımla. Fonksiyon, iç içe geçmiş edges listesi ile (start, goal) çiftlerinden oluşan queries listesini almalı ve her sorgu için en ucuz maliyeti ve o maliyeti veren düğüm yolunu içeren bir sözlük döndürmelidir. Ulaşılamayan hedefler için maliyet None, yol ise boş liste olmalıdır.
+
+  Şu şartlar sağlanmalı:
+  - route/plan.py dosyası sıfırdan oluşturulmuş olmalı.
+  - Dosyada plan_routes(edges, queries) fonksiyonu tanımlı olmalı.
+  - Fonksiyon, route/costs.py içindeki cheapest_route fonksiyonunu kullanmalı.
+  - Fonksiyon, iç içe geçmiş edges listesi ve (start, goal) çiftlerinden oluşan queries listesini almalı.
+  - Her sorgu için dönen sözlükte en ucuz maliyet ve o maliyeti veren düğüm yolu bulunmalı.
+  - Ulaşılamayan hedefler için maliyet None, yol ise boş liste olmalı.
+
+setup: |
+  mkdir -p route
+  cat > route/nodes.py <<'NODES'
+  def build_graph(edges):
+      g = {}
+      for a, b, w in edges:
+          g.setdefault(a, []).append((b, w))
+          g.setdefault(b, []).append((a, w))
+      return g
+  NODES
+  cat > route/costs.py <<'COSTS'
+  from route.nodes import build_graph
+
+
+  def cheapest_route(edges, start, goal):
+      graph = build_graph(edges)
+      best = {start: 0}
+      frontier = [(start, 0)]
+      while frontier:
+          node, cost = frontier.pop(0)
+          for nxt, w in graph.get(node, []):
+              cand = cost + w
+              if nxt not in best or cand < best[nxt]:
+                  best[nxt] = cand
+                  frontier.append((nxt, cand))
+      return best.get(goal)
+  COSTS
+
+goal_tr: >
+  route/plan.py dosyasini sifirdan yaz; route/costs.py icindeki
+  cheapest_route fonksiyonunu kullanarak ic ice gecmis edges listesi ve
+  (start, goal) ciftleri iceren sorgu listesini alip her sorgu icin en ucuz
+  maliyeti ve o maliyeti veren dugum yolunu iceren bir sozluk donduren
+  plan_routes(edges, queries) fonksiyonunu tanimla; ulasilamayan hedefler
+  icin maliyet None ve yol bos liste olsun.
+
+reference_solution: |
+  cat > route/plan.py <<'PLAN'
+  from route.costs import cheapest_route
+
+
+  def plan_routes(edges, queries):
+      results = {}
+      for start, goal in queries:
+          cost = cheapest_route(edges, start, goal)
+          if cost is None:
+              results[(start, goal)] = {"cost": None, "path": []}
+          else:
+              results[(start, goal)] = {"cost": cost, "path": _path(edges, start, goal)}
+      return results
+
+
+  def _path(edges, start, goal):
+      graph = {}
+      for a, b, w in edges:
+          graph.setdefault(a, []).append((b, w))
+          graph.setdefault(b, []).append((a, w))
+      prev = {start: None}
+      dist = {start: 0}
+      frontier = [start]
+      while frontier:
+          node = frontier.pop(0)
+          for nxt, w in graph.get(node, []):
+              cand = dist[node] + w
+              if nxt not in dist or cand < dist[nxt]:
+                  dist[nxt] = cand
+                  prev[nxt] = node
+                  frontier.append(nxt)
+      if goal not in prev:
+          return []
+      chain = []
+      cur = goal
+      while cur is not None:
+          chain.append(cur)
+          cur = prev[cur]
+      chain.reverse()
+      return chain
+  PLAN
+
+outputs:
+  - {path: route/plan.py, kind: program, run: 'python3 -c ''from route.plan import plan_routes as f; e=[("A","B",1),("B","C",2),("A","C",5),("C","D",1),("D","E",3)]; r=f(e,[("A","C"),("A","E"),("B","E"),("A","Z")]); assert r[("A","C")]=={"cost":3,"path":["A","B","C"]}, r[("A","C")]; assert r[("A","E")]["cost"]==7, r[("A","E")]; assert r[("B","E")]["cost"]==6, r[("B","E")]; assert r[("A","Z")]=={"cost":None,"path":[]}, r[("A","Z")]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from route.plan import plan_routes as f; e=[("A","B",1),("B","C",2),("A","C",5),("C","D",1),("D","E",3)]; r=f(e,[("A","C"),("A","E"),("B","E"),("A","Z")]); assert r[("A","C")]=={"cost":3,"path":["A","B","C"]}, r[("A","C")]; assert r[("A","E")]["cost"]==7, r[("A","E")]; assert r[("B","E")]["cost"]==6, r[("B","E")]; assert r[("A","Z")]=={"cost":None,"path":[]}, r[("A","Z")]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1123
+    bundle: yarisma
+    tools:
+    - python3
+    konu: yol-tarifi-agi
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: orta
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: iki-isaretci
+      karmasiklik: duz
+      kalip: duz-fonksiyon
+      akis: ic-ice-yapi
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

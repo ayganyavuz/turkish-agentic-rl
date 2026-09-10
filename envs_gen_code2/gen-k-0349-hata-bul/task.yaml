@@ -1,0 +1,114 @@
+id: gen-k-0349-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  orders/parser.py icindeki parse_rows fonksiyonunu, miktar alanı boş olan kayıtları atlamak yerine sıfır miktarla temsil edecek biçimde düzelt. Böylece orders/summary.py ve orders/ledger.py bu kayıtları da hesaba katsın.
+
+setup: |
+  mkdir -p orders
+  cat > orders/parser.py <<'PARSER'
+  def parse_rows(text):
+      rows = []
+      for line in text.splitlines():
+          line = line.strip()
+          if not line:
+              continue
+          parts = line.split(';')
+          if not parts[1].strip():
+              continue
+          rows.append((parts[0], int(parts[1]), float(parts[2])))
+      return rows
+  PARSER
+  cat > orders/summary.py <<'SUMMARY'
+  from orders.parser import parse_rows
+
+
+  def total_quantity(text, customer):
+      total = 0
+      for name, qty, price in parse_rows(text):
+          if name == customer:
+              total += qty
+      return total
+
+
+  def distinct_items(text):
+      seen = set()
+      for name, qty, price in parse_rows(text):
+          seen.add(name)
+      return seen
+  SUMMARY
+  cat > orders/ledger.py <<'LEDGER'
+  from orders.parser import parse_rows
+
+
+  def net_revenue(text):
+      total = 0.0
+      for name, qty, price in parse_rows(text):
+          total += qty * price
+      return total
+  LEDGER
+  cat > data.txt <<'DATA'
+  alice;2;10.0
+  bob;1;5.0
+  alice;3;2.0
+  carol;0;100.0
+  DATA
+
+goal_tr: >
+  orders/parser.py icindeki parse_rows fonksiyonunu, miktar alani bos olan
+  kayitlari atlamak yerine sifir miktarla temsil edecek bicimde duzelt;
+  boylece orders/summary.py ve orders/ledger.py bu kayitlari da hesaba
+  katsin.
+
+reference_solution: |
+  cat > orders/parser.py <<'PARSER'
+  def parse_rows(text):
+      rows = []
+      for line in text.splitlines():
+          line = line.strip()
+          if not line:
+              continue
+          parts = line.split(';')
+          qty_raw = parts[1].strip()
+          qty = int(qty_raw) if qty_raw else 0
+          price_raw = parts[2].strip() if len(parts) > 2 else ''
+          price = float(price_raw) if price_raw else 0.0
+          rows.append((parts[0], qty, price))
+      return rows
+  PARSER
+
+outputs:
+  - {path: orders/parser.py, kind: program, run: 'python3 -c ''from orders.summary import total_quantity, distinct_items; from orders.ledger import net_revenue; t="alice;2;10.0\nbob;1;5.0\nalice;3;2.0\ncarol;0;100.0\n"; assert total_quantity(t,"alice")==5, total_quantity(t,"alice"); assert total_quantity(t,"carol")==0; assert distinct_items(t)=={"alice","bob","carol"}, distinct_items(t); assert abs(net_revenue(t)-31.0)<1e-9, net_revenue(t); t2="dave;;4.0\n\n  \nerin;7;1.5\n"; assert distinct_items(t2)=={"dave","erin"}, distinct_items(t2); assert total_quantity(t2,"dave")==0; assert abs(net_revenue(t2)-10.5)<1e-9, net_revenue(t2); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from orders.summary import total_quantity, distinct_items; from orders.ledger import net_revenue; t="alice;2;10.0\nbob;1;5.0\nalice;3;2.0\ncarol;0;100.0\n"; assert total_quantity(t,"alice")==5, total_quantity(t,"alice"); assert total_quantity(t,"carol")==0; assert distinct_items(t)=={"alice","bob","carol"}, distinct_items(t); assert abs(net_revenue(t)-31.0)<1e-9, net_revenue(t); t2="dave;;4.0\n\n  \nerin;7;1.5\n"; assert distinct_items(t2)=={"dave","erin"}, distinct_items(t2); assert total_quantity(t2,"dave")==0; assert abs(net_revenue(t2)-10.5)<1e-9, net_revenue(t2); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0349
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: dosyayi-bul
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: kenar-durum

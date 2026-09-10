@@ -1,0 +1,141 @@
+id: gen-k-1004-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depot/records.py dosyasındaki bağlı listeyi ters çeviren reverse isimli özyinelemeli bir fonksiyon ekle. depot/audit.py dosyasındaki summarize fonksiyonunu, ters çevrilmiş listenin eleman sayısını ve toplam ağırlığını döndürecek biçimde güncelle. Mevcut count ve total_weight fonksiyonlarının davranışı korunsun.
+
+setup: |
+  mkdir -p depot
+  cat > depot/records.py <<'RECORDS'
+  class Shipment:
+      def __init__(self, code, weight):
+          self.code = code
+          self.weight = weight
+          self.next = None
+
+
+  def build_shipments(pairs):
+      head = None
+      for code, weight in pairs:
+          node = Shipment(code, weight)
+          node.next = head
+          head = node
+      return head
+
+
+  def count(node):
+      if node is None:
+          return 0
+      return 1 + count(node.next)
+
+
+  def total_weight(node):
+      if node is None:
+          return 0
+      return node.weight + total_weight(node.next)
+  RECORDS
+  cat > depot/audit.py <<'AUDIT'
+  from depot.records import count, total_weight
+
+
+  def summarize(head):
+      return {"count": count(head), "weight": total_weight(head)}
+  AUDIT
+  cat > depot/__init__.py <<'INIT'
+  INIT
+
+goal_tr: >
+  depot/records.py icindeki bagli listeyi ters ceviren reverse isimli
+  ozyinelemeli bir fonksiyon ekle ve depot/audit.py icindeki summarize
+  fonksiyonunu, ters cevrilmis listenin eleman sayisini ve toplam agirligini
+  dondurecek bicimde guncelle.
+
+reference_solution: |
+  cat > depot/records.py <<'RECORDS'
+  class Shipment:
+      def __init__(self, code, weight):
+          self.code = code
+          self.weight = weight
+          self.next = None
+
+
+  def build_shipments(pairs):
+      head = None
+      for code, weight in pairs:
+          node = Shipment(code, weight)
+          node.next = head
+          head = node
+      return head
+
+
+  def count(node):
+      if node is None:
+          return 0
+      return 1 + count(node.next)
+
+
+  def total_weight(node):
+      if node is None:
+          return 0
+      return node.weight + total_weight(node.next)
+
+
+  def reverse(node, prev=None):
+      if node is None:
+          return prev
+      nxt = node.next
+      node.next = prev
+      return reverse(nxt, node)
+  RECORDS
+  cat > depot/audit.py <<'AUDIT'
+  from depot.records import count, total_weight, reverse
+
+
+  def summarize(head):
+      rev = reverse(head)
+      return {"count": count(rev), "weight": total_weight(rev)}
+  AUDIT
+
+outputs:
+  - {path: depot/records.py, kind: program, run: 'python3 -c ''from depot.records import build_shipments, reverse, count, total_weight; from depot.audit import summarize; h=build_shipments([("A",2),("B",3),("C",5)]); r=reverse(h); assert r.code=="A" and r.next.code=="B" and r.next.next.code=="C" and r.next.next.next is None; assert count(r)==3 and total_weight(r)==10; assert summarize(build_shipments([("X",1),("Y",4)]))=={"count":2,"weight":5}; assert reverse(None) is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depot.records import build_shipments, reverse, count, total_weight; from depot.audit import summarize; h=build_shipments([("A",2),("B",3),("C",5)]); r=reverse(h); assert r.code=="A" and r.next.code=="B" and r.next.next.code=="C" and r.next.next.next is None; assert count(r)==3 and total_weight(r)==10; assert summarize(build_shipments([("X",1),("Y",4)]))=={"count":2,"weight":5}; assert reverse(None) is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1004
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: kolay
+    adim: 2
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: bagli-liste
+      karmasiklik: duz
+      kalip: ozyineleme
+      akis: cok-dosya-birlestirme
+      topoloji: elmas
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

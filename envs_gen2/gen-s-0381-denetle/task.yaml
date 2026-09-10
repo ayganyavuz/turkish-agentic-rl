@@ -1,0 +1,59 @@
+id: gen-s-0381-denetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  veri klasöründeki .tsv uzantılı dosyalardaki başlık satırı dışındaki satırları birleştirip yinelemeleri atarak cikti/benzersiz.tsv dosyasına yaz. Ayrıca her sensör için kaç benzersiz ölçüm kaldığını, sensör ve sayı olacak biçimde sıralı olarak cikti/sayimlar.txt dosyasına dök; veri altındaki .bak uzantılı dosyalar ve nokta ile başlayan gizli dosyalar bu işleme dahil edilmemeli.
+
+setup: |
+  mkdir -p veri cikti
+  printf '\xef\xbb\xbfsensor\tolcum\nS1\t12\nS2\t7\nS1\t12\nS3\t3\nS2\t7\nS1\t5\nS3\t3\nS4\t9\n' > veri/olcumler.tsv
+  printf 'sensor\tolcum\nS9\t1\nS9\t1\n' > veri/yedek_olcumler.tsv.bak
+  touch veri/.gizli_olcumler.tsv
+
+goal_tr: >
+  veri altindaki .tsv uzantili dosyalar icindeki baslik disi satirlari
+  birlestirip tekrarsiz olarak cikti/benzersiz.tsv dosyasina yaz ve her
+  sensor icin kac benzersiz olcum kaldigini cikti/sayimlar.txt dosyasina
+  sensor ve sayi olacak sekilde sirali olarak dok.
+
+reference_solution: |
+  find veri -type f -name '*.tsv' | sort | xargs cat | sed '1d' | sort | uniq > cikti/benzersiz.tsv
+  cut -f1 cikti/benzersiz.tsv | sort | uniq -c | awk '{print $2"\t"$1}' > cikti/sayimlar.txt
+
+outputs:
+  - {path: cikti/benzersiz.tsv, kind: file}
+  - {path: cikti/sayimlar.txt, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: cikti/benzersiz.tsv, value: ["S1\t12", "S1\t5", "S2\t7", "S3\t3", "S4\t9"]}
+  - {op: file_lines_eq, path: cikti/sayimlar.txt, value: ["S1\t2", "S2\t1", "S3\t1", "S4\t1"]}
+
+metadata:
+  domain: denetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0381
+    bundle: sirala
+    tools:
+    - sort
+    - uniq
+    konu: sensor-olcumleri
+    hedef: denetle
+    girdi: tsv
+    kaynak: tek-dosya
+    cikti: birden-cok-dosya
+    kesif: dosyayi-bul
+    uslup: kisit-sakli
+    direnc: bom
+    bukulme: tuzak-dosya
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

@@ -1,0 +1,98 @@
+id: gen-k-1119-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  restoran/mutfak/hesap.py içindeki siparis_tutari fonksiyonunu, indirim oranını yalnızca müşterinin sadakat yılı 5'ten büyükse uygulayacak biçimde düzelt; aksi halde indirim uygulanmasın. Bu düzeltmeyi yaparken indirim oranını hesaplayan mantığı restoran/kasa/indirim.py içinde tutmaya devam et ve hesap.py bu dosyadan yararlanmayı sürdürsün. restoran/kasa/indirim.py dosyasını, indirim_orani fonksiyonu yalnızca sadakat yılı 5'ten büyük olduğunda 0.15 döndürecek, aksi halde 0.0 döndürecek şekilde güncelle; toplam tutara bağlı 0.10 oranı artık kullanılmasın.
+
+setup: |
+  mkdir -p restoran/mutfak restoran/kasa
+  cat > restoran/mutfak/tarif.py <<'TARIF'
+  def porsiyon_maliyeti(malzemeler):
+      total = 0
+      for ad, gram, birim_fiyat in malzemeler:
+          total += gram * birim_fiyat
+      return total
+  TARIF
+  cat > restoran/kasa/indirim.py <<'INDIRIM'
+  def indirim_orani(musteri, toplam):
+      if musteri["sadakat_yil"] > 5:
+          return 0.15
+      if toplam > 200:
+          return 0.10
+      return 0.0
+  INDIRIM
+  cat > restoran/mutfak/hesap.py <<'HESAP'
+  from restoran.mutfak.tarif import porsiyon_maliyeti
+  from restoran.kasa.indirim import indirim_orani
+
+
+  def siparis_tutari(siparis, musteri):
+      brut = 0
+      for kalem in siparis["kalemler"]:
+          brut += porsiyon_maliyeti(kalem["malzemeler"]) * kalem["adet"]
+      oran = indirim_orani(musteri, brut)
+      return brut - brut * oran
+  HESAP
+  cat > restoran/__init__.py <<'INIT'
+  INIT
+  cat > restoran/mutfak/__init__.py <<'INIT'
+  INIT
+  cat > restoran/kasa/__init__.py <<'INIT'
+  INIT
+
+goal_tr: >
+  restoran/mutfak/hesap.py icindeki siparis_tutari fonksiyonunu, indirim
+  oranini yalnizca musteri sadakat yili 5'ten buyukken uygulayacak bicimde
+  duzelt; aksi halde indirim uygulanmasin.
+
+reference_solution: |
+  cat > restoran/kasa/indirim.py <<'INDIRIM'
+  def indirim_orani(musteri, toplam):
+      if musteri["sadakat_yil"] > 5:
+          return 0.15
+      return 0.0
+  INDIRIM
+
+outputs:
+  - {path: restoran/kasa/indirim.py, kind: program, run: 'python3 -c ''from restoran.mutfak.hesap import siparis_tutari as f; m=[("un",100,0.01)]; s={"kalemler":[{"malzemeler":m,"adet":1}]}; assert abs(f(s,{"sadakat_yil":3}) - 1.0) < 1e-9; assert abs(f(s,{"sadakat_yil":6}) - 0.85) < 1e-9; s2={"kalemler":[{"malzemeler":m,"adet":250}]}; assert abs(f(s2,{"sadakat_yil":1}) - 250.0) < 1e-9; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from restoran.mutfak.hesap import siparis_tutari as f; m=[("un",100,0.01)]; s={"kalemler":[{"malzemeler":m,"adet":1}]}; assert abs(f(s,{"sadakat_yil":3}) - 1.0) < 1e-9; assert abs(f(s,{"sadakat_yil":6}) - 0.85) < 1e-9; s2={"kalemler":[{"malzemeler":m,"adet":250}]}; assert abs(f(s2,{"sadakat_yil":1}) - 250.0) < 1e-9; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1119
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: restoran-siparisleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-karsilastirma
+      karmasiklik: duz
+      kalip: duz-fonksiyon
+      akis: bellek-ici
+      topoloji: elmas
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

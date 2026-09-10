@@ -1,0 +1,118 @@
+id: gen-k-0878-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 22
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depo/stock.py dosyasındaki total_value fonksiyonu şu an yalnızca ilk satırın tutarını hesaplayıp döndürüyor; bunu, girdideki tüm satırların tutarını toplayacak ve sonucu iki ondalık basamağa yuvarlanmış olarak döndürecek şekilde düzelt. Ardından depo/summary.py dosyasındaki report fonksiyonunun, bu toplam değeri "TOTAL=<deger>" biçiminde döndürmesini sağla.
+
+setup: |
+  mkdir -p depo
+  cat > depo/parser.py <<'PY'
+  def parse_rows(text):
+      rows = []
+      for line in text.strip().splitlines():
+          sku, qty, price = line.split(",")
+          rows.append((sku.strip(), int(qty), float(price)))
+      return rows
+  PY
+  cat > depo/stock.py <<'PY'
+  from depo.parser import parse_rows
+
+
+  def total_value(text):
+      total = 0.0
+      for sku, qty, price in parse_rows(text):
+          total += price * qty
+          return round(total, 2)
+  PY
+  cat > depo/summary.py <<'PY'
+  from depo.stock import total_value
+
+
+  def report(text):
+      return "TOTAL=" + str(total_value(text))
+  PY
+  cat > envanter.txt <<'TXT'
+  civata,10,0.5
+  somun,4,1.25
+  pul,100,0.02
+  TXT
+
+goal_tr: >
+  depo/stock.py icindeki total_value fonksiyonunu, tum satirlarin tutarini
+  toplayip iki ondaliga yuvarlanmis dogru toplami dondurecek bicimde duzelt;
+  ardindan depo/summary.py icindeki report fonksiyonunun bu toplami
+  "TOTAL=<deger>" biciminde dondurmesini sagla.
+
+reference_solution: |
+  cat > depo/stock.py <<'PY'
+  from depo.parser import parse_rows
+
+
+  def total_value(text):
+      total = 0.0
+      for sku, qty, price in parse_rows(text):
+          total += price * qty
+      return round(total, 2)
+  PY
+  cat > depo/summary.py <<'PY'
+  from depo.stock import total_value
+
+
+  def report(text):
+      return "TOTAL=" + format(total_value(text), ".2f")
+  PY
+
+ara_adim: |
+  cat > depo/stock.py <<'PY'
+  from depo.parser import parse_rows
+
+
+  def total_value(text):
+      total = 0.0
+      for sku, qty, price in parse_rows(text):
+          total += price * qty
+      return round(total, 2)
+  PY
+
+outputs:
+  - {path: depo/summary.py, kind: program, run: 'python3 -c ''from depo.summary import report as f; t=open("envanter.txt").read(); assert f(t)=="TOTAL=12.00", f(t); print("TAMAM")'''}
+  - {path: depo/stock.py, kind: program, run: 'python3 -c ''from depo.stock import total_value as f; assert f("a,2,3.0")==6.0, f("a,2,3.0"); assert f("a,1,0.1\nb,1,0.2")==0.3, f("a,1,0.1\nb,1,0.2"); print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.stock import total_value as f; assert f("a,2,3.0")==6.0, f("a,2,3.0"); assert f("a,1,0.1\nb,1,0.2")==0.3, f("a,1,0.1\nb,1,0.2"); print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.summary import report as f; t=open("envanter.txt").read(); assert f(t)=="TOTAL=12.00", f(t); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0878
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 8
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-toplama-sirasi
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

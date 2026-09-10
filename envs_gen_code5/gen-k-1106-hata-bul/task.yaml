@@ -1,0 +1,108 @@
+id: gen-k-1106-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  roster/report.py dosyasındaki busiest fonksiyonunu, en çok saat çalışan kişilerin adlarını tekrarsız ve deterministik sırada, ada göre alfabetik olarak döndürecek şekilde düzelt. Beraberlik durumunda en yüksek saatteki tüm adlar dönsün ve girdi boş olduğunda sonuç boş liste olsun.
+
+setup: |
+  mkdir -p roster
+  cat > roster/parse.py <<'PARSE'
+  def parse_shifts(text):
+      rows = []
+      for line in text.strip().splitlines():
+          name, day, hours = line.split(',')
+          rows.append((name, day, int(hours)))
+      return rows
+  PARSE
+  cat > roster/totals.py <<'TOTALS'
+  from roster.parse import parse_shifts
+
+
+  def total_hours(text):
+      rows = parse_shifts(text)
+      acc = {}
+      for name, day, hours in rows:
+          acc[name] = acc.get(name, 0) + hours
+      return acc
+  TOTALS
+  cat > roster/report.py <<'REPORT'
+  from roster.totals import total_hours
+
+
+  def busiest(text):
+      acc = total_hours(text)
+      if not acc:
+          return []
+      best = max(acc.values())
+      return [n for n, h in acc.items() if h == best]
+  REPORT
+  cat > shifts.csv <<'CSV'
+  ada,mon,8
+  ada,tue,8
+  bora,mon,8
+  bora,tue,8
+  cem,mon,4
+  CSV
+
+goal_tr: >
+  roster/report.py icindeki busiest fonksiyonunu, en cok saat calisan
+  kisilerin adlarini tekrarsiz ve deterministik sirada (ada gore alfabetik)
+  dondurecek bicimde duzelt; beraberlikte tum adlar donsun, girdi bos ise
+  bos liste donsun.
+
+reference_solution: |
+  cat > roster/report.py <<'REF'
+  from roster.totals import total_hours
+
+
+  def busiest(text):
+      acc = total_hours(text)
+      if not acc:
+          return []
+      best = max(acc.values())
+      return sorted(n for n, h in acc.items() if h == best)
+  REF
+
+outputs:
+  - {path: roster/report.py, kind: program, run: 'python3 -c ''from roster.report import busiest as f; t=open("shifts.csv").read(); r=f(t); assert r==["ada","bora"], r; assert f("")==[]; assert f("x,mon,1\ny,mon,1\n")==["x","y"]; assert f("z,mon,5\n")==["z"]; assert f("b,mon,3\na,mon,3\nc,mon,3\n")==["a","b","c"]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from roster.report import busiest as f; t=open("shifts.csv").read(); r=f(t); assert r==["ada","bora"], r; assert f("")==[]; assert f("x,mon,1\ny,mon,1\n")==["x","y"]; assert f("z,mon,5\n")==["z"]; assert f("b,mon,3\na,mon,3\nc,mon,3\n")==["a","b","c"]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1106
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: vardiya-cizelgesi
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: off-by-one
+      karmasiklik: duz
+      kalip: ozyineleme
+      akis: cok-dosya-birlestirme
+      topoloji: uc-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

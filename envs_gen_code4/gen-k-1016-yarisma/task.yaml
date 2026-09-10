@@ -1,0 +1,129 @@
+id: gen-k-1016-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Küçük bir market zincirinin stok takibini yapan bir ekip, katalog verilerini düz metin dosyalarından okuyup etiketlere göre rapor çıkarmak istiyor. Geçen hafta parser tarafını yazdılar ama sorgu ve rapor kısmı hep ertelendi; bugün o eksiği kapatma günü. Ekipten biri "artık şu store/catalog/query.py ve store/catalog/report.py dosyalarını bitirelim" diye tutturdu, ben de işi sana veriyorum.
+
+  store/catalog/query.py içinde iki fonksiyon var: by_tag ve cheapest. by_tag, kendisine verilen kayıtlar arasından verilen etiketi taşıyan kayıtları döndürsün. cheapest ise yine verilen etikete sahip kayıtlar içinden en düşük fiyatlı olan tek kaydı döndürsün. store/catalog/report.py içindeki summary fonksiyonu ise prices.txt gibi bir metni ve bir etiketi alıp, o etikete ait kayıtları başlık ve fiyat satırlarından oluşan bir metin halinde üretsin; her satırda bir kayıt olsun ve fiyatlar sadece sayı olarak yer alsın. by_tag, cheapest ve summary fonksiyonlarının gövdelerini doldur, gerisini mevcut yapıya uygun şekilde hallet.
+
+setup: |
+  mkdir -p store/catalog
+  cat > store/catalog/__init__.py <<'PY'
+  PY
+  cat > store/catalog/parser.py <<'PY'
+  def parse_line(line):
+      """Parse a single catalog line: 'name|price|tags' -> dict."""
+      parts = line.split('|')
+      name = parts[0].strip()
+      price = float(parts[1])
+      tags = parts[2].split(';') if len(parts) > 2 and parts[2] else []
+      return {'name': name, 'price': price, 'tags': tags}
+
+
+  def parse_catalog(text):
+      records = []
+      for line in text.splitlines():
+          if not line.strip():
+              continue
+          records.append(parse_line(line))
+      return records
+  PY
+  cat > store/catalog/query.py <<'PY'
+  def by_tag(records, tag):
+      raise NotImplementedError
+
+
+  def cheapest(records, tag):
+      raise NotImplementedError
+  PY
+  cat > store/catalog/report.py <<'PY'
+  def summary(text, tag):
+      raise NotImplementedError
+  PY
+  cat > prices.txt <<'TXT'
+  apple|1.20|fruit;fresh
+  banana|0.50|fruit
+  carrot|0.80|veg;fresh
+  donut|2.50|bakery
+  TXT
+
+goal_tr: >
+  store/catalog/query.py icindeki by_tag ve cheapest ile
+  store/catalog/report.py icindeki summary fonksiyonlarini gerceklestir;
+  by_tag verilen etiketi tasiyan kayitlari dondursun, cheapest o etiketteki
+  en dusuk fiyatli kaydi dondursun, summary ise etiket basligi ve fiyat
+  satirlarindan olusan metni uretsin.
+
+reference_solution: |
+  cat > store/catalog/query.py <<'PY'
+  def by_tag(records, tag):
+      return [r for r in records if tag in r['tags']]
+
+
+  def cheapest(records, tag):
+      matched = by_tag(records, tag)
+      if not matched:
+          return None
+      return min(matched, key=lambda r: r['price'])
+  PY
+  cat > store/catalog/report.py <<'PY'
+  from store.catalog.query import by_tag, cheapest
+
+
+  def summary(text, tag):
+      from store.catalog.parser import parse_catalog
+      records = parse_catalog(text)
+      lines = ["tag=" + tag]
+      for r in by_tag(records, tag):
+          lines.append(r['name'] + ":" + format(r['price'], ".2f"))
+      best = cheapest(records, tag)
+      if best is None:
+          lines.append("cheapest=none")
+      else:
+          lines.append("cheapest=" + best['name'])
+      return "\n".join(lines)
+  PY
+
+outputs:
+  - {path: store/catalog/query.py, kind: program, run: 'python3 -c ''from store.catalog.parser import parse_catalog; from store.catalog.report import summary; t=open("prices.txt").read(); r=parse_catalog(t); assert len(r)==4; out=summary(t,"fresh"); assert out=="tag=fresh\napple:1.20\ncarrot:0.80\ncheapest=carrot", repr(out); out2=summary(t,"bakery"); assert out2=="tag=bakery\ndonut:2.50\ncheapest=donut", repr(out2); out3=summary(t,"missing"); assert out3=="tag=missing\ncheapest=none", repr(out3); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from store.catalog.parser import parse_catalog; from store.catalog.report import summary; t=open("prices.txt").read(); r=parse_catalog(t); assert len(r)==4; out=summary(t,"fresh"); assert out=="tag=fresh\napple:1.20\ncarrot:0.80\ncheapest=carrot", repr(out); out2=summary(t,"bakery"); assert out2=="tag=bakery\ndonut:2.50\ncheapest=donut", repr(out2); out3=summary(t,"missing"); assert out3=="tag=missing\ncheapest=none", repr(out3); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1016
+    bundle: yarisma
+    tools:
+    - python3
+    konu: urun-fiyatlari
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: baglam-gomulu
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: metin-ayristirma
+      karmasiklik: duz
+      kalip: duz-fonksiyon
+      akis: bellek-ici
+      topoloji: paket-alt-paket
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

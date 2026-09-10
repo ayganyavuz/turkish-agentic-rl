@@ -1,0 +1,103 @@
+id: gen-k-0916-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  fx/core/total.py içindeki total_usd fonksiyonunu düzelt. Şu anki fonksiyon, her tutarı kendi kuruyla yalnızca bir kez çevirmiyor; bu yüzden toplam yanlış çıkıyor. Fonksiyon, her tutarı yalnızca kendi kuruyla bir kez çevirip doğru toplamı döndürecek biçimde olsun. Bunu yaparken fx/util/parse.py ve fx/core/walk.py dosyalarındaki mevcut yapıyı kullanabilirsin; rates.txt içindeki kurlar USD:1.0, EUR:0.8 ve GBP:0.5 olarak kalıyor.
+
+setup: |
+  mkdir -p fx/core fx/util
+  cat > fx/util/parse.py <<'PARSE'
+  def parse_rates(text):
+      out = {}
+      for line in text.strip().splitlines():
+          code, rate = line.split(':')
+          out[code] = float(rate)
+      return out
+  PARSE
+  cat > fx/core/walk.py <<'WALK'
+  from fx.util.parse import parse_rates
+
+
+  def walk_rates(text):
+      for code, rate in parse_rates(text).items():
+          yield code, rate
+  WALK
+  cat > fx/core/total.py <<'TOTAL'
+  from fx.core.walk import walk_rates
+
+
+  def total_usd(text, amounts):
+      total = 0.0
+      for code, amount in amounts:
+          for rate_code, rate in walk_rates(text):
+              if rate_code == code:
+                  total += amount / rate
+              break
+      return total
+  TOTAL
+  cat > rates.txt <<'RATES'
+  USD:1.0
+  EUR:0.8
+  GBP:0.5
+  RATES
+
+goal_tr: >
+  fx/core/total.py icindeki total_usd fonksiyonunu, her tutari yalnizca
+  kendi kuruyla bir kez cevirip dogru toplami donecek bicimde duzelt
+
+reference_solution: |
+  cat > fx/core/total.py <<'TOTAL'
+  from fx.core.walk import walk_rates
+
+
+  def total_usd(text, amounts):
+      rates = dict(walk_rates(text))
+      total = 0.0
+      for code, amount in amounts:
+          total += amount / rates[code]
+      return total
+  TOTAL
+
+outputs:
+  - {path: fx/core/total.py, kind: program, run: 'python3 -c ''from fx.core.total import total_usd as f; t=open("rates.txt").read(); r=f(t,[("EUR",8.0),("GBP",5.0)]); assert r==20.0, r; r=f(t,[("USD",3.0)]); assert r==3.0, r; r=f(t,[("GBP",5.0),("EUR",8.0),("USD",3.0)]); assert r==23.0, r; r=f(t,[]); assert r==0.0, r; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from fx.core.total import total_usd as f; t=open("rates.txt").read(); r=f(t,[("EUR",8.0),("GBP",5.0)]); assert r==20.0, r; r=f(t,[("USD",3.0)]); assert r==3.0, r; r=f(t,[("GBP",5.0),("EUR",8.0),("USD",3.0)]); assert r==23.0, r; r=f(t,[]); assert r==0.0, r; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0916
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: kur-cevrimleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: yanlis-toplama-sirasi
+      karmasiklik: duz
+      kalip: iterator-protokolu
+      akis: ic-ice-yapi
+      topoloji: paket-alt-paket
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

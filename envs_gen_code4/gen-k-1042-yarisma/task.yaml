@@ -1,0 +1,108 @@
+id: gen-k-1042-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  planner/query.py dosyasını sıfırdan oluştur. Bu dosyada `make_lookup(text)` fonksiyonu, verilen metni kullanarak bir closure döndürsün. Bu closure, bir gün adı aldığında o güne ait etkinlik adlarını başlangıç saatine göre artan sırada döndürsün; ayrıca `at_or_after(day, start)` çağrısı, belirtilen gün için başlangıç saati `start` değerinden küçük olmayan ilk etkinliğin adını döndürsün, böyle bir etkinlik yoksa None döndürsün. İkili arama kullan. planner/events.py ve planner/index.py dosyalarındaki mevcut fonksiyonlardan yararlanabilirsin.
+
+setup: |
+  mkdir -p planner
+  cat > planner/events.py <<'EVENTS'
+  def parse_events(text):
+      rows = []
+      for line in text.strip().splitlines():
+          day, name, start = line.split(',')
+          rows.append((day, name, int(start)))
+      return rows
+  EVENTS
+  cat > planner/index.py <<'INDEX'
+  def by_day(rows):
+      table = {}
+      for day, name, start in rows:
+          table.setdefault(day, []).append((start, name))
+      return table
+  INDEX
+  cat > data.csv <<'CSV'
+  mon,standup,900
+  mon,review,1400
+  tue,planning,1000
+  tue,retro,1600
+  wed,workshop,800
+  CSV
+
+goal_tr: >
+  planner/query.py dosyasini sifirdan yaz; `make_lookup(text)` cagrisi, gun
+  adini alip o gunun baslangic saatine gore artan sirada etkinlik adlarini
+  donduren bir closure dondursun ve `at_or_after(day, start)` cagrisi o gun
+  icin baslangic saati `start`'tan kucuk olmayan ilk etkinligin adini (yoksa
+  None) dondursun; ikili arama kullan.
+
+reference_solution: |
+  cat > planner/query.py <<'QUERY'
+  from planner.events import parse_events
+  from planner.index import by_day
+
+
+  def make_lookup(text):
+      table = by_day(parse_events(text))
+      for day in table:
+          table[day].sort()
+
+      def at_or_after(day, start):
+          slots = table.get(day, [])
+          lo, hi = 0, len(slots)
+          while lo < hi:
+              mid = (lo + hi) // 2
+              if slots[mid][0] < start:
+                  lo = mid + 1
+              else:
+                  hi = mid
+          if lo >= len(slots):
+              return None
+          return slots[lo][1]
+
+      return at_or_after
+  QUERY
+
+outputs:
+  - {path: planner/query.py, kind: program, run: 'python3 -c ''from planner.query import make_lookup as m; t=open("data.csv").read(); f=m(t); assert f("mon",900)=="standup"; assert f("mon",901)=="review"; assert f("mon",1500) is None; assert f("tue",1000)=="planning"; assert f("wed",700)=="workshop"; assert f("thu",0) is None; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from planner.query import make_lookup as m; t=open("data.csv").read(); f=m(t); assert f("mon",900)=="standup"; assert f("mon",901)=="review"; assert f("mon",1500) is None; assert f("tue",1000)=="planning"; assert f("wed",700)=="workshop"; assert f("thu",0) is None; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1042
+    bundle: yarisma
+    tools:
+    - python3
+    konu: takvim-etkinlikleri
+    hedef: yarisma
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: siralama-ikili-arama
+      karmasiklik: duz
+      kalip: closure-fabrika
+      akis: cok-dosya-birlestirme
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

@@ -1,0 +1,72 @@
+id: gen-s-0591-donustur
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  girdi klasöründeki tüm .txt dosyalarındaki "tarih | kalem | açıklama | tutar | tür" kayıtlarını okuyup her kaydı "tür<TAB>tarih<TAB>açıklama<TAB>tutar" biçimine çevir; tür ve ardından tarihe göre artan sırada birleştirip cikti/kalemler.tsv dosyasına yaz.
+
+setup: |
+  mkdir -p girdi cikti
+  cat > girdi/ocak.txt <<'EOF'
+  2024-01-03 | 1001 | kira | 15000 | gider
+  2024-01-07 | 1002 | satis | 42000 | gelir
+  2024-01-15 | 1003 | kira | 15000 | gider
+  2024-01-22 | 1004 | elektrik | 3200 | gider
+  EOF
+  cat > girdi/subat.txt <<'EOF'
+  2024-02-02 | 1005 | satis | 38000 | gelir
+  2024-02-09 | 1006 | kira | 15000 | gider
+  2024-02-14 | 1007 | su | 900 | gider
+  2024-02-27 | 1008 | satis | 51000 | gelir
+  EOF
+  cat > girdi/mart.txt <<'EOF'
+  2024-03-05 | 1009 | kira | 15000 | gider
+  2024-03-11 | 1010 | elektrik | 4100 | gider
+  2024-03-19 | 1011 | satis | 47000 | gelir
+  2024-03-28 | 1012 | su | 1100 | gider
+  EOF
+
+goal_tr: >
+  girdi klasorundeki tum .txt dosyalarindaki "tarih | kalem | aciklama |
+  tutar | tur" bicimli kayitlari okuyup, her kaydi
+  "tur<TAB>tarih<TAB>aciklama<TAB>tutar" bicimine donusturerek, ilk sutuna
+  (tur) ve ardindan tarihe gore artan sirada birlestirilmis satirlari
+  cikti/kalemler.tsv dosyasina yaz
+
+reference_solution: |
+  mkdir -p cikti
+  awk -F' *\\| *' '{ print $5 "\t" $1 "\t" $3 "\t" $4 }' girdi/*.txt | sort -t$'\t' -k1,1 -k2,2 > cikti/kalemler.tsv
+
+outputs:
+  - {path: cikti/kalemler.tsv, kind: lines}
+
+checks:
+  - {op: file_lines_eq, path: cikti/kalemler.tsv, value: ["gelir\t2024-01-07\tsatis\t42000", "gelir\t2024-02-02\tsatis\t38000", "gelir\t2024-02-27\tsatis\t51000", "gelir\t2024-03-19\tsatis\t47000", "gider\t2024-01-03\tkira\t15000", "gider\t2024-01-15\tkira\t15000", "gider\t2024-01-22\telektrik\t3200", "gider\t2024-02-09\tkira\t15000", "gider\t2024-02-14\tsu\t900", "gider\t2024-03-05\tkira\t15000", "gider\t2024-03-11\telektrik\t4100", "gider\t2024-03-28\tsu\t1100"]}
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0591
+    bundle: awk
+    tools:
+    - awk
+    konu: muhasebe-kalemleri
+    hedef: donustur
+    girdi: log-satiri
+    kaynak: cok-dosya
+    cikti: satir-listesi
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: yok
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kabuk
+    metadata: {}

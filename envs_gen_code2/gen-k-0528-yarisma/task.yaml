@@ -1,0 +1,102 @@
+id: gen-k-0528-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  orders.txt dosyasındaki her satırda bir sipariş kaydı "<kod> <kar> <sure>" biçiminde yer alıyor; budget.txt dosyasında ise tek bir sayı var. Bu iki dosyayı okuyup, kar/sure oranı en yüksek olan siparişten başlayarak toplam süresi budget.txt içindeki bütçeyi aşmayacak şekilde açgözlü seçim yapan bir plan.py dosyası yaz. Seçilen siparişlerin kodlarını bu seçim sırasıyla tek bir satırda, aralarında birer boşluk olacak şekilde birleştirip yazsın.
+
+  Şu şartlar sağlanmalı:
+  - Çalışma dizininde plan.py adında bir dosya oluşturulmalı.
+  - plan.py, orders.txt dosyasındaki her satırı "<kod> <kar> <sure>" olarak okuyabilmeli.
+  - plan.py, budget.txt dosyasındaki tek sayıyı toplam süre bütçesi olarak kullanmalı.
+  - Siparişler kar/sure oranına göre en yüksekten en düşüğe doğru sıralanmalı ve bu sırayla seçim yapılmalı.
+  - Seçilen siparişlerin süreleri toplamı budget.txt içindeki bütçeyi aşmamalı.
+  - Çıktı, seçilen sipariş kodlarının seçim sırasıyla tek bir satırda ve aralarında birer boşluk olacak şekilde yazılması olmalı.
+
+setup: |
+  cat > orders.txt <<'DATA'
+  ORD-1 100 3
+  ORD-2 60 2
+  ORD-3 40 5
+  ORD-4 75 1
+  ORD-5 20 4
+  DATA
+  cat > budget.txt <<'BUDGET'
+  6
+  BUDGET
+
+goal_tr: >
+  orders.txt satirlarindaki "<kod> <kar> <sure>" kayitlarini ve budget.txt
+  icindeki tek sayiyi okuyup, kar/sure orani en yuksek siparisten
+  baslayarak, toplam sure butceyi asmayacak sekilde acgozlu secim yapan ve
+  secilen siparis kodlarini bu sirayla tek satirda boslukla birlestirip
+  yazan plan.py dosyasini yaz.
+
+reference_solution: |
+  cat > plan.py <<'PY'
+  def load(path):
+      rows = []
+      for line in open(path):
+          line = line.strip()
+          if not line:
+              continue
+          code, profit, dur = line.split()
+          rows.append((code, int(profit), int(dur)))
+      return rows
+
+
+  def greedy(rows, budget):
+      order = sorted(rows, key=lambda r: r[1] / r[2], reverse=True)
+      chosen = []
+      used = 0
+      for code, profit, dur in order:
+          if used + dur <= budget:
+              chosen.append(code)
+              used += dur
+      return chosen
+
+
+  def main():
+      rows = load("orders.txt")
+      budget = int(open("budget.txt").read().strip())
+      print(" ".join(greedy(rows, budget)))
+
+
+  if __name__ == "__main__":
+      main()
+  PY
+
+outputs:
+  - {path: plan.py, kind: program, run: 'python3 -c ''import plan; rows=[("A",10,3),("B",9,3),("C",4,2),("D",3,2)]; g=plan.greedy(rows,4); assert g==["A"], g; assert plan.greedy(rows,0)==[]; assert plan.greedy(rows,100)==["A","B","C","D"], plan.greedy(rows,100); r=plan.load("orders.txt"); assert r==[("ORD-1",100,3),("ORD-2",60,2),("ORD-3",40,5),("ORD-4",75,1),("ORD-5",20,4)], r; assert plan.greedy(r,6)==["ORD-4","ORD-1","ORD-2"], plan.greedy(r,6); import io,sys; buf=io.StringIO(); old=sys.stdout; sys.stdout=buf; plan.main(); sys.stdout=old; assert buf.getvalue()=="ORD-4 ORD-1 ORD-2\n", repr(buf.getvalue()); print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''import plan; rows=[("A",10,3),("B",9,3),("C",4,2),("D",3,2)]; g=plan.greedy(rows,4); assert g==["A"], g; assert plan.greedy(rows,0)==[]; assert plan.greedy(rows,100)==["A","B","C","D"], plan.greedy(rows,100); r=plan.load("orders.txt"); assert r==[("ORD-1",100,3),("ORD-2",60,2),("ORD-3",40,5),("ORD-4",75,1),("ORD-5",20,4)], r; assert plan.greedy(r,6)==["ORD-4","ORD-1","ORD-2"], plan.greedy(r,6); import io,sys; buf=io.StringIO(); old=sys.stdout; sys.stdout=buf; plan.main(); sys.stdout=old; assert buf.getvalue()=="ORD-4 ORD-1 ORD-2\n", repr(buf.getvalue()); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0528
+    bundle: yarisma
+    tools:
+    - python3
+    konu: siparis-kayitlari
+    hedef: yarisma
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: dolayli-hedef
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: kolay
+    adim: 3
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: acgozlu

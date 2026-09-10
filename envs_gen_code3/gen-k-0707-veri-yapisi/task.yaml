@@ -1,0 +1,213 @@
+id: gen-k-0707-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 20
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  depo/inventory.py ve depo/merge.py içindeki NotImplementedError gövdelerini doldur; depo/report.py'deki summarize, envanteri sku bazında gruplayıp her grubu "kök:toplam" biçiminde döndürsün. Birleştirme aynı konumdaki skuları tek gruba toplayan union-find ile yapılsın.
+
+setup: |
+  mkdir -p depo
+  cat > depo/records.py <<'RECORDS'
+  def parse_lines(text):
+      rows = []
+      for line in text.strip().splitlines():
+          sku, qty, loc = line.split(';')
+          rows.append((sku, int(qty), loc))
+      return rows
+  RECORDS
+  cat > depo/inventory.py <<'INVENTORY'
+  from depo.records import parse_lines
+
+
+  class Inventory:
+      def __init__(self):
+          self._items = {}
+
+      def load(self, text):
+          for sku, qty, loc in parse_lines(text):
+              self._items[sku] = (qty, loc)
+
+      def quantity(self, sku):
+          raise NotImplementedError
+
+      def location(self, sku):
+          raise NotImplementedError
+
+      def skus(self):
+          raise NotImplementedError
+  INVENTORY
+  cat > depo/merge.py <<'MERGE'
+  from depo.inventory import Inventory
+
+
+  class Merger:
+      def __init__(self):
+          self._inv = Inventory()
+
+      def load(self, text):
+          self._inv.load(text)
+
+      def merge(self, other):
+          raise NotImplementedError
+
+      def groups(self):
+          raise NotImplementedError
+  MERGE
+  cat > depo/report.py <<'REPORT'
+  from depo.merge import Merger
+
+
+  def summarize(text):
+      m = Merger()
+      m.load(text)
+      m.merge(Merger())
+      return m.groups()
+  REPORT
+
+goal_tr: >
+  depo/inventory.py ve depo/merge.py icindeki NotImplementedError
+  govdelerini, depo/report.py'deki summarize fonksiyonu depo envanterini sku
+  bazinda gruplayip her grubu "kok:toplam" biciminde dondurecek sekilde
+  gerceklestir; birlestirme islemi ayni konumdaki skulari tek gruba toplayan
+  bir birlesim-bulma (union-find) yapisiyla yapilmali.
+
+reference_solution: |
+  cat > depo/inventory.py <<'INVENTORY'
+  from depo.records import parse_lines
+
+
+  class Inventory:
+      def __init__(self):
+          self._items = {}
+
+      def load(self, text):
+          for sku, qty, loc in parse_lines(text):
+              self._items[sku] = (qty, loc)
+
+      def quantity(self, sku):
+          return self._items[sku][0]
+
+      def location(self, sku):
+          return self._items[sku][1]
+
+      def skus(self):
+          return sorted(self._items)
+  INVENTORY
+  cat > depo/merge.py <<'MERGE'
+  from depo.inventory import Inventory
+
+
+  class Merger:
+      def __init__(self):
+          self._inv = Inventory()
+          self._parent = {}
+
+      def load(self, text):
+          self._inv.load(text)
+
+      def _find(self, x):
+          root = x
+          while self._parent[root] != root:
+              root = self._parent[root]
+          while self._parent[x] != root:
+              self._parent[x], x = root, self._parent[x]
+          return root
+
+      def _union(self, a, b):
+          ra, rb = self._find(a), self._find(b)
+          if ra != rb:
+              self._parent[rb] = ra
+
+      def _ensure(self, sku):
+          self._parent.setdefault(sku, sku)
+
+      def merge(self, other):
+          for sku in other._inv.skus():
+              self._ensure(sku)
+          for sku in self._inv.skus():
+              self._ensure(sku)
+          by_loc = {}
+          for sku in self._inv.skus():
+              by_loc.setdefault(self._inv.location(sku), []).append(sku)
+          for sku in other._inv.skus():
+              by_loc.setdefault(other._inv.location(sku), []).append(sku)
+          for loc in sorted(by_loc):
+              members = by_loc[loc]
+              for sku in members[1:]:
+                  self._union(members[0], sku)
+
+      def groups(self):
+          buckets = {}
+          for sku in self._inv.skus():
+              buckets.setdefault(self._find(sku), []).append(sku)
+          out = []
+          for root in sorted(buckets):
+              total = sum(self._inv.quantity(s) for s in buckets[root])
+              out.append("%s:%d" % (root, total))
+          return out
+  MERGE
+
+ara_adim: |
+  cat > depo/inventory.py <<'INVENTORY'
+  from depo.records import parse_lines
+
+
+  class Inventory:
+      def __init__(self):
+          self._items = {}
+
+      def load(self, text):
+          for sku, qty, loc in parse_lines(text):
+              self._items[sku] = (qty, loc)
+
+      def quantity(self, sku):
+          return self._items[sku][0]
+
+      def location(self, sku):
+          return self._items[sku][1]
+
+      def skus(self):
+          return sorted(self._items)
+  INVENTORY
+
+outputs:
+  - {path: depo/merge.py, kind: program, run: 'python3 -c ''from depo.report import summarize as f; assert f("A;3;R1\nB;4;R1\nC;5;R2")==["A:7","C:5"], f("A;3;R1\nB;4;R1\nC;5;R2"); print("TAMAM")'''}
+  - {path: depo/inventory.py, kind: program, run: 'python3 -c ''from depo.inventory import Inventory as I; inv=I(); inv.load("X;2;L9\nY;7;L3"); assert inv.skus()==["X","Y"], inv.skus(); assert inv.quantity("X")==2; assert inv.location("Y")=="L3"; print("REGRESYON-TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.inventory import Inventory as I; inv=I(); inv.load("X;2;L9\nY;7;L3"); assert inv.skus()==["X","Y"], inv.skus(); assert inv.quantity("X")==2; assert inv.location("Y")=="L3"; print("REGRESYON-TAMAM")''', value: REGRESYON-TAMAM}
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from depo.report import summarize as f; assert f("A;3;R1\nB;4;R1\nC;5;R2")==["A:7","C:5"], f("A;3;R1\nB;4;R1\nC;5;R2"); print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-0707
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: depo-envanteri
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: terse
+    direnc: yok
+    bukulme: orta
+    adim: 7
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: birlesim-bulma
+      karmasiklik: orta
+      zincir: 2
+      regresyon: true
+      bagimli: true
+      kesif_zor: false

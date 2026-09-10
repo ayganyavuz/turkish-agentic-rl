@@ -1,0 +1,100 @@
+id: gen-k-1145-yarisma
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  meterkit/billing.py dosyasını oluştur. Bu dosya, meterkit/readings/loader.py içindeki load_meters fonksiyonunu kullanarak usage.txt dosyasını okumalı ve içindeki her sayacın ardışık okumaları arasındaki en büyük toplam artışı hesaplayan max_gain(path) fonksiyonunu sunmalı. max_gain(path), bir sayacın okuma dizisindeki yalnızca artışları toplayan en iyi bitişik ardışık-dizi toplamını bulmalı; azalışlar bu toplama dahil edilmemeli. Dosya load_meters ile okuma yapmalı ve tüm sayaclar arasından en büyük toplam artışı döndürmeli.
+
+setup: |
+  mkdir -p meterkit/readings
+  cat > meterkit/readings/loader.py <<'LOADER'
+  def load_meters(path):
+      meters = []
+      with open(path, "r", encoding="utf-8") as fh:
+          for line in fh:
+              line = line.strip()
+              if not line:
+                  continue
+              name, values = line.split(":")
+              readings = [int(v) for v in values.split(",")]
+              meters.append((name, readings))
+      return meters
+  LOADER
+  cat > meterkit/__init__.py <<'INIT'
+  INIT
+  cat > meterkit/readings/__init__.py <<'RINIT'
+  RINIT
+  cat > usage.txt <<'DATA'
+  flat:10,12,11,15
+  shop:100,90,120,80,130
+  office:5,5,5
+  DATA
+
+goal_tr: >
+  meterkit/readings/loader.py icindeki load_meters fonksiyonunu kullanarak,
+  usage.txt dosyasindaki her sayacin ardisik okumalar arasindaki en buyuk
+  toplam artisi (yalnizca artislari toplayan en iyi bitisik ardisik-dizi
+  toplami) hesaplayan meterkit/billing.py dosyasini yaz; dosya load_meters
+  ile okuyup max_gain(path) fonksiyonunu sunmali.
+
+reference_solution: |
+  cat > meterkit/billing.py <<'BILLING'
+  from meterkit.readings.loader import load_meters
+
+
+  def max_gain(path):
+      meters = load_meters(path)
+      best = {}
+      for name, readings in meters:
+          gains = [readings[i + 1] - readings[i] for i in range(len(readings) - 1)]
+          current = 0
+          top = 0
+          for g in gains:
+              current = max(0, current + g)
+              top = max(top, current)
+          best[name] = top
+      return best
+  BILLING
+
+outputs:
+  - {path: meterkit/billing.py, kind: program, run: 'python3 -c ''from meterkit.billing import max_gain as f; r=f("usage.txt"); assert r=={"flat":5,"shop":50,"office":0}, r; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from meterkit.billing import max_gain as f; r=f("usage.txt"); assert r=={"flat":5,"shop":50,"office":0}, r; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: yarisma
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1145
+    bundle: yarisma
+    tools:
+    - python3
+    konu: elektrik-sayaclari
+    hedef: yarisma
+    girdi: python
+    kaynak: tek-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: kolay
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: dinamik-programlama
+      karmasiklik: duz
+      kalip: duz-fonksiyon
+      akis: dosya-okuma
+      topoloji: paket-alt-paket
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

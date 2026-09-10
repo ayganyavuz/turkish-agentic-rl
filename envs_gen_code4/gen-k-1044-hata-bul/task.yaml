@@ -1,0 +1,121 @@
+id: gen-k-1044-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 16
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  maintenance/schedule.py dosyasındaki build_checker fabrikasında bir hata var: makine kullanım saatleri tür ayrımı yapılmadan tek bir toplamda biriktiriliyor ve is_due(machine, kind) çağrısı hangi tür sorgulanırsa sorgulansın bu tek toplamı o türün limitiyle karşılaştırıyor. Bu yüzden bir makinenin farklı bakım türleri (örneğin oil, belt, filter) için kullanım saatleri birbirine karışıyor ve is_due yanlış sonuç döndürüyor. maintenance/schedule.py dosyasını, her makinenin kullanım saatlerini bakım türü bazında ayrı ayrı toplayacak ve is_due(machine, kind) çağrısında yalnızca o makinenin o türe ait toplamını o türün kendi limitiyle karşılaştıracak şekilde düzelt. maintenance/registry.py ve maintenance/thresholds.py dosyalarındaki mevcut yapı ve arayüzler korunmalı; build_checker yine normalize edilmiş satırları yükleyip çağrılabilir bir is_due fonksiyonu döndürmeli.
+
+setup: |
+  mkdir -p maintenance
+  cat > maintenance/registry.py <<'REGISTRY'
+  def normalize_rows(raw_rows):
+      out = []
+      for row in raw_rows:
+          out.append({
+              "machine": row["machine"].strip().lower(),
+              "hours": int(row["hours"]),
+              "kind": row["kind"].strip().lower(),
+          })
+      return out
+
+
+  def load_registry(raw_rows):
+      return normalize_rows(raw_rows)
+  REGISTRY
+  cat > maintenance/thresholds.py <<'THRESHOLDS'
+  LIMITS = {
+      "oil": 500,
+      "belt": 800,
+      "filter": 300,
+  }
+
+
+  def limit_for(kind):
+      return LIMITS[kind]
+  THRESHOLDS
+  cat > maintenance/schedule.py <<'SCHEDULE'
+  from maintenance.registry import load_registry
+  from maintenance.thresholds import limit_for
+
+
+  def build_checker(raw_rows):
+      rows = load_registry(raw_rows)
+      totals = {}
+      for row in rows:
+          totals[row["machine"]] = totals.get(row["machine"], 0) + row["hours"]
+
+      def is_due(machine, kind):
+          used = totals.get(machine, 0)
+          return used >= limit_for(kind)
+
+      return is_due
+  SCHEDULE
+
+goal_tr: >
+  maintenance/schedule.py icindeki build_checker fabrikasini, her makine
+  icin kullanim saatlerini tur bazinda ayri toplayip is_due(machine, kind)
+  cagrisinda o turun kendi limitiyle karsilastirarak dogru sonuc verecek
+  bicimde duzelt.
+
+reference_solution: |
+  cat > maintenance/schedule.py <<'SCHEDULE'
+  from maintenance.registry import load_registry
+  from maintenance.thresholds import limit_for
+
+
+  def build_checker(raw_rows):
+      rows = load_registry(raw_rows)
+      totals = {}
+      for row in rows:
+          key = (row["machine"], row["kind"])
+          totals[key] = totals.get(key, 0) + row["hours"]
+
+      def is_due(machine, kind):
+          used = totals.get((machine, kind), 0)
+          return used >= limit_for(kind)
+
+      return is_due
+  SCHEDULE
+
+outputs:
+  - {path: maintenance/schedule.py, kind: program, run: 'python3 -c ''from maintenance.schedule import build_checker; rows=[{"machine":" M1 ","hours":"400","kind":"oil"},{"machine":"m1","hours":"200","kind":"belt"},{"machine":"M1","hours":"150","kind":"filter"},{"machine":"m2","hours":"900","kind":"oil"}]; c=build_checker(rows); assert c("m1","oil")==False; assert c("m1","belt")==False; assert c("m1","filter")==False; assert c("m2","oil")==True; assert c("m2","belt")==False; assert c("m1","oil")==False; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from maintenance.schedule import build_checker; rows=[{"machine":" M1 ","hours":"400","kind":"oil"},{"machine":"m1","hours":"200","kind":"belt"},{"machine":"M1","hours":"150","kind":"filter"},{"machine":"m2","hours":"900","kind":"oil"}]; c=build_checker(rows); assert c("m1","oil")==False; assert c("m1","belt")==False; assert c("m1","filter")==False; assert c("m2","oil")==True; assert c("m2","belt")==False; assert c("m1","oil")==False; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1044
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: makine-bakim-kayitlari
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: zor
+    adim: 5
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sozluk-anahtar-hatasi
+      karmasiklik: duz
+      kalip: closure-fabrika
+      akis: cok-dosya-birlestirme
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

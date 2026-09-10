@@ -1,0 +1,130 @@
+id: gen-k-1036-hata-bul
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  fx/convert.py dosyasındaki convert_amounts ve convert_stream fonksiyonlarını, bilinmeyen para birimi kodları için anahtar hatası vermek yerine None döndürecek ve akışı bozmayacak biçimde düzelt.
+
+setup: |
+  mkdir -p fx
+  cat > fx/rates.py <<'RATES'
+  class RateTable:
+      """Streaming rate table: yields (currency, rate) pairs lazily."""
+
+      def __init__(self, raw):
+          self._raw = raw
+
+      def __iter__(self):
+          for line in self._raw.strip().splitlines():
+              code, rate = line.split('=')
+              yield code.strip(), float(rate.strip())
+
+      def lookup(self, code):
+          for cur, rate in self:
+              if cur == code:
+                  return rate
+          return None
+
+
+  def parse_rates(raw):
+      return RateTable(raw)
+  RATES
+  cat > fx/convert.py <<'CONVERT'
+  from fx.rates import parse_rates
+
+
+  def convert_amounts(raw_rates, amounts):
+      table = parse_rates(raw_rates)
+      out = []
+      for code, amount in amounts:
+          rate = table.lookup(code)
+          out.append(round(amount * rate, 2))
+      return out
+
+
+  def convert_stream(raw_rates, amount_stream):
+      table = parse_rates(raw_rates)
+      for code, amount in amount_stream:
+          rate = table.lookup(code)
+          yield round(amount * rate, 2)
+  CONVERT
+  cat > rates.txt <<'TXT'
+  USD=1.0
+  EUR=1.1
+  GBP=1.25
+  TXT
+
+goal_tr: >
+  fx/convert.py icindeki convert_amounts ve convert_stream fonksiyonlarini,
+  bilinmeyen para birimi kodlari icin anahtar hatasi vermek yerine None
+  dondurecek ve akisi bozmayacak bicimde duzelt.
+
+reference_solution: |
+  cat > fx/convert.py <<'CONVERT'
+  from fx.rates import parse_rates
+
+
+  def convert_amounts(raw_rates, amounts):
+      table = parse_rates(raw_rates)
+      out = []
+      for code, amount in amounts:
+          rate = table.lookup(code)
+          if rate is None:
+              out.append(None)
+          else:
+              out.append(round(amount * rate, 2))
+      return out
+
+
+  def convert_stream(raw_rates, amount_stream):
+      table = parse_rates(raw_rates)
+      for code, amount in amount_stream:
+          rate = table.lookup(code)
+          if rate is None:
+              yield None
+          else:
+              yield round(amount * rate, 2)
+  CONVERT
+
+outputs:
+  - {path: fx/convert.py, kind: program, run: 'python3 -c ''from fx.convert import convert_amounts as a, convert_stream as s; r=open("rates.txt").read(); assert a(r,[("USD",10),("EUR",10),("XXX",5)])==[10.0,11.0,None], a(r,[("USD",10),("EUR",10),("XXX",5)]); assert list(s(r,[("USD",10),("GBP",4),("ZZZ",1)]))==[10.0,5.0,None]; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from fx.convert import convert_amounts as a, convert_stream as s; r=open("rates.txt").read(); assert a(r,[("USD",10),("EUR",10),("XXX",5)])==[10.0,11.0,None], a(r,[("USD",10),("EUR",10),("XXX",5)]); assert list(s(r,[("USD",10),("GBP",4),("ZZZ",1)]))==[10.0,5.0,None]; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: hata-bul
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1036
+    bundle: hata-bul
+    tools:
+    - python3
+    konu: kur-cevrimleri
+    hedef: hata-bul
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: veriye-bak
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: sozluk-anahtar-hatasi
+      karmasiklik: duz
+      kalip: iterator-protokolu
+      akis: parcali-akis
+      topoloji: iki-modul-zincir
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false

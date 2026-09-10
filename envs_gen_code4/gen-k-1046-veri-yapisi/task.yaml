@@ -1,0 +1,162 @@
+id: gen-k-1046-veri-yapisi
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  sessions/store.py içindeki SessionStore sınıfını, token'ları bir trie içinde tutacak biçimde gerçekleştir. add, has, count ve with_prefix metotları doğru çalışmalı. add aynı token'ı ikinci kez eklendiğinde onu yeniden eklememeli; has daha önce eklenmiş bir token için doğru sonucu vermeli; count bir kullanıcının eklediği token sayısını döndürmeli; with_prefix ise verilen öneğe sahip token'ları sıralı bir liste olarak döndürmeli. Sınıf sessions/audit.py içindeki AuditedSessions tarafından da kullanıldığı için metot imzaları başlangıçtakiyle aynı kalmalı.
+
+setup: |
+  mkdir -p sessions
+  cat > sessions/store.py <<'STORE'
+  class SessionStore:
+      def __init__(self):
+          self.root = {}
+
+      def add(self, user, token):
+          raise NotImplementedError
+
+      def has(self, user, token):
+          raise NotImplementedError
+
+      def count(self, user):
+          raise NotImplementedError
+
+      def with_prefix(self, user, prefix):
+          raise NotImplementedError
+  STORE
+  cat > sessions/audit.py <<'AUDIT'
+  from sessions.store import SessionStore
+
+
+  class AuditedSessions(SessionStore):
+      def __init__(self):
+          super().__init__()
+          self.log = []
+
+      def add(self, user, token):
+          super().add(user, token)
+          self.log.append(("add", user, token))
+
+      def has(self, user, token):
+          ok = super().has(user, token)
+          self.log.append(("has", user, token, ok))
+          return ok
+  AUDIT
+  cat > sessions/__init__.py <<'INIT'
+  from sessions.store import SessionStore
+  from sessions.audit import AuditedSessions
+
+  __all__ = ["SessionStore", "AuditedSessions"]
+  INIT
+
+goal_tr: >
+  sessions/store.py icindeki SessionStore sinifini, token'lar bir trie'de
+  tutulacak ve add/has/count/with_prefix metotlari dogru calisacak bicimde
+  gerceklestir; add ayni token'i ikinci kez eklememeli, with_prefix verilen
+  onekle baslayan token'lari sirali liste olarak dondurmeli.
+
+reference_solution: |
+  cat > sessions/store.py <<'STORE'
+  class SessionStore:
+      def __init__(self):
+          self.root = {}
+          self.tokens = 0
+
+      def add(self, user, token):
+          node = self.root.setdefault(user, {})
+          for ch in token:
+              node = node.setdefault(ch, {})
+          if node.get("#"):
+              return False
+          node["#"] = True
+          self.tokens += 1
+          return True
+
+      def has(self, user, token):
+          node = self.root.get(user)
+          if node is None:
+              return False
+          for ch in token:
+              node = node.get(ch)
+              if node is None:
+                  return False
+          return bool(node.get("#"))
+
+      def count(self, user):
+          node = self.root.get(user)
+          if node is None:
+              return 0
+          total = 0
+          stack = [node]
+          while stack:
+              cur = stack.pop()
+              if cur.get("#"):
+                  total += 1
+              for key, child in cur.items():
+                  if key != "#":
+                      stack.append(child)
+          return total
+
+      def with_prefix(self, user, prefix):
+          node = self.root.get(user)
+          if node is None:
+              return []
+          for ch in prefix:
+              node = node.get(ch)
+              if node is None:
+                  return []
+          out = []
+          stack = [(node, prefix)]
+          while stack:
+              cur, acc = stack.pop()
+              if cur.get("#"):
+                  out.append(acc)
+              for key, child in cur.items():
+                  if key != "#":
+                      stack.append((child, acc + key))
+          out.sort()
+          return out
+  STORE
+
+outputs:
+  - {path: sessions/store.py, kind: program, run: 'python3 -c ''from sessions import SessionStore, AuditedSessions; s=SessionStore(); assert s.add("u","abc") is True; assert s.add("u","abc") is False; assert s.add("u","abd") is True; assert s.add("u","x") is True; assert s.has("u","abc") is True; assert s.has("u","ab") is False; assert s.has("v","abc") is False; assert s.count("u")==3; assert s.with_prefix("u","ab")==["abc","abd"]; assert s.with_prefix("u","")==["abc","abd","x"]; assert s.with_prefix("u","z")==[]; a=AuditedSessions(); a.add("u","t1"); assert a.has("u","t1") is True; assert a.log==[("add","u","t1"),("has","u","t1",True)]; assert a.count("u")==1; print("TAMAM")'''}
+
+checks:
+  - {op: run_stdout_eq, cmd: 'python3 -c ''from sessions import SessionStore, AuditedSessions; s=SessionStore(); assert s.add("u","abc") is True; assert s.add("u","abc") is False; assert s.add("u","abd") is True; assert s.add("u","x") is True; assert s.has("u","abc") is True; assert s.has("u","ab") is False; assert s.has("v","abc") is False; assert s.count("u")==3; assert s.with_prefix("u","ab")==["abc","abd"]; assert s.with_prefix("u","")==["abc","abd","x"]; assert s.with_prefix("u","z")==[]; a=AuditedSessions(); a.add("u","t1"); assert a.has("u","t1") is True; assert a.log==[("add","u","t1"),("has","u","t1",True)]; assert a.count("u")==1; print("TAMAM")''', value: TAMAM}
+
+metadata:
+  domain: veri-yapisi
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: k-1046
+    bundle: veri-yapisi
+    tools:
+    - python3
+    konu: kullanici-oturumlari
+    hedef: veri-yapisi
+    girdi: python
+    kaynak: cok-dosya
+    cikti: program
+    kesif: yok
+    uslup: duz-hedef
+    direnc: yok
+    bukulme: orta
+    adim: 4
+    image: verifiable-dataset/base:latest
+    aile: kod
+    metadata:
+      ayrinti: trie
+      karmasiklik: duz
+      kalip: durumlu-sinif
+      akis: bellek-ici
+      topoloji: yildiz
+      zincir: 0
+      regresyon: false
+      bagimli: false
+      kesif_zor: false
