@@ -792,3 +792,28 @@ attention karmasikligi degil, **launch overhead + fp32 yol**.
 | launch overhead → `torch.compile` / CUDA graphs kernel'leri birlestirir | `torch_compile=True` ile bir adim, `faz[adim]` karsilastir |
 | linear attention referans implementasyonu yavas | `flash-linear-attention` (`fla`) kurulu mu, transformers onu seciyor mu |
 | fp32 yol gereksiz | fp32 sgemm'leri hangi modulun urettigini `--profil-ayrinti` ile sekillerden bul |
+
+### DUZELTME: tablodaki yuzdeler toplanamaz
+Yukaridaki tablo hem `aten::` op satirlarini hem de onlarin altindaki CUDA
+kernel satirlarini birlikte listeliyor (`aten::mm` ve `ampere_*gemm_*` ayni
+isin iki seviyesi). Yuzdeler bu yuzden **cift sayiliyor**; toplandiginda
+%100'u asiyor. "fp32 GEMM zamanin %24'u" ifadesi bu hatayi tasiyor.
+
+Guvenle soylenebilecek olan: `Self CUDA time total 20.531 s` (2 mikro-gecis)
+ve **fp32 kernel'lerin varligi**.
+
+### bf16 notu hala gecerli, bulgu baska bir katmanda
+Agirliklar gercekten bf16:
+- olculen agirlik platosu **8.68 GiB** = 4.66e9 x 2 bayt (fp32 olsaydi 17.4;
+  tuzak yakalanmadan once tam da 17.3 olculmustu),
+- tabloda bf16 GEMM'ler acikca var: `ampere_bf16_s16816gemm_bf16_*`.
+
+Cozulen tuzak "**butun model** fp32 yukleniyordu" idi. Yeni bulgu farkli:
+**bf16 modelin icinde bazi alt-hesaplar fp32'de** --  `ampere_sgemm_*` ve
+adi tereddute yer birakmayan `magma_sgemmEx_kernel<float, float, float,...>`.
+En olasi yer linear attention'in state hesabi (bu katmanlarda state sayisal
+kararlilik icin genelde fp32 tutulur), yani muhtemelen kasitli ama pahali.
+
+**Henuz olculmedi**: fp32 kernel'leri hangi modul uretiyor. `--profil-ayrinti`
+ile tensor sekilleri toplanarak bulunabilir; kapsam artik 2 mikro-gecisle
+sinirli oldugu icin ilk denemedeki RAM patlamasi riski yok.
