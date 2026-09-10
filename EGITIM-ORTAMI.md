@@ -950,3 +950,44 @@ kurulu DEGIL, A100 bagli, Drive bagli. `--derle` (torch.compile) denemesi
 ```
 derlemesiz: faz[adim 2] = 553.6 sn = uretim 181.5 (33%) + loss 372.1 (67%)
 ```
+
+---
+
+## SIRADAKI DENEY: mikro-batch 4, sonra 8 (kullanici karari, 10 Eylul)
+
+Gerekce degisti. Mikro-batch 4 daha once **onerilmiyordu**, cunku
+"toplam hesap ayni, kazanc %6-15". O degerlendirme adimin
+**kernel-launch-bound** oldugunu bilmeden yapilmisti. Artik biliyoruz:
+Self CPU 32.1 s > Self CUDA 20.5 s, iki mikro-geciste 63k `bmm` + 72k
+`copy_`. Mikro-batch buyutmek **gecis sayisini** azaltir (16 -> 8 -> 4),
+yani launch overhead'i amortize eder. Kazanc toplam FLOP'tan degil,
+**daha az kernel cagrisindan** gelir.
+
+### Bellek projeksiyonu (bf16 logits = mb x seq x 248320 x 2 bayt)
+| | pad'li seq 4882 | pad'siz seq 2104 | grad_accum |
+|---|---|---|---|
+| mb=2 (mevcut) | 4.5 GiB | 1.9 GiB | 16 |
+| mb=4 | 9.0 GiB | 3.9 GiB | 8 |
+| mb=8 | **18.1 GiB** | 7.8 GiB | 4 |
+
+Olculen loss tepesi (mb=2) 64.5 GB, kartta pay 14.75 GB:
+- **mb=4 → tepe ~69 GB, pay ~10 GB.** Sigar.
+- **mb=8 → tepe ~78 GB, pay ~1.2 GB. Padding duzeltilmeden OOM riski cok
+  yuksek.** Pad'siz seq ile ~68 GB'a duser, yani **mb=8 padding
+  duzeltmesine bagli**.
+
+### Karsilastirma referansi (elde, profilsiz adim)
+```
+mb=2: faz[adim 2] = 553.6 sn = uretim 181.5 (33%) + loss 372.1 (67%)
+```
+Bakilacak tek sey: **loss 372.1 sn ne kadar dusuyor.** Uretim degismemeli
+(`micro_batch x steps_per_generation` carpimi sabit, 32).
+
+### Kontrol edilmeli
+`grpo_trainer.py:1104`'te `max_num_seqs` `per_device_train_batch_size`'a
+bagli. Mikro-batch buyurken vLLM'in istedigi bellek de artabilir; uretim
+platosu (48.7 GB) izlenmeli.
+
+`gradient_accumulation_steps` kodda turetiliyor (`8*4/mb`), elle
+verilmiyor -- mb degisince otomatik 8/4 oluyor. Dogru davranis, ama koumadan
+once `faz[adim]` ile teyit edilmeli.
