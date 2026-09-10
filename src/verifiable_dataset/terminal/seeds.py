@@ -341,13 +341,23 @@ VERI_YAPILARI = [
     "trie", "birlesim-bulma", "graf-gezinme", "lru-onbellek", "aralik-birlestirme",
 ]
 
+KOD_KONULARI_EK = [
+    "ucus-rezervasyonlari", "kutuphane-oduncleri", "hastane-randevulari",
+    "kargo-takibi", "elektrik-sayaclari", "sinav-sonuclari",
+    "restoran-siparisleri", "arac-filosu", "abonelik-planlari",
+    "depo-raf-yerlesimi", "cagri-merkezi-kayitlari", "yazilim-surumleri",
+    "sensor-alarm-kurallari", "vardiya-cizelgesi", "stok-hareketleri",
+    "kur-cevrimleri", "makine-bakim-kayitlari", "web-erisim-loglari",
+    "oyun-skor-tablosu", "tarim-verim-olcumleri",
+]
+
 # Kod ailesinde konu, veriye isim verir; problemin sekli hedeften gelir.
 KOD_KONULARI = [
     "siparis-kayitlari", "ogrenci-transkripti", "depo-envanteri",
     "banka-hareketleri", "metin-belgeleri", "sensor-serisi",
     "yol-tarifi-agi", "takvim-etkinlikleri", "urun-fiyatlari",
     "kullanici-oturumlari",
-]
+] + KOD_KONULARI_EK
 
 # hata-bul her zaman cok dosyali: tek dosyada "hatayi bul" gorevi
 # okumaya degil goze indirgeniyor. Digerleri %70 cok dosyali.
@@ -365,6 +375,78 @@ KOD_ZORLUKLAR = {"kolay": 30, "orta": 45, "zor": 25}
 # OLU-zor tarafina itebilir ve cozulmeyen gorev GRPO'da gradyan uretmez,
 # sadece hesap yakar. Tek dugme oldugu icin payi kosudan kosuya
 # ayarlanabiliyor (`pipeline --karmasiklik`).
+# -- yapisal eksenler -------------------------------------------------
+# Uretilen kodun neredeyse tamami ayni iskeletteydi: metni ayristir,
+# hesapla, liste/sayi dondur. Sinif durumu, generator, context manager,
+# ozyineleme, istisna yolu yoktu. LLM'e "gorev uydur" dendiginde gittigi
+# yer burasi; cesitlilik istiyorsak sekli SEED soylemeli.
+#
+# Binlerce ornegi elle yazmak yerine dik eksenlerin carpimi aliniyor --
+# dosyada 12+6+6+30 satir duruyor, uzay on binlerce kombinasyon.
+
+PY_KALIPLARI = {
+    "duz-fonksiyon": 14,      # bugunku varsayilan; tamamen kaybolmasin
+    "durumlu-sinif": 13,      # __init__ + metotlar arasi durum
+    "generator": 9,           # yield, tembel degerlendirme
+    "ozyineleme": 9,          # agac/ic ice yapi gezme
+    "context-manager": 7,     # __enter__/__exit__, kaynak yasam dongusu
+    "dekorator": 7,           # sarmalayici, imza koruma
+    "dataclass-dogrulama": 8, # __post_init__, alan kisitlari
+    "iterator-protokolu": 7,  # __iter__/__next__
+    "closure-fabrika": 6,     # fonksiyon donduren fonksiyon
+    "istisna-hiyerarsisi": 8, # ozel istisna sinifi, yakala/yeniden-firlat
+    "abc-protokol": 6,        # soyut taban sinif, alt sinif sozlesmesi
+    "operator-asiri-yukleme": 6,  # __eq__/__lt__/__add__ ve siralama
+}
+
+VERI_AKISLARI = {
+    "bellek-ici": 26,         # bugunku varsayilan
+    "dosya-okuma": 24,
+    "cok-dosya-birlestirme": 16,
+    "parcali-akis": 12,       # veri parca parca geliyor, durum tasiniyor
+    "stdin-boru": 12,
+    "ic-ice-yapi": 10,        # JSON benzeri ic ice sozluk/liste
+}
+
+TOPOLOJILER = {
+    "tek-modul": 16,
+    "iki-modul-zincir": 22,   # A -> B
+    "uc-modul-zincir": 20,    # A -> B -> C
+    "yildiz": 14,             # ortak cekirdegi iki modul kullanir
+    "elmas": 12,              # A -> B, A -> C, ikisi de D'ye
+    "paket-alt-paket": 16,    # pkg/ ve pkg/alt/
+}
+
+# Konu veriye isim veriyor; ucuz cesitlilik. 10'dan 30'a cikarildi.
+
+
+def kod_uyumlu(hedef: str, kalip: str, akis: str, topoloji: str) -> bool:
+    """Anlamsiz kombinasyonlari ele.
+
+    Carpim uzayi buyudukce sacma esleme olasiligi da buyuyor; uretici
+    modele imkansiz bir sey istetmek adayi bosuna yakiyor.
+    """
+    # hata-bul'un tek modulde anlami yok: "hatayi bul" okumaya degil goze
+    # indirgenir (bkz. KOD_YAPILARI yorumu).
+    if hedef == "hata-bul" and topoloji == "tek-modul":
+        return False
+    # Context manager bir KAYNAGIN yasam dongusunu yonetir; bellek ici
+    # veride yonetecek kaynak yok.
+    if kalip == "context-manager" and akis in {"bellek-ici"}:
+        return False
+    # Generator ve iterator protokolu akisla anlam kazanir.
+    if kalip in {"generator", "iterator-protokolu"} and akis == "bellek-ici":
+        return False
+    # Ozyineleme ic ice yapi ya da agac ister.
+    if kalip == "ozyineleme" and akis not in {"ic-ice-yapi", "dosya-okuma",
+                                              "cok-dosya-birlestirme"}:
+        return False
+    # Tek modulde paket topolojisi ya da cok modullu kaliplar olmaz.
+    if topoloji == "tek-modul" and kalip in {"abc-protokol"}:
+        return False
+    return True
+
+
 KOD_KARMASIKLIK = {"duz": 40, "orta": 35, "derin": 25}
 
 # Her seviyenin acik ettigi ozellikler. Bagimsiz bayrak yerine seviyeye
@@ -409,6 +491,17 @@ def sample_kod(rng: random.Random, index: int,
     # dosyada anlamsiz.
     yapi = ("cok-dosya" if hedef == "hata-bul" or kmsk != "duz"
             else _pick(rng, KOD_YAPILARI))
+    # Yapisal eksenler: uyumsuz kombinasyon cikarsa yeniden cek.
+    for _ in range(60):
+        kalip = _pick(rng, PY_KALIPLARI)
+        akis = _pick(rng, VERI_AKISLARI)
+        topoloji = _pick(rng, TOPOLOJILER)
+        if yapi == "cok-dosya" and topoloji == "tek-modul":
+            continue
+        if kod_uyumlu(hedef, kalip, akis, topoloji):
+            break
+    else:  # pragma: no cover - agirliklar bozulmadikca ulasilmaz
+        kalip, akis, topoloji = "duz-fonksiyon", "dosya-okuma", "iki-modul-zincir"
     ayrinti = {
         "hata-bul": lambda: rng.choice(HATA_TIPLERI),
         "yarisma": lambda: rng.choice(YARISMA_KALIPLARI),
@@ -432,7 +525,8 @@ def sample_kod(rng: random.Random, index: int,
         adim=rng.randint(*ozellik["adim"]),
         image=image_for(["python3"]),
         aile="kod",
-        metadata={"ayrinti": ayrinti, "karmasiklik": kmsk, **{
+        metadata={"ayrinti": ayrinti, "karmasiklik": kmsk,
+                  "kalip": kalip, "akis": akis, "topoloji": topoloji, **{
             k: v for k, v in ozellik.items() if k != "adim"}},
     )
 
@@ -484,6 +578,18 @@ def fingerprint(reference_solution: str, checks: list[dict],
         "kesif": s.get("kesif", ""),
         "cikti": s.get("cikti", ""),
     }
+    # Kod ailesinde ustteki eksenlerin cogu SABIT: tools hep python3, op
+    # hep run_stdout_eq, cikti hep program. Toplam 19 kova cikiyordu, yani
+    # parmak izi bu ailede kordu -- cesitliligi koruyormus gibi gorunup
+    # hicbir sey ayirt etmiyordu. Yapisal eksenler onu goren tek sey.
+    if s.get("aile") == "kod":
+        m = s.get("metadata") or {}
+        parts.update({
+            "kalip": m.get("kalip", ""),
+            "akis": m.get("akis", ""),
+            "topoloji": m.get("topoloji", ""),
+            "karmasiklik": m.get("karmasiklik", ""),
+        })
     blob = json.dumps(parts, sort_keys=True, ensure_ascii=False)
     return hashlib.sha1(blob.encode("utf-8")).hexdigest()[:12], parts
 

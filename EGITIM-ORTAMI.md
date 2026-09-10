@@ -685,3 +685,49 @@ uygulanmadigi dogrulandi.
 kostugu icin uretim maliyeti dogrudan tur sayisiyla artiyor. Held-out
 olcumunde tepe 0.5'teydi ama o **sweep'in butcesiyle** olculmustu (2048
 token, metin protokolu); egitimde durum farkli.
+
+---
+
+## Profil denemesi 2 ve kapsamin daraltilmasi (10 Eylul)
+
+Hafif profille (`record_shapes`/`profile_memory` kapali) tek adim olculdu.
+Adim tamamlandi, profiler kapandi, ama **tablo uretilirken RAM buyumeye
+devam etti**:
+```
+profiler_stop 11:36:18   (profilli adim 775 sn)
++16 dk   RSS 79.7 GB   bos 87 GB
++20 dk   RSS 97.1 GB   bos 71 GB     -> ~4.3 GB/dk, yine OOM'a gidiyordu
+```
+Kesildi. Tablo alinamadi.
+
+**Kok sorun ayarlar degil KAPSAM.** Bir adimda ~9 tur uretim + 16
+mikro-gecis var; uretimin milyonlarca kernel cagrisi trace'e giriyor ve
+sonra atiliyor, cunku sorumuz loss fazinin **icinde** zamanin nereye
+gittigi.
+
+Yeni yaklasim (`loss_fazini_profille`): `ProfilCallback` kaldirildi, yerine
+`compute_loss` sarmalaniyor. Ilk mikro-gecis isinma, sonraki N mikro-gecis
+olculuyor, tablo basiliyor, profiler bir daha acilmiyor. **Uretim trace'e
+hic girmiyor.** `--profil N` artik adim degil mikro-gecis sayisi.
+
+Test: sahte `torch.profiler` ve sahte `trl.GRPOTrainer` ile 6 mikro-gecis
+kosuldu -- 1. isinma, 2-3. olculdu, tablo basildi, 4-6. profilsiz gecti;
+`compute_loss` altisinda da gercek fonksiyona ulasti; yama iki kez
+uygulanmiyor.
+
+### Bu iki denemeden kalan temiz olcumler
+| | |
+|---|---|
+| `attn_impl` | istenen=sdpa **gercek=sdpa** |
+| uyku yamasi | **AKTIF** |
+| uretim platosu | **48.7 GB** (dokumandaki 48-50 ile birebir) |
+| isinma adimi (profilsiz) | `step_time` **497.6** ve **476.4** |
+| adim basina token | `num_tokens` 7.2e4 - 7.9e4 |
+| tur sayisi | `tools/call_frequency` **9.5 - 9.9** / 12 |
+| odul | 0.594 / 0.656 |
+
+Teorik karsilastirma (adim basina ~72-79k token): govde fwd+bwd
+`6 x 79k x 4.66e9 ~ 2200 TFLOP`, gradient checkpointing ile ~2900;
+A100'de gercekci 150-200 TFLOPS ile **15-20 sn** eder. "Loss ~%62" dogruysa
+olculen ~300 sn, yani **~20 kat acik**. Ama o yuzde hala cikarim --
+`FazCallback` bir sonraki kosuda kesinlestirecek.

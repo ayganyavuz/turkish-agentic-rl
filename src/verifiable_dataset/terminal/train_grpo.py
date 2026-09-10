@@ -178,90 +178,90 @@ def veri_kumesi(split_yolu: Path, bolum: str, aile: str, repo_kok: Path,
     return Dataset.from_list(satirlar)
 
 
-class ProfilCallback:
-    """Loss fazini ayristirmak icin torch profiler.
+def loss_fazini_profille(mikro_gecis: int, cikti_dizini: str,
+                         ayrinti: bool = False) -> bool:
+    """Profiler'i YALNIZCA loss fazinda, birkac mikro-gecis boyunca ac.
 
-    Olculen: loss fazi ~314 sn. Teorik olarak govdenin fwd+bwd'si
-    ~1400 TFLOP ve A100'de gercekci 150 TFLOPS ile ~10 sn eder -- yani
-    30 kat acik var. `lm_head` + log-softmax bu isin yalnizca %6'si
-    (88 TFLOP), attention da sebep degil (Qwen3.5 hibrit: katmanlarin
-    cogu linear_attention, full_attention katmanlari da sdpa ile
-    matrisi materyalize etmiyor). Kalan supheliler gradient
-    checkpointing'in yeniden hesabi ve mikro-batch 2'de kartin
-    dolmamasi. Bunlar tahmin; bu callback olcuyor.
+    Adimin tamamini profillemek iki kez denendi, ikisi de host RAM'i
+    tuketti: bir adimda ~9 tur uretim + 16 mikro-gecis var ve uretimin
+    milyonlarca kernel cagrisi trace'e giriyor -- sonra da atiliyor,
+    cunku sorumuz loss fazinin icinde zamanin nereye gittigi.
 
-    Ilk adim isinma (torch.compile, CUDA graph, allocator) oldugu icin
-    atlanir. Cikti hem log'a tablo olarak basilir hem de chrome trace
-    olarak yazilir.
+        deneme 1 (2 adim, record_shapes+profile_memory): 171 GB -> OOM
+        deneme 2 (1 adim, hafif): tablo uretilirken 4 dk'da 79.7 -> 97.1 GB,
+                                  yine OOM'a gidiyordu, kesildi
+
+    Bu yuzden `compute_loss` sarmalaniyor: ilk cagri isinma, sonraki N
+    mikro-gecis olculuyor, sonra tablo basilip profiler bir daha
+    acilmiyor. Uretim trace'e hic girmiyor.
     """
-
-    def __init__(self, adim_sayisi: int, cikti_dizini: str,
-                 ayrinti: bool = False):
-        self.adim_sayisi = adim_sayisi
-        self.ayrinti = ayrinti
-        self.cikti = Path(cikti_dizini)
-        self.cikti.mkdir(parents=True, exist_ok=True)
-        self._prof = None
-        self._gorulen = 0
-        self._bitti = False
-
-    def _hazir_olunca(self, prof):
+    try:
         import torch
-        print("\n" + "=" * 78, flush=True)
-        print("PROFIL -- CUDA suresine gore ilk 25 islem", flush=True)
+        from trl import GRPOTrainer
+    except Exception:
+        return False
+    if not hasattr(GRPOTrainer, "compute_loss"):
+        return False
+    if getattr(GRPOTrainer, "_loss_profil_yamasi", False):
+        return True
+
+    _asil = GRPOTrainer.compute_loss
+    durum = {"gorulen": 0, "prof": None, "bitti": False}
+    cikti = Path(cikti_dizini)
+    cikti.mkdir(parents=True, exist_ok=True)
+
+    def _bitir():
+        prof = durum["prof"]
+        durum["prof"] = None
+        durum["bitti"] = True
+        prof.__exit__(None, None, None)
+        print("=" * 78, flush=True)
+        print(f"PROFIL -- loss fazi, {mikro_gecis} mikro-gecis, "
+              "CUDA suresine gore ilk 30 islem", flush=True)
         print("=" * 78, flush=True)
         try:
             print(prof.key_averages().table(
-                sort_by="self_cuda_time_total", row_limit=25), flush=True)
+                sort_by="self_cuda_time_total", row_limit=30), flush=True)
         except Exception as e:  # noqa: BLE001
-            print(f"profil tablosu basilamadi: {e}", flush=True)
-        yol = self.cikti / "profil-trace.json"
+            print(f"tablo basilamadi: {e}", flush=True)
         try:
+            yol = cikti / "loss-trace.json"
             prof.export_chrome_trace(str(yol))
             print(f"chrome trace -> {yol}", flush=True)
         except Exception as e:  # noqa: BLE001
             print(f"trace yazilamadi: {e}", flush=True)
+        print("profil bitti", flush=True)
 
-    def on_step_begin(self, args, state, control, **kw):
-        import torch
-        if self._bitti or self._prof is not None or state.global_step < 1:
-            return
-        # 1. adim isinma; 2. adimdan itibaren olc
-        self._prof = torch.profiler.profile(
-            activities=[torch.profiler.ProfilerActivity.CPU,
-                        torch.profiler.ProfilerActivity.CUDA],
-            # record_shapes ve profile_memory olay basina cok daha fazla veri
-            # tutuyor. Ikisi acikken iki adimlik profil host RAM'i 171 GB'a
-            # cikardi ve sureç OOM ile oldu (kart degil, CPU RAM: makinede
-            # 167 GB var). Bir adimda ~9 tur uretim + 16 mikro-gecis oldugu
-            # icin olay sayisi zaten cok; varsayilan hafif.
-            record_shapes=self.ayrinti,
-            with_stack=False,
-            profile_memory=self.ayrinti,
-        )
-        self._prof.__enter__()
-        print(f"profil basladi (adim {state.global_step})", flush=True)
+    def compute_loss_profilli(self, *a, **k):
+        if durum["bitti"]:
+            return _asil(self, *a, **k)
 
-    def on_step_end(self, args, state, control, **kw):
-        if self._prof is None:
-            return
-        self._gorulen += 1
-        if self._gorulen >= self.adim_sayisi:
-            self._prof.__exit__(None, None, None)
-            self._hazir_olunca(self._prof)
-            self._prof = None
-            self._bitti = True       # tek sefer olc, bir daha baslama
-            # Profil kosusu bir olcum kosusudur, egitim kosusu degil:
-            # tablo basildiktan sonra kalan adimlar GPU'yu bosuna yakar.
-            control.should_training_stop = True
-            print("profil bitti -- egitim durduruluyor", flush=True)
+        # ilk cagri isinma (torch.compile, allocator, cuda graph)
+        if durum["gorulen"] == 0 and durum["prof"] is None:
+            durum["gorulen"] = 1
+            return _asil(self, *a, **k)
 
-    # TrainerCallback arayuzunun kullanmadigimiz kancalari
-    def __getattr__(self, ad):
-        if ad.startswith("on_"):
-            return lambda *a, **k: None
-        raise AttributeError(ad)
+        if durum["prof"] is None:
+            durum["prof"] = torch.profiler.profile(
+                activities=[torch.profiler.ProfilerActivity.CPU,
+                            torch.profiler.ProfilerActivity.CUDA],
+                record_shapes=ayrinti,
+                with_stack=False,
+                profile_memory=ayrinti,
+            )
+            durum["prof"].__enter__()
+            print("loss profili basladi (1. mikro-gecis isinmaydi)", flush=True)
 
+        try:
+            return _asil(self, *a, **k)
+        finally:
+            durum["gorulen"] += 1
+            if durum["gorulen"] > mikro_gecis and durum["prof"] is not None:
+                _bitir()
+
+    GRPOTrainer.compute_loss = compute_loss_profilli
+    GRPOTrainer._loss_profil_yamasi = True
+    return True
 
 # Adim suresinin fazlara dagilimi. "uretim %38 / loss %62" ayrimi bugune kadar
 # BELLEK IZINDEN CIKARIMDI, olcum degil -- ve hangi hizlandirmanin degdigi
@@ -454,7 +454,7 @@ def main() -> int:
                          "float32 ve bu 4B model icin ~20 GB fazladan yer demek.")
     ap.add_argument("--profil", type=int, default=0, metavar="N",
                     help="ilk adimi isinma sayip sonraki N adimi torch "
-                         "profiler ile olc; tabloyu log'a basar ve chrome "
+                         "mikro-gecisi profiller; tabloyu log'a basar ve chrome "
                          "trace'i --cikti altina yazar. 0 = kapali.")
     ap.add_argument("--tek-uyku", action="store_true", default=True,
                     help="vLLM'i tur basina degil adim basina uyut; tur "
@@ -580,10 +580,11 @@ def main() -> int:
               flush=True)
 
     if args.profil:
-        trainer.add_callback(ProfilCallback(args.profil, args.cikti,
-                                           args.profil_ayrinti))
-        print(f"profil acik: 1. adim isinma, sonraki {args.profil} adim olculecek",
-              flush=True)
+        if loss_fazini_profille(args.profil, args.cikti, args.profil_ayrinti):
+            print(f"loss profili acik: 1. mikro-gecis isinma, sonraki "
+                  f"{args.profil} mikro-gecis olculecek", flush=True)
+        else:
+            print("loss profili TUTMADI (compute_loss sarmalanamadi)", flush=True)
 
     trainer.train()
     trainer.save_model(args.cikti)
