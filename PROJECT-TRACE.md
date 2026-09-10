@@ -663,3 +663,155 @@ sicaklik hatasindaki gibi import-aninda yakalama yok.
   kesildigi olculmeli, korten once.
 - (b) `prompt-batch` 4 -> 1. IsoCompute'a gore batch'teki problem sayisi
   kararliligi belirliyor, yani en son basvurulacak kol.
+
+---
+
+## Bolum 8 — OOM avi: sebep fp32 cikti; ve bant olcumu egitimle ayni olcekte degil (2026-09-10)
+
+Bolum 7'deki duzeltme yetmedi; iki kosu daha yandi. Her adimda neyin
+OLCULDUGUNE bakmak gerekiyor, cunku iki kez yanlis kola asildi.
+
+### Kosu 2: yanlis kol oldugu olculdu
+
+`--vllm-bellek` 0.45 -> 0.30 yapildi. Kosu 2 adim 1'i gecti, **adim 2'de
+ayni yerde ayni sayiyla** oldu: `selective_log_softmax` -> `logsumexp`,
+**5.68 GiB**. PyTorch tahsisi 104.55 -> 92.66 GiB dusmustu; 0.30 gercekten
+~12 GB acti ama tepe daha fazlasini istiyordu.
+
+8 gorevluk kisa bir kosuda bellek 2 sn'de bir orneklendi. Faz gecisi:
+
+```
+06:37:30   40.0 GB            uretim (vLLM uyanik)
+06:37:33   26.3 GB  (-13.7)   sleep -> KV cache birakildi
+06:37:35   22.0 GB  ( -4.3)   sleep level 2 -> agirliklar da birakildi
+06:37:37   49.5 GB  (+27.4)   loss fazi
+06:38:41   75.7 GB            <- TEPE, duvar 79.25
+```
+
+- **OOM egitimde, uretimde degil.** Uretim 40 GB'de dumduz.
+- **Uyku modu calisiyor** (`vllm_generation.py`, kosulsuz: init'te sleep(2),
+  sync_weights'te wake_up(weights), generate oncesi wake_up(kv_cache),
+  sonrasi sleep(2)). vLLM loss tepesinde **18 GB birakiyor** -- yani onu
+  kismakla kazanilacak sey yoktu. Kismamizin sebebi kanit degildi:
+  "sadece (a)" denince (a)'nin icinde kalan tek kol oydu.
+
+### Gercek sebep: TRL modeli float32 yukluyor
+
+`grpo_trainer.py` docstring'i: *"If dtype is not specified in
+args.model_init_kwargs, it defaults to float32. This differs from
+from_pretrained..."*. Biz `model_init_kwargs` hic gecmiyorduk.
+`bf16=True` yalnizca autocast, yani hesabi bf16 yapiyor, agirligi degil.
+
+Uc ayaktan dogrulandi:
+1. TRL dokumani
+2. `train_grpo.py` sadece `bf16=True` geciyordu
+3. **Olculen ilk plato 17.3 GB = 4.66e9 x 4 bayt** (fp32 agirlik 17.4 GiB)
+
+Kelime dagarcigi **248320** (Bolum 4'te "152k" yaziyor -- yanlis; oradaki
+7.58 GiB aritmetigi yine de dogru degeri kullanmis). Bununla:
+
+```
+mb=2, L=6144, fp32 satiri: 6144 x 248320 x 4 bayt = 5.68 GiB
+```
+
+**Her OOM'daki 5.68 GiB tam olarak bu.** fp32 oldugu icin
+`selective_log_softmax` fp32 dalina dusuyor ve `logsumexp` satir basina
+bu boyutta gecici aciyor. Sayi mikro-batch'ten BAGIMSIZ -- yani
+"mikro-batch'i dusurelim" de tam isabet olmayacakti.
+
+### Kosu 3: bf16 + liger + vLLM 0.50
+
+| | kosu 2 (fp32) | kosu 3 (bf16) |
+|---|---|---|
+| agirlik platosu | 17.3 GB | **9.0 GB** |
+| uretim platosu | 40.0 GB | 48-50 GB (vLLM'e pay geri verildi) |
+| **loss tepesi** | **75.8 GB** | **64.5 GB** |
+| mapping-failed uyarisi | 11+ | **0** |
+
+Duvara pay 3.5 GB -> **14.75 GB**.
+
+### Liger: devrede, ama sandigimiz kismi degil
+
+`apply_liger_kernel_to_qwen3_5` varsayilanlari: `rms_norm` ve `swiglu`
+devrede (ornek uzerinde yamaniyor; sinif adi ayni kaldigi icin sinif-adi
+probu goremiyor, CPU'da Triton hatasi kanitladi). `rope` qwen3_5'te
+desteklenmiyor. `fused_linear_cross_entropy` ise **hic tetiklenmiyor**:
+
+`liger_kernel/transformers/model/qwen3_5.py:88`
+`skip_logits = self.training and (labels is not None or shift_labels is not None)`
+
+GRPO `model(...)`'i labels vermeden cagirip `outputs.logits`'i kendi
+okuyor, yani logits her zaman materyalize ediliyor. Liger bize aktivasyon
+ve hiz kazandiriyor, logits tensorunu ORTADAN KALDIRMIYOR. Kaldirmak icin
+GRPO'nun kendi `selective_log_softmax`'ini degistirmek gerekir; TRL'de
+GRPO icin `use_liger_loss` yok (sadece experimental/sdft ve iw_opd'de var).
+
+### vLLM payi: sinir uretim fazinda
+
+Kisit uyku fazinda degil. vLLM uyanikken egiticinin sabit kismi (bf16'da
+~17 GB) da kartta duruyor: `vllm_util x 80 + 17 <= 79`. Ustelik daha buyuk
+KV bir yerden sonra bos duruyor -- bir adimda 32 dizi x 10240 baglam
+~ **327k token** yetiyor. 0.50 secildi; 0.70-0.80 uretim fazinda egiticiyi
+sikistirir, karsiliginda bir sey vermez.
+
+### Uretim neden bu kadar uzun suruyor (olculdu, cozulmedi)
+
+Adim suresi 544 / 566 sn. 60 sn boyunca 1 sn'lik ornekleme:
+**GPU >=%80'de zamanin %81'i, <%20'de sadece %4** -- sandbox beklemesi
+degil, gercek uretim hesabi.
+
+Ama aritmetik tutmuyor: `completions/mean_length 2160` x 32 episode
+= ~69k cikis token / 555 sn = **~124 token/sn**. A100'de 4B model 32 yollu
+batch'te bunun kat kat ustu beklenir. Sebep cok turlu yapi: turlar SERI
+(`tools/call_frequency` ~9), her tur ayri `generate` cagrisi ve butun batch
+en yavas diziyi bekliyor. Ayrica TRL colocate LLM'i
+`max_num_batched_tokens=4096` ile kuruyor ve `enable_prefix_caching`'i hic
+gecmiyor (vLLM varsayilanina birakiyor). Bunlar incelenmedi.
+
+`max_num_seqs = micro_batch x tp x steps_per_generation = 2 x 1 x 16 = 32`.
+Mikro-batch'i 4 yapmak birikimi 8'e dusurdugu icin bu carpimi degistirmez,
+yani uretim eszamanliligini ARTIRMAZ; kazanci yalnizca loss fazinda.
+
+### ACIK KUSUR: bant olcumu egitimle ayni parametrelerde kosmuyor
+
+Egitimden gelen iki anormallik:
+
+```
+frac_reward_zero_std = 0.50   (sweep'ten beklenen 0.14)
+reward               = 0.66 - 0.75
+```
+
+Beklenen deger banttaki her gorev icin `p^8 + (1-p)^8` ile hesaplandi.
+Bantta en kalabalik grup `p=1/8` (64 kabuk gorevinin 20'si) ve onlarin yeni
+bir 8 rollout'ta 0/8 gelme ihtimali %34. Yani bant "olu"yu eliyor,
+"oluye yakin"i eleyemiyor -- uyelik tek bir 8-orneklik tahmin. Ayrica
+metrik adim basina 4 problemden hesaplandigi icin yalnizca
+0/0.25/0.5/0.75/1 olabiliyor; kosu2'nin 0.25'i ile kosu3'un 0.5'i
+arasindaki fark **4 problemden biri**, kiyaslanabilir degil.
+
+Bugun bu sinifta uc hata ciktigi icin tek tek dogrulandi:
+- Egitim gercekten **sadece bantta**: `veri_kumesi` `--gorevler` verilince
+  split'e hic bakmadan erken donuyor; log "egitim kumesi: 103 gorev";
+  eslesen 64 kabuk gorevinin solved araligi 1..6, bant disi sifir.
+- Odul gercekten **ikili**: `checks.py:373` `1.0 if solved else 0.0`.
+  `partial` ayri tutuluyor, egitimde kullanilmiyor.
+
+Geriye kalan tutarsizlik -- ikili odulde `reward=0.75`, yani 32 rollout'un
+24'u tam cozulmus, oysa gorevler 8'de 1-6 bandinda -- su farka isaret ediyor:
+
+| | Sweep (bant olcumu) | Egitim |
+|---|---|---|
+| yanit basina token | **2048** (`runner.py:58`, `VDS_MAX_TOKENS`) | 6144'e kadar |
+| tur sayisi | **`task.max_turns`** (gorev basina 8/10/12/14/16) | **duz 12** (`--max-komut`) |
+
+255 gorevin **199'unda** `max_turns` 12 degil. Yani bant, modelin daha dar
+bir butceyle olculdugu bir dunyada belirlendi; egitimde ayni gorevler
+kolaylasiyor, gruplar 8/8'e oturuyor ve sifir varyans uretiyor. Tek sebep
+iki anormalligi birden acikliyor.
+
+**KARAR: sweep bundan sonra egitimle AYNI inference parametreleriyle
+kosacak.** Kosu 3'e dokunulmadi.
+
+### Kosu 3 durumu
+`--mufredati-kullan` ile sweep atlandi (model degismemisti, ~40 dk kazanildi).
+2/25 adim, ~558 sn/adim, tahmini 3.5 sa. Bellek tepesi 64.5 GB, uyari yok.
