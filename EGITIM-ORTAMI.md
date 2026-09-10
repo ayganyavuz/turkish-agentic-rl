@@ -731,3 +731,64 @@ Teorik karsilastirma (adim basina ~72-79k token): govde fwd+bwd
 A100'de gercekci 150-200 TFLOPS ile **15-20 sn** eder. "Loss ~%62" dogruysa
 olculen ~300 sn, yani **~20 kat acik**. Ama o yuzde hala cikarim --
 `FazCallback` bir sonraki kosuda kesinlestirecek.
+
+---
+
+## PROFIL SONUCU: acik attention'da degil, kernel launch'ta (10 Eylul)
+
+### Faz ayrimi artik OLCULDU
+```
+faz[adim 1]: toplam 879.0 sn = uretim 155.1 (18%) + loss 724.0 (82%)
+```
+Bu adim profilli, yani loss siskin (profilsiz adimlar 476-497 sn). Ama
+**uretim 155.1 sn kesin** -- profiler yalnizca `compute_loss`'a bagli.
+Profilsiz adima gore duzeltince: **uretim ~%32, loss ~%68.**
+
+**Onemli duzeltme:** dokumandaki "uretim 124 tok/sn" hesabi yanlis faz
+atfindan geliyordu. Gercek: 32 episode x ~2100 token ~ 67k token / 155 sn
+= **~433 tok/sn**. Uretim fazinda ciddi bir kayip YOK. Kayip loss fazinda.
+
+### Loss fazinin ic dagilimi (2 mikro-gecis)
+```
+Self CPU time total : 32.143 s      <-- CUDA'dan BUYUK
+Self CUDA time total: 20.531 s
+```
+| Op | CUDA | Cagri |
+|---|---|---|
+| `aten::mm` | 5.29 s (26%) | 4 168 |
+| `vectorized_elementwise_kernel` | 5.08 s (25%) | **63 777** |
+| `aten::add_` | 5.05 s (25%) | **40 775** |
+| `aten::copy_` | 2.42 s (12%) | **72 845** |
+| `ampere_sgemm_*` (**fp32**) | 4.95 s (24%) | ~54 000 |
+| `aten::bmm` | 1.88 s (9%) | **63 266** (self CPU 4.4 s) |
+| `_efficient_attention_fwd+bwd` | 1.48 s (7%) | **32** |
+| `ampere_bf16_s16816gemm_*` | 1.82 s (9%) | 2 328 |
+
+### Iki teshis
+1. **Kernel launch seli / CPU-bound.** Iki mikro-geciste 63k `bmm`, 72k
+   `copy_`, 63k elementwise. Self CPU > Self CUDA, yani GPU bekliyor, CPU
+   kernel firlatiyor. Bir yerde Python dongusu on binlerce ufak kernel
+   uretiyor. En guclu aday Qwen3.5'in **`linear_attention` katmanlari**:
+   gercek attention (`_efficient_attention`) yalnizca **32 cagri** ve
+   zamanin %7'si, yani maliyet orada DEGIL.
+2. **GEMM'lerin dortte biri fp32.** `ampere_sgemm_*` fp32; bf16 olanlar
+   ayri gorunuyor (`ampere_bf16_s16816gemm_*`, %9). `--dtype bfloat16`
+   verilmesine ragmen hesabin bir kismi fp32'de -- linear attention
+   state'inin kararlilik icin fp32 tutulmasi bunu aciklar.
+
+Onceki dokumandaki "govde fwd+bwd 30 kat acik" ifadesinin adresi budur:
+attention karmasikligi degil, **launch overhead + fp32 yol**.
+
+### Elenen supheliler (bu tabloyla)
+- attention n^2 degil ve pahali degil: 32 cagri, %7.
+- `lm_head` + log-softmax tek basina baskin degil (`aten::mm` %26'nin
+  tamami degil; 4168 cagri govdeyi de kapsiyor).
+- gradient checkpointing'in yeniden hesabi tek basina aciklamiyor --
+  aciklasa GEMM'ler baskin olurdu, oysa elementwise/copy/bmm seli baskin.
+
+### Siradaki olculebilir hipotezler
+| Hipotez | Nasil test edilir |
+|---|---|
+| launch overhead → `torch.compile` / CUDA graphs kernel'leri birlestirir | `torch_compile=True` ile bir adim, `faz[adim]` karsilastir |
+| linear attention referans implementasyonu yavas | `flash-linear-attention` (`fla`) kurulu mu, transformers onu seciyor mu |
+| fp32 yol gereksiz | fp32 sgemm'leri hangi modulun urettigini `--profil-ayrinti` ile sekillerden bul |
