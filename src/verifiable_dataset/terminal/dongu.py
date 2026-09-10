@@ -50,6 +50,8 @@ def vllm_baslat(model: str, log: str, baglam: int = 16384,
     """Modeli 'degerlendirme' adiyla servis et; ad sabit kalsin ki
     komut satirlari epoch'lar arasinda degismesin."""
     subprocess.run("pkill -f 'vllm serve'", shell=True)
+    time.sleep(3)
+    subprocess.run("pkill -9 -f EngineCore", shell=True)
     time.sleep(10)
     subprocess.run(
         f"nohup vllm serve {model} --served-model-name degerlendirme "
@@ -68,7 +70,12 @@ def vllm_baslat(model: str, log: str, baglam: int = 16384,
 
 
 def vllm_durdur() -> None:
+    # 'vllm serve' yalnizca API sunucusunu yakaliyor; KV cache'i tutan
+    # EngineCore alt-sureci ayri bir adla kosuyor ve hayatta kalarak
+    # kartin tamamini (olculdu: 68 GB) elinde tutuyor.
     subprocess.run("pkill -f 'vllm serve'", shell=True)
+    time.sleep(3)
+    subprocess.run("pkill -9 -f EngineCore", shell=True)
     time.sleep(10)
 
 
@@ -129,6 +136,11 @@ def main() -> int:
                          "o kosuda zaten aciktı, yani tek kalan kol bu.")
     ap.add_argument("--concurrency", type=int, default=24)
     ap.add_argument("--lr", type=float, default=1e-6)
+    ap.add_argument("--mufredati-kullan", action="store_true",
+                    help="ilk epoch'ta sweep'i atla, diskteki "
+                         "mufredat/epochN.txt'yi kullan. Yalnizca model o "
+                         "olcumden beri degismediyse dogru -- yani kosu "
+                         "egitim tamamlanmadan koptuysa.")
     ap.add_argument("--atla-baseline", action="store_true",
                     help="epoch 0 held-out olcumunu atla")
     args = ap.parse_args()
@@ -198,14 +210,24 @@ def main() -> int:
         print("\n" + "=" * 70 + f"\nEPOCH {epoch}\n" + "=" * 70, flush=True)
 
         # 1) mufredat olcumu -- o anki modelle, egitim bolumunde
-        print(f"\n[{epoch}] SWEEP (train, G={args.rollouts})", flush=True)
-        bantlar = olc(model, "train", f"sweep{epoch}", args.rollouts, args.sicaklik)
-
         liste = K / "mufredat" / f"epoch{epoch}.txt"
-        n, sayac = mufredat_yaz(bantlar, liste)
-        print(f"\n[{epoch}] MUFREDAT: {n} gorev  "
-              f"(bant={sayac['bant']}, olu-zor={sayac['olu-zor']}, "
-              f"olu-kolay={sayac['olu-kolay']})", flush=True)
+        if args.mufredati_kullan and liste.exists():
+            # Kosu yarida kaldiginda sweep'i tekrarlamak ~40 dk yakiyor.
+            # Model o olcumden beri degismediyse (egitim hic tamamlanmadiysa)
+            # olcum hala gecerli. Bir kez kullaniliyor; sonraki epoch'lar
+            # yeniden olcuyor cunku model artik degismis oluyor.
+            n = len([x for x in liste.read_text(encoding="utf-8").splitlines()
+                     if x.strip()])
+            print(f"\n[{epoch}] SWEEP ATLANDI -- mevcut mufredat: {liste} "
+                  f"({n} gorev)", flush=True)
+            args.mufredati_kullan = False
+        else:
+            print(f"\n[{epoch}] SWEEP (train, G={args.rollouts})", flush=True)
+            bantlar = olc(model, "train", f"sweep{epoch}", args.rollouts, args.sicaklik)
+            n, sayac = mufredat_yaz(bantlar, liste)
+            print(f"\n[{epoch}] MUFREDAT: {n} gorev  "
+                  f"(bant={sayac['bant']}, olu-zor={sayac['olu-zor']}, "
+                  f"olu-kolay={sayac['olu-kolay']})", flush=True)
         if n == 0:
             print("bantta gorev kalmadi -- dongu duruyor", flush=True)
             return 1
