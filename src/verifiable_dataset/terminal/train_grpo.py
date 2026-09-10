@@ -234,6 +234,10 @@ class ProfilCallback:
             self._hazir_olunca(self._prof)
             self._prof = None
             self._bitti = True       # tek sefer olc, bir daha baslama
+            # Profil kosusu bir olcum kosusudur, egitim kosusu degil:
+            # tablo basildiktan sonra kalan adimlar GPU'yu bosuna yakar.
+            control.should_training_stop = True
+            print("profil bitti -- egitim durduruluyor", flush=True)
 
     # TrainerCallback arayuzunun kullanmadigimiz kancalari
     def __getattr__(self, ad):
