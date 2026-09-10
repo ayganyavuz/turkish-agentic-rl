@@ -448,3 +448,88 @@ butcesiyle olculdu, egitimde `tools/call_frequency` 8.8-10.1 ile 12'ye yakin.)
 | `kosu3-turuykusu/` | bf16 + liger, tur uykusu ile (8 adim) |
 | `kosu4-tekuyku/` | bf16 + liger + tek uyku (8 adim) |
 | `olcumler/`, `mufredat/`, `ciktilar/` | canli kosunun ciktilari |
+
+---
+
+## 10 Eylul: kosu runtime ile birlikte gitti
+
+Devir notu "kosu durduruldu, 8/25 adimda arsivlendi" diyordu. **Durdurulmamis.**
+MCP baglandiginda epoch 1 egitimi 08:04'ten beri kosuyordu ve **11/25**
+adimdaydi (`epoch 0.44`). Iki dakika sonra **Colab runtime yeniden atandi**:
+`nvidia-smi: command not found`, `/content` bos, `torch.cuda.is_available()`
+False, `uptime` 3 dakika.
+
+Kayip: ~1.6 saat hesap. Checkpoint yazilmamisti (`ciktilar/epoch1` altinda
+yalnizca `completions_*.parquet`, model yok).
+
+Sureci `ps` ile yakalarken ogrenilenler:
+- PPID 1 idi, yani `dongu.py` coktan olmustu; `train_grpo` yetim kosuyordu.
+  Dongu'nun eval/checkpoint adimlari zaten yapilmayacakti.
+- Log dosyasi `train-epoch1.log` Drive'da yoktu ama sureç fd'sini tutuyordu:
+  `/proc/<pid>/fd/1` uzerinden okundu. Hedef `kosu4-tekuyku/train-epoch1.log`
+  idi -- arsiv dizini sureç canliyken tasinmis, fd tasinan dosyayi takip
+  etmisti. **Arsivleme yapilmis, sureç oldurulmemis.**
+
+Olculen adim sureleri epoch 0.36-0.44 araliginda: `513.8`, `479.1`, **`892.7`**.
+Sonuncusu 502 ortalamasinin cok ustunde; tek gozlem, aciklanmadi.
+
+---
+
+## ALTIN KURAL, ALTINCI ORNEK: `--sicaklik` hic baglanmamisti
+
+Hata #2 "duzeltildi" saniliyordu. Yalnizca **yarisi** duzeltilmisti.
+
+`runner.sicaklik()` cagri aninda `VDS_TEMPERATURE` okuyacak sekilde
+yazilmis (dogru). Ama bayragi o env'e yazan halka **hic kurulmamis**:
+
+- `pipeline.py`'de `--sicaklik` yalnizca `add_argument`'ta geciyordu;
+  `args.sicaklik` hicbir yerde okunmuyordu (dosyada `temperature` kelimesi
+  bile yok).
+- `dongu.py`'nin alt sureclere verdigi `ortam` sozlugunde `VDS_TEMPERATURE`
+  yoktu.
+
+Yani `dongu --sicaklik 1.0` varsayilani **etkisizdi**: butun sweep ve
+eval'ler -- epoch 0 baseline ve sweep1 dahil -- `runner`'in varsayilani
+**0.7**'de kostu.
+
+Bu, "bant egitimle ayni dunyada degil" kusurunun **ikinci** bilesenidir.
+Protokolun yaninda sicaklik da ayrisiyordu: GRPO rollout'lari 1.0'da
+ornekleniyor, bant 0.7'de olculuyordu. Dusuk sicaklik daha az cesitlilik
+demek, yani bant gorevleri gercekte olduklarindan daha kararli gorundu.
+
+### Ayni sinifta: `VDS_MAX_TOKENS`
+`MAX_TOKENS` modul seviyesinde okunuyordu -- hata #2'nin birebir yapisi.
+`sicaklik()` fonksiyona cevrilirken bu atlanmis.
+
+### Ve: `--profil` / `--tur-uykusu` dongu'ya bagli degildi
+Ikisi de yalnizca `train_grpo.py`'de vardi. Bu dosyanin "Faydali bayraklar"
+listesi ikisini de `dongu.py` bayragi sayiyordu -- **yanlisti**. `dongu`
+ile kosulan bir egitim profil alamazdi. (Ayrica `--profil`, devir notunun
+"commit'lenmedi" dediginin aksine `6d6f553`'e dokumanlarla birlikte girmis.)
+
+### Duzeltme
+- `runner.py`: `MAX_TOKENS` → `max_tokens()`, cagri aninda okunur.
+- `pipeline.py`: `--sicaklik` ve yeni `--yanit-token`, `main()` icinde
+  `os.environ`'a **yaziliyor**. runner ikisini de cagri aninda okudugu icin
+  modulun onceden import edilmis olmasi sorun degil.
+- `dongu.py`: `--yanit-token` (varsayilan `--max-completion`, yani 6144),
+  `--profil` ve `--tur-uykusu` iletiliyor.
+
+### Test (kosudan ONCE, altin kural)
+Uc ayri test, hepsi yerelde GPU'suz:
+1. `kos` stub'lanip egitim komutu yakalandi → `--profil 2 --tur-uykusu` var.
+2. Ayni sekilde sweep komutu → `--sicaklik 1.0 --yanit-token 6144
+   --protocol native` var.
+3. `runner` **onceden import edildikten sonra** `pipeline.main()` cagrildi:
+   ```
+   once : 0.7  2048      <- hatanin kaniti
+   sonra: 1.0  6144
+   ```
+
+Boylece "bant egitimle ayni dunyada degil" kusurunun uc bileseninden
+**ikisi kapandi** (protokol native, token butcesi 6144, sicaklik 1.0).
+Kalan: **tur sayisi** hala duz 12; `TerminalOrtami`'nin `task_dir`'den
+`max_turns` okumasi gerekiyor. **Yapilmadi.**
+
+> Onceki tum sweep/eval sayilari 0.7'de ve 2048 ile olculdu. Bant yeniden
+> olculdugunde bunlarla kiyaslanamaz.

@@ -380,6 +380,11 @@ def main() -> int:
                         help="--split verildiyse hangi bolum olculsun")
     parser.add_argument("--sicaklik", type=float, default=-1.0,
                         help="degerlendirmede 0 kullan; -1 = modelin varsayilani")
+    parser.add_argument("--yanit-token", type=int, default=0,
+                        help="yanit basina token butcesi (runner MAX_TOKENS). "
+                             "0 = dokunma. Egitimin max_completion_length'i "
+                             "ile ayni verilmezse bant daha dar bir butceyle "
+                             "olculur.")
     parser.add_argument("--model", default="")
     parser.add_argument("--base-url", default="")
     parser.add_argument("--api-key", default="")
@@ -394,6 +399,17 @@ def main() -> int:
     parser.add_argument("--fiyat-cikis", type=float, default=0.0,
                         help="$/1M cikis token -- maliyet raporu icin")
     args = parser.parse_args()
+
+    # Bayraklari runner'in okudugu env'e BAGLA. Bu halka daha once hic
+    # kurulmamisti: `--sicaklik` yalnizca add_argument'ta geciyordu, hicbir
+    # yerde okunmuyordu, ve runner varsayilan 0.7'de kaliyordu. Sweep ve
+    # eval'ler 1.0 istenirken 0.7'de kostu. runner iki degeri de cagri
+    # aninda okudugu icin burada set etmek yeterli (modul zaten import
+    # edilmis durumda).
+    if args.sicaklik >= 0:
+        os.environ["VDS_TEMPERATURE"] = str(args.sicaklik)
+    if args.yanit_token > 0:
+        os.environ["VDS_MAX_TOKENS"] = str(args.yanit_token)
 
     istenen = [a.strip() for a in args.asamalar.split(",") if a.strip()]
     bilinmeyen = [a for a in istenen if a not in ASAMALAR]

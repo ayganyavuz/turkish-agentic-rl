@@ -151,6 +151,15 @@ def main() -> int:
                          "mufredat/epochN.txt'yi kullan. Yalnizca model o "
                          "olcumden beri degismediyse dogru -- yani kosu "
                          "egitim tamamlanmadan koptuysa.")
+    ap.add_argument("--yanit-token", type=int, default=0,
+                    help="sweep/eval'de yanit basina token butcesi. 0 = "
+                         "--max-completion ile ayni (egitimle hizali). Bant "
+                         "2048 ile olculuyordu, egitim 6144 veriyordu.")
+    ap.add_argument("--profil", type=int, default=0, metavar="N",
+                    help="egitimde ilk adimi isinma say, sonraki N adimi "
+                         "torch.profiler ile olc")
+    ap.add_argument("--tur-uykusu", action="store_true",
+                    help="vLLM'i her turda uyut (eski davranis; geri donus)")
     ap.add_argument("--atla-baseline", action="store_true",
                     help="epoch 0 held-out olcumunu atla")
     args = ap.parse_args()
@@ -177,6 +186,7 @@ def main() -> int:
                 "--model degerlendirme --base-url http://localhost:8000/v1 "
                 f"--split {args.split} --bolum {bolum} "
                 f"--rollouts {rollouts} --sicaklik {sicaklik} "
+                f"--yanit-token {args.yanit_token or args.max_completion} "
                 f"--concurrency {args.concurrency} --protocol {args.protokol} "
                 '--reasoning-effort "" '
                 f"--bant-out {cikti} "
@@ -253,7 +263,9 @@ def main() -> int:
             f"--max-komut {args.max_komut} --max-completion {args.max_completion} "
             f"--vllm-baglam {args.vllm_baglam} --vllm-bellek {args.vllm_bellek} "
             f"--dtype {args.dtype} "
-            f"--cikti {cikti} > {K}/train-epoch{epoch}.log 2>&1",
+            + (f"--profil {args.profil} " if args.profil else "")
+            + ("--tur-uykusu " if args.tur_uykusu else "")
+            + f"--cikti {cikti} > {K}/train-epoch{epoch}.log 2>&1",
             cwd=str(repo), env=ortam)
         if rc != 0 or not (cikti / "config.json").exists():
             print(f"egitim basarisiz (rc={rc}) -- {K}/train-epoch{epoch}.log", flush=True)

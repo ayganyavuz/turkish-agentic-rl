@@ -55,7 +55,16 @@ _TAG_RE = re.compile(r"<komut>\s*(.*?)\s*</komut>", re.DOTALL | re.IGNORECASE)
 # Dusunen modellerde 1024 yetmiyor: model daha muhakemesini bitirmeden
 # kesiliyor, komut uretemiyor ve episode bos bir turla ilerliyor. Qwen3.5
 # basit bir toplama icin bile 200 token'i asiyor.
-MAX_TOKENS = int(os.environ.get("VDS_MAX_TOKENS", "2048"))
+def max_tokens() -> int:
+    """Ortamdan CAGRI aninda okunur -- `sicaklik()` ile ayni gerekce.
+
+    Modul seviyesinde sabitlense, bu modulu import eden herhangi bir
+    surec (pipeline runner'i tepede import ediyor) degeri env set
+    edilmeden once dondururdu. Varsayilan 2048'di ve egitimin
+    `max_completion_length`'i 6144: bant, egitimin verdiginden ucte bir
+    butceyle olculuyordu.
+    """
+    return int(os.environ.get("VDS_MAX_TOKENS", "2048"))
 
 def sicaklik() -> float:
     """Ortamdan CAGRI aninda okunur.
@@ -227,7 +236,7 @@ def run_model_text(task: Task, client, model: str, verbose: bool = True) -> Epis
             try:
                 response = client.chat.completions.create(
                     model=model, messages=messages, temperature=sicaklik(),
-                    max_tokens=MAX_TOKENS,
+                    max_tokens=max_tokens(),
                 )
             except Exception as e:  # noqa: BLE001 - surface API failures as episode errors
                 error = f"model cagrisi basarisiz: {e}"
