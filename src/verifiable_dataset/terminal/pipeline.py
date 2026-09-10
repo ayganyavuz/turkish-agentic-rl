@@ -268,17 +268,37 @@ def asama_kapi(args, durum: HatDurumu) -> None:
         _karantinaya(d, args.karantina)
 
 
+def _bant_hedefleri(out: str) -> list[Path]:
+    """Bant asamasinda `--out` virgulle ayrilmis birden cok klasor alabilir.
+
+    Korpus artik tek klasor degil (uretim partileri ayri klasorlerde) ve
+    hepsini TEK kosuda taramak gerekiyor: ayri kosular ayri vLLM ornekleri,
+    ayri anlar ve karistirilamayan bir sira demek.
+    """
+    hedef: list[Path] = []
+    for kok in [k.strip() for k in out.split(",") if k.strip()]:
+        hedef.extend(_task_dizinleri(Path(kok)))
+    return hedef
+
+
 def asama_bant(client, model: str, args, durum: HatDurumu) -> None:
     """Her task'a N rollout at, pass-rate'e gore banda yerlestir.
 
     Bant olcumu egitilecek modelle ayni uctan yapiliyor: baska bir modelle
     olculen zorluk, egitimde gorulecek zorluk degildir.
     """
-    hedef = durum.gecen or _task_dizinleri(Path(args.out))
+    hedef = durum.gecen or _bant_hedefleri(args.out)
     hedef = _split_suzgeci(hedef, args.split, args.bolum)
     if not hedef:
         print("olculecek task kalmadi (split suzgeci hepsini eledi)")
         return
+    if args.karistir:
+        # Klasor sirasiyla taramak, kosu yarida kalirsa elde yalnizca ilk
+        # klasoru birakir -- ve klasorler aile/uretim partisine gore ayrildigi
+        # icin o ornek temsili olmaz. Karistirilmis sirada yarim kosu bile
+        # butun korpusun temsili bir ornegidir. Tohum sabit: tekrarlanabilir.
+        random.Random(args.tohum).shuffle(hedef)
+        print(f"  sira karistirildi (tohum={args.tohum})")
     print(f"\n=== ASAMA bant  ({len(hedef)} task x {args.rollouts} rollout) ===\n")
     # Episode'lar birbirinden bagimsiz. Sirali kosmak sunucuyu bos
     # birakiyordu: 80 gorev x 8 rollout x ~5 tur = 3200 ardisik istek.
@@ -382,6 +402,11 @@ def main() -> int:
                         help="bant asamasinda task basina rollout")
     parser.add_argument("--protocol", choices=["auto", "native", "text"], default="auto")
     parser.add_argument("--bant-out", default="data/bant.jsonl")
+    parser.add_argument("--karistir", action="store_true",
+                        help="bant asamasinda gorev sirasini karistir; yarida "
+                             "kesilen kosu bile korpusun temsili ornegi olur")
+    parser.add_argument("--tohum", type=int, default=1234,
+                        help="--karistir icin tohum (split.py ile ayni)")
     parser.add_argument("--split", default="",
                         help="split.json yolu -- bant/degerlendirmeyi bir bolumle sinirlar")
     parser.add_argument("--bolum", default="", choices=["", "train", "holdout"],
