@@ -932,3 +932,48 @@ ve o da matrisi materyalize etmiyor. Bu acigin sebebi attention degil.
 Kalan supheliler: gradient checkpointing'in yeniden hesabi, mikro-batch
 2'de kartin dolmamasi, ve faz atfinin (bellek izinden cikarim) yanlis
 olma ihtimali. **Siradaki dogru adim tahmin degil profiler.**
+
+---
+
+## Bolum 9 — Iki oturum ayni calisma agacinda (2026-09-10)
+
+Bugun proje iki ayri ayakta paralel calisti: **uretim** (bu bolumun konusu,
+ayrinti `VERI-URETIMI.md`'nin 2026-09-10 ekleri) ve **egitim profili**
+(Bolum 8'in devami). Ikisi ayni klasoru, ayni git calisma agacini kullandi.
+
+### Bulgu: commit'ler birbirine karisti
+
+Uretim tarafinin calisma agacindaki duzenlemeleri, egitim tarafinin
+commit'lerine **suprulmus** durumda. `git commit -a` / `git add -A`
+yarim kalmis baska bir isin dosyalarini da alir; burada olan bu.
+
+| Degisiklik | Girdigi commit |
+|---|---|
+| `PY_KALIPLARI` (yapisal eksenler, `seeds.py`) | `eb6d0a6` "Profile the loss phase instead of the whole step" |
+| `gate_ara_durum` (`gates.py`) | `f43c14f` "Stop the profiler from eating the host out of memory" |
+| `gate_yapisal_uyum` (`gates.py`) | `f76461a` "Add a torch.compile flag..." |
+
+Kod kayip degil, calisiyor ve test edildi. Sorun **gecmisin yalan
+soylemesi**: uc commit mesaji kendi diff'ini anlatmiyor. Bu projede
+commit mesajlari ayrintili yazildigi icin ("neden" tasiyorlar), yanlis
+atif ilerideki arkeolojiyi dogrudan yaniltir -- `git log -S` ile bir
+kusurun ne zaman girdigini ararken profil commit'ine cikilacak.
+
+Gecmis **yeniden yazilmadi**: `main` paylasilmis olabilir ve rebase
+yikici. Karar sahibinin secmesi icin duruyor.
+
+### Onlem
+Paralel is icin **ayri git worktree**. Ayni agacta iki oturum varken
+`git add -A` / `git commit -a` kullanmamak; degisiklikleri yol vererek
+eklemek (`git add <yol>`). Bugun uretim tarafinin son commit'i (`69bbe13`)
+boyle atildi ve yalnizca kendi dosyalarini icerir.
+
+### Uretim tarafinin gun ozeti
+Korpus 255 -> 512. Dort gercek kusur bulundu ve kapatildi (egitimin gorev
+basina `max_turns` okumamasi, `derive.py`'nin ayni dosyaya iki test
+yazmayi sessizce yasaklamasi, `fingerprint`'in kod ailesinde hicbir sey
+ayirt etmemesi, endpoint on-kontrolunun yonlendirilen model id'sini
+reddetmesi). Ayrinti ve olcumler `VERI-URETIMI.md`'de.
+
+**Siradaki dogru adim uretim degil olcum:** 512 gorevin hicbirinin bandi
+olculmedi ve bu adim API parasi harcamiyor.
