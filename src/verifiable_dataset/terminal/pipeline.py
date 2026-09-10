@@ -268,6 +268,30 @@ def asama_kapi(args, durum: HatDurumu) -> None:
         _karantinaya(d, args.karantina)
 
 
+def _olculen_gorevler(bant_out: str) -> set[str]:
+    """Onceki (kesilmis) kosuda olculmus gorev adlari.
+
+    Bozuk son satir tolere ediliyor: sureç yazarken oldurulmusse jsonl'in
+    son satiri yarim kalmis olabilir.
+    """
+    yol = Path(bant_out) if bant_out else None
+    if not yol or not yol.exists():
+        return set()
+    adlar: set[str] = set()
+    for satir in yol.read_text(encoding="utf-8").splitlines():
+        satir = satir.strip()
+        if not satir:
+            continue
+        try:
+            kayit = json.loads(satir)
+        except json.JSONDecodeError:
+            continue          # yarim yazilmis son satir
+        ad = kayit.get("task_dir") or kayit.get("task_id")
+        if ad:
+            adlar.add(Path(ad).name)
+    return adlar
+
+
 def _bant_hedefleri(out: str) -> list[Path]:
     """Bant asamasinda `--out` virgulle ayrilmis birden cok klasor alabilir.
 
@@ -299,6 +323,16 @@ def asama_bant(client, model: str, args, durum: HatDurumu) -> None:
         # butun korpusun temsili bir ornegidir. Tohum sabit: tekrarlanabilir.
         random.Random(args.tohum).shuffle(hedef)
         print(f"  sira karistirildi (tohum={args.tohum})")
+    if args.devam:
+        # Colab runtime'i bir gunde iki kez yeniden atandi ve tam korpus
+        # taramasi saatler suruyor. Olculmus gorevleri atla; jsonl gorev
+        # basina flush edildigi icin kesilen kosunun ciktisi gecerlidir.
+        olculen = _olculen_gorevler(args.bant_out)
+        if olculen:
+            once = len(hedef)
+            hedef = [d for d in hedef if d.name not in olculen]
+            print(f"  devam: {len(olculen)} gorev zaten olculmus, "
+                  f"{once} -> {len(hedef)} kaldi")
     print(f"\n=== ASAMA bant  ({len(hedef)} task x {args.rollouts} rollout) ===\n")
     # Episode'lar birbirinden bagimsiz. Sirali kosmak sunucuyu bos
     # birakiyordu: 80 gorev x 8 rollout x ~5 tur = 3200 ardisik istek.
@@ -312,7 +346,9 @@ def asama_bant(client, model: str, args, durum: HatDurumu) -> None:
         task = Task.load(d)
         return d, task.id, run_model(task, client, model, args.protocol, verbose=False)
 
-    kayit = open(args.bant_out, "w", encoding="utf-8") if args.bant_out else None
+    # DIKKAT: "w" kesilen bir kosunun ciktisini siler. --devam varsa eklenir.
+    kayit = (open(args.bant_out, "a" if args.devam else "w", encoding="utf-8")
+             if args.bant_out else None)
     try:
         with ThreadPoolExecutor(max_workers=args.concurrency) as havuz:
             for bitmis in as_completed([havuz.submit(bir_episode, i) for i in isler]):
@@ -402,6 +438,10 @@ def main() -> int:
                         help="bant asamasinda task basina rollout")
     parser.add_argument("--protocol", choices=["auto", "native", "text"], default="auto")
     parser.add_argument("--bant-out", default="data/bant.jsonl")
+    parser.add_argument("--devam", action="store_true",
+                        help="--bant-out'ta zaten olculmus gorevleri atla ve "
+                             "dosyaya EKLE. Bu bayrak olmadan dosya sifirdan "
+                             "yazilir, yani kesilen kosunun ciktisi silinir.")
     parser.add_argument("--karistir", action="store_true",
                         help="bant asamasinda gorev sirasini karistir; yarida "
                              "kesilen kosu bile korpusun temsili ornegi olur")
