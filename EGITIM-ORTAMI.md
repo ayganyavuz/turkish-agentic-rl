@@ -562,3 +562,44 @@ urettigi egitim komutunda `--attn` iletiliyor (kos stub'lanarak).
 - Model yuklendikten sonra `model.config._attn_implementation` gercekten
   `flash_attention_2` mi -- transformers desteklemeyen bir modelde sessizce
   sdpa'ya dusebilir. **Bu, bayragin etki ettigini gosteren tek kanit.**
+
+---
+
+## Colab kurulumu: iki yeni tuzak (10 Eylul, olculdu)
+
+### 1. Kurulum hucresi torch'u IMPORT ETMEMELI
+Kurulum hucresi GPU kontrolu icin basta `import torch` yapiyordu. Colab'in
+on-yuklu torch'u **2.11.0+cu128**; pip onu **2.13.0+cu130**'a yukseltiyor.
+Bir kez import edilince kernel eskisini bellekte tutuyor ve vLLM'in cu130
+kutuphaneleriyle eslesmiyor:
+```
+ImportError: libcudart.so.13: cannot open shared object file
+```
+Teshis `pip list` ile netlesti: **diskte 2.13.0, kernel'de 2.11.0+cu128**.
+Yani kurulum bozuk degildi, kernel bayatti.
+
+Duzeltme: GPU kontrolu `nvidia-smi` ile; kurulum dogrulamasi **temiz bir alt
+surecte**. Dogru soru zaten buydu -- egitim `nohup python` ile ayri surecte
+kosuyor, onemli olan O surecin gordugu ortam.
+
+Alt surecte dogrulanan (kurulum saglam):
+```
+torch 2.13.0+cu130 | cuda 13.0 | gorunuyor True
+vllm 0.27.1 | trl 1.12.0 | transformers 5.16.1 | liger 0.8.2
+liger qwen3_5 yamasi: VAR
+uyku yamasi tutar mi: True
+```
+
+### 2. `find /` mount'lu Drive'i tariyor
+Teshis icin yazilan `find / -name 'libcudart.so*'` Drive'a girip kernel'i
+kilitledi. Colab'de genis `find` kullanma.
+
+### 3. flash-attn cu130 icin teker sunmuyor
+`pip install flash-attn --no-build-isolation` kaynaktan derlemeye girdi ve
+**16 saniyede** `bdist_wheel` hatasiyla dustu. Model tarafinda engel yok:
+```
+Qwen3_5ForCausalLM._supports_flash_attn = True
+```
+Yani engel modelde degil, paketin CUDA 13 ile derlenememesinde. `--attn`
+bayragi yerinde duruyor; FA2'ye deger mi sorusu **profil tablosuna** birakildi
+(attention'in gercek payi olculdukten sonra derleme zahmetine girilir).
