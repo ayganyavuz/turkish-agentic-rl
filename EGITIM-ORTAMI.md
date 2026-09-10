@@ -842,3 +842,85 @@ Hiz calismasinin sonraki adimi (torch.compile / fla / fp32 kaynagi) ile
 **bandin native+1.0+6144 ile yeniden olculmesi** ayri isler. Ikincisi
 projenin ilerlemesi icin daha kritik: mevcut `mufredat/epoch1.txt` 0.7
 sicaklikta, 2048 token ve metin protokoluyle secildi, yani **gecersiz**.
+
+---
+
+# BUG KAYDI — 10 Eylul
+
+Bugun cikan butun hatalar tek yerde. Ilk ucu **altin kural sinifindan**:
+bayrak/ayar vardi ama etki etmiyordu. Dosyanin basindaki "bes hata" listesi
+artik **dokuz**.
+
+## Altin kural sinifi (bayrak var, etki yok)
+
+**6. `--sicaklik` hicbir yere bagli degildi.**
+`pipeline.py`'de yalnizca `add_argument`'ta geciyordu; `args.sicaklik`
+hicbir yerde okunmuyordu (dosyada `temperature` kelimesi bile yoktu) ve
+`dongu.py` `VDS_TEMPERATURE`'i alt sureclere vermiyordu. Hata #2'nin
+**yarisi** duzeltilmisti: `runner.sicaklik()` cagri aninda okuyacak sekilde
+yazilmis ama bayragi o env'e yazan halka hic kurulmamisti.
+→ Butun sweep/eval'ler (epoch 0 baseline ve sweep1 dahil) 1.0 istenirken
+**0.7**'de kostu. Egitim rollout'lari 1.0'da ornekleniyor, yani bant
+egitimden farkli bir dunyada olculuyordu.
+
+**7. `VDS_MAX_TOKENS` modul seviyesinde okunuyordu.**
+Hata #2'nin birebir yapisi; `sicaklik()` fonksiyona cevrilirken atlanmis.
+Bant 2048 ile olculurken egitim 6144 veriyordu.
+
+**8. `--profil` ve `--tur-uykusu` yalnizca `train_grpo.py`'deydi.**
+`dongu.py` ikisini de iletmiyordu, yani dongu ile kosulan bir egitim
+**profil alamazdi**. Dosyanin "Faydali bayraklar" listesi ikisini de dongu
+bayragi sayiyordu -- yanlisti.
+
+**9. Profiler'in kendisi olcumu oldurdu.** (asagida ayrintili)
+
+## Colab ortam tuzaklari
+
+**Kurulum hucresi torch'u IMPORT ETMEMELI.** On-yuklu torch 2.11+cu128;
+pip 2.13+cu130'a yukseltiyor ama kernel eskisini bellekte tutuyor →
+`ImportError: libcudart.so.13`. Teshis: `pip list` diskte 2.13.0 derken
+kernel 2.11.0+cu128 diyordu. GPU kontrolu `nvidia-smi` ile, dogrulama
+**alt surecte** yapilmali -- egitim zaten ayri surecte kosuyor.
+
+**Drive ikinci kez mount edilemiyor.** Runtime yeniden atanmadiysa Drive
+zaten baglidir ve `drive.mount()` `ValueError: Mountpoint must not already
+contain files` ile patlar. `os.path.isdir('/content/drive/MyDrive')` ile
+kosullu mount gerekiyor.
+
+**`find /` mount'lu Drive'i tariyor** ve kernel'i kilitliyor. Colab'de genis
+`find` kullanma.
+
+**Runtime bir gunde IKI KEZ yeniden atandi** (biri kosan egitimi 11/25
+adimda oldurdu, digeri paketleri ve repoyu sildi). Her seferinde ~8 dk
+kurulum. Uzun kosular buna gore planlanmali.
+
+**flash-attn'in cu130 tekeri yok.** `--no-build-isolation` ile bile kaynak
+derlemesi 16 saniyede `bdist_wheel` hatasiyla dustu. Model tarafinda engel
+yok (`_supports_flash_attn = True`).
+
+## Profiler tuzaklari
+
+**Adimin tamamini profillemek imkansiz.** Bir adimda ~9 tur uretim + 16
+mikro-gecis var:
+- `record_shapes`+`profile_memory` acik, 2 adim → host RAM **171 GB**, OOM
+  (makinede 167 GB).
+- Ikisi kapali, 1 adim → adim bitti ama **tablo uretilirken** RAM 4 dakikada
+  79.7 → 97.1 GB, yine OOM'a gidiyordu; kesildi.
+→ Cozum kapsami daraltmak: `compute_loss` sarmalanip yalnizca birkac
+mikro-gecis olculuyor. Uretim trace'e hic girmiyor.
+
+**Profil tablosundaki yuzdeler toplanamaz.** Tablo hem `aten::` op'larini
+hem altlarindaki CUDA kernel'lerini listeliyor; cift sayim var.
+
+## Kucuk
+
+**Izleme hucresi eski basligi ariyordu.** `PROFIL -- CUDA` grep'leniyordu,
+yeni baslik `PROFIL -- loss fazi`; tablo basilmisti ama gorunmuyordu.
+
+## Su anki durum
+Colab runtime **yeni** (ikinci yeniden atama sonrasi): paketler ve repo
+kurulu DEGIL, A100 bagli, Drive bagli. `--derle` (torch.compile) denemesi
+**kosulmadi** -- karsilastirma referansi hazir:
+```
+derlemesiz: faz[adim 2] = 553.6 sn = uretim 181.5 (33%) + loss 372.1 (67%)
+```
