@@ -155,6 +155,10 @@ def main() -> int:
                     help="sweep/eval'de yanit basina token butcesi. 0 = "
                          "--max-completion ile ayni (egitimle hizali). Bant "
                          "2048 ile olculuyordu, egitim 6144 veriyordu.")
+    ap.add_argument("--attn", default="sdpa",
+                    choices=["sdpa", "flash_attention_2", "eager"],
+                    help="egitimde attention cekirdegi; uretim vLLM'de "
+                         "kostugu icin bu bayrak onu etkilemez")
     ap.add_argument("--profil", type=int, default=0, metavar="N",
                     help="egitimde ilk adimi isinma say, sonraki N adimi "
                          "torch.profiler ile olc")
@@ -262,7 +266,7 @@ def main() -> int:
             f"--micro-batch {args.micro_batch} --epoch 1 --lr {args.lr} "
             f"--max-komut {args.max_komut} --max-completion {args.max_completion} "
             f"--vllm-baglam {args.vllm_baglam} --vllm-bellek {args.vllm_bellek} "
-            f"--dtype {args.dtype} "
+            f"--dtype {args.dtype} --attn {args.attn} "
             + (f"--profil {args.profil} " if args.profil else "")
             + ("--tur-uykusu " if args.tur_uykusu else "")
             + f"--cikti {cikti} > {K}/train-epoch{epoch}.log 2>&1",

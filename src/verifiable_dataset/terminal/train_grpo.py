@@ -355,6 +355,15 @@ def main() -> int:
                          "sabit kismi (bf16'da ~17 GB) da kartta duruyor. Ustelik "
                          "daha buyuk KV cache bir yerden sonra bos duruyor -- bir "
                          "adimda 32 episode x ~10k token ~ 320k token uretiliyor.")
+    ap.add_argument("--attn", default="sdpa",
+                    choices=["sdpa", "flash_attention_2", "eager"],
+                    help="attention cekirdegi. Varsayilan sdpa: flash-attn "
+                         "kurulu olmadigi icin transformers zaten buna "
+                         "dusuyordu. flash_attention_2 YALNIZCA egitim "
+                         "(loss) fazini etkiler -- uretim vLLM'de kosuyor ve "
+                         "o kendi backend'ini seciyor. Qwen3.5 hibrit: "
+                         "katmanlarin bir kismi linear_attention, FA2 "
+                         "yalnizca full_attention katmanlarinda devreye girer.")
     ap.add_argument("--dtype", default="bfloat16",
                     choices=["bfloat16", "float32"],
                     help="model agirliklarinin dtype'i. TRL'nin varsayilani "
@@ -436,7 +445,8 @@ def main() -> int:
         # bf16'ya gecince agirlik ve gradyan yariya iniyor, logits de fp32
         # yerine bf16 uretiliyor -- selective_log_softmax'in fp32 dalindaki
         # satir basina 5.68 GiB'lik logsumexp geçicisi de yariya iniyor.
-        model_init_kwargs={"dtype": args.dtype},
+        model_init_kwargs={"dtype": args.dtype,
+                           "attn_implementation": args.attn},
         gradient_checkpointing=True,
         # RMSNorm/SwiGLU/RoPE'u fuzyonlu cekirdeklerle degistiriyor; aktivasyon
         # tepesini dusuruyor. Not: GRPO logits'i kendi hesapladigi icin liger'in

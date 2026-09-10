@@ -533,3 +533,32 @@ Kalan: **tur sayisi** hala duz 12; `TerminalOrtami`'nin `task_dir`'den
 
 > Onceki tum sweep/eval sayilari 0.7'de ve 2048 ile olculdu. Bant yeniden
 > olculdugunde bunlarla kiyaslanamaz.
+
+---
+
+## FA2 bayragi (kullanici karari; henuz olculmedi)
+
+`--attn {sdpa,flash_attention_2,eager}`, varsayilan `sdpa`. `train_grpo` ve
+`dongu`'da. `model_init_kwargs`'a `attn_implementation` olarak giriyor.
+
+Kapsam -- **yalnizca egitim (loss) fazi**. Uretim vLLM'de kosuyor ve vLLM
+attention backend'ini kendi seciyor; bu bayrak ona dokunmaz. Yani adimin
+~%38'lik uretim kismi degismez.
+
+Beklenti olcusunu bastan kucuk tutmak gerekiyor, iki sebeple:
+1. Qwen3.5 **hibrit**: `layer_types` bir kismi `linear_attention`. FA2
+   yalnizca `full_attention` katmanlarinda devreye girer.
+2. `sdpa` zaten attention matrisini materyalize etmiyor. Hiz farki
+   cekirdek kalitesinden gelir, karmasiklik sinifindan degil.
+
+Test (kosudan once): argparse blogu izole calistirildi, varsayilan `sdpa`
+ve `--attn flash_attention_2` verildiginde `model_init_kwargs`'a giden
+dict dogrulandi; gecersiz deger `choices` ile reddediliyor. `dongu`'nun
+urettigi egitim komutunda `--attn` iletiliyor (kos stub'lanarak).
+
+**Kurulumda dogrulanmasi gereken** (yerelde torch yok, Colab'de bakilacak):
+- `flash-attn` tekeri cu130 icin var mi; yoksa kaynaktan derleme 30+ dk.
+- Qwen3.5 sinifi FA2'yi kabul ediyor mu (`_supports_flash_attn`).
+- Model yuklendikten sonra `model.config._attn_implementation` gercekten
+  `flash_attention_2` mi -- transformers desteklemeyen bir modelde sessizce
+  sdpa'ya dusebilir. **Bu, bayragin etki ettigini gosteren tek kanit.**
