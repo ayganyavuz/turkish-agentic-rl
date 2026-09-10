@@ -582,3 +582,84 @@ Sadece **kod** korpusu ile egitmek -- bu sabahki karara gore tam ters,
 ama artik olcum var. Kabuk gorevlerinin %91'i cozulemiyor, yani compute'un
 ucte ikisi gradyan uretmeyen gruplara gidiyor ve uretebildigi kadari da
 politikayi istemedigimiz yone cekiyor.
+
+---
+
+## Bolum 7 — Dogru baseline, ve uzunluk duzeltmesinin bedeli: OOM (2026-09-10)
+
+### Dongu adim 1'de oldu
+
+`dongu.log` 23:30'da durdu. `train-epoch1.log` sonu:
+
+```
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 5.68 GiB.
+79.25 GiB kapasitede 1.29 GiB bos
+4%|▍ | 1/25 [13:56<5:34:34]
+```
+
+Ilk optimizer adiminda, `_compute_loss` -> `selective_log_softmax` icinde.
+Sebep dogrudan Bolum 6'daki duzeltme: `max_completion` 2048 -> 6144 ve
+`vllm-baglam` 8192 -> 16384. Logits tensoru `batch x 6144 x vocab` oldu;
+4B full FT + colocate vLLM zaten 80 GB'a zar zor siğiyordu (Bolum 4).
+**Ortuk uzunluk cezasini kaldirdik, yerine bellek tavani geldi.**
+Checkpoint yok; diskte sadece `mufredat/epoch1.txt` ve sweep olcumleri.
+
+### Ilk GUVENILIR baseline (held-out 78, G=8 pass-rate)
+
+Sicaklik ve split hatalari duzeldikten sonraki ilk olcum:
+
+| Aile | pass@8 | En az bir kez cozulen |
+|---|---|---|
+| Kod (24) | **%32.3** | 17/24 |
+| Kabuk (54) | **%18.3** | 25/54 |
+| **Toplam (78)** | **%22.6** | 42/78 |
+
+**Bolum 6'nin "sadece kod ile egit" onerisi zayifladi.** O oneri kabuk
+icin "%9.3, 54 gorevin 49'u cozulemiyor" sayisina dayaniyordu. O sayi tek
+rollout'luk ve sicakligi bozuk olcumdendi. G=8 ile kabugun 54'unun **25'i**
+en az bir kez cozuluyor -- yani kabuk korpusu olu degil, sadece varyansi
+yuksek. Kod ile kabuk arasindaki gercek fark 32.3 vs 18.3, ucuruma benzemiyor.
+
+### Epoch 1 mufredati (173 train gorevi, G=8)
+
+- Bantta (1..7): **103**
+- Olu-zor (0/8): **65**
+- Olu-kolay (8/8): **5**
+
+173'un %60'i egitici. Bolum 6'daki "compute'un ucte ikisi gradyan
+uretmeyen gruplara gidiyor" endisesi de bu yuzden abartiliydi: bant
+olcumu zaten olu gorevleri disariya atiyor.
+
+### Duzeltme: yalnizca (a), tek kol
+
+Karar: once en ucuz mudahale, olmazsa yeniden degerlendir.
+
+**Bulgu:** `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` o kosuda
+**zaten aciktı** (`dongu.py:136` -> `ortam` -> `kos(env=ortam)`). OOM
+mesajindaki "104.55 GiB allocated" 80 GB'lik kartta zaten expandable
+segments muhasebesi. Yani (a)'nin o yarisi harcanmis durumda.
+
+Geriye tek gercek kol kaldi: `--vllm-bellek`, `dongu.py`'de **0.45 olarak
+sabit yazilmisti**. Bayrak yapildi, varsayilan **0.30** (~12 GB serbest).
+
+### Kural uygulandi: koşmadan once test
+
+Uc olcum hatasi da "eklendi ama calismiyor"du. Bu sefer once test:
+`kos` ve `vllm_baslat` stub'lanip egitim komutu yakalandi.
+
+```
+vllm-bellek    -> --vllm-bellek 0.3   (komut satirinda)
+max-completion -> 6144
+vllm-baglam    -> 16384
+ALLOC_CONF alt-surece gecti -> expandable_segments:True
+```
+
+`train_grpo.py:266` `args.vllm_bellek`'i dogrudan `GRPOConfig`'e veriyor --
+sicaklik hatasindaki gibi import-aninda yakalama yok.
+
+### Olmazsa siradakiler (henuz yapilmadi)
+
+- (c) `max-completion` 6144 -> 4096; ama once 4096'da kac episode'un
+  kesildigi olculmeli, korten once.
+- (b) `prompt-batch` 4 -> 1. IsoCompute'a gore batch'teki problem sayisi
+  kararliligi belirliyor, yani en son basvurulacak kol.

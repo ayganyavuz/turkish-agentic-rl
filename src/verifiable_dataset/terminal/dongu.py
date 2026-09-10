@@ -121,6 +121,12 @@ def main() -> int:
     ap.add_argument("--max-komut", type=int, default=12)
     ap.add_argument("--max-completion", type=int, default=6144)
     ap.add_argument("--vllm-baglam", type=int, default=16384)
+    ap.add_argument("--vllm-bellek", type=float, default=0.30,
+                    help="Colocate'te vLLM'e ayrilan kart orani. 0.45 ile "
+                         "max-completion 6144'te ilk optimizer adiminda OOM "
+                         "olduk: selective_log_softmax'in logits tensoru "
+                         "5.68 GiB istedi, 1.29 GiB bostu. expandable_segments "
+                         "o kosuda zaten aciktı, yani tek kalan kol bu.")
     ap.add_argument("--concurrency", type=int, default=24)
     ap.add_argument("--lr", type=float, default=1e-6)
     ap.add_argument("--atla-baseline", action="store_true",
@@ -213,7 +219,7 @@ def main() -> int:
             f"--rollouts {args.rollouts} --prompt-batch {args.prompt_batch} "
             f"--micro-batch {args.micro_batch} --epoch 1 --lr {args.lr} "
             f"--max-komut {args.max_komut} --max-completion {args.max_completion} "
-            f"--vllm-baglam {args.vllm_baglam} --vllm-bellek 0.45 "
+            f"--vllm-baglam {args.vllm_baglam} --vllm-bellek {args.vllm_bellek} "
             f"--cikti {cikti} > {K}/train-epoch{epoch}.log 2>&1",
             cwd=str(repo), env=ortam)
         if rc != 0 or not (cikti / "config.json").exists():
