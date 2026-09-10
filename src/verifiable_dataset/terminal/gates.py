@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 import shlex
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -301,6 +302,45 @@ def gate_ara_durum(task: Task, rep) -> GateResult:
                       f"referans {ara.derived_total}/{ara.derived_total}")
 
 
+YAPISAL_BELIRTEC = {
+    # Duz alt dize, duzenli ifade degil: desende tek bir kacis karakteri
+    # bozulursa kapi sessizce yanlis olcer ve dogru adaylari eler.
+    # Yalnizca GUVENILIR belirteci olan kaliplar burada; "closure-fabrika"
+    # ve "ozyineleme" saglam ayirt edilemedigi icin atlaniyor.
+    "durumlu-sinif": ("class ",),
+    "generator": ("yield",),
+    "context-manager": ("__enter__",),
+    "dataclass-dogrulama": ("@dataclass", "__post_init__"),
+    "iterator-protokolu": ("__iter__", "__next__"),
+    "istisna-hiyerarsisi": ("Error(", "Exception)", "Error)"),
+    "abc-protokol": ("ABC", "abstractmethod"),
+    "operator-asiri-yukleme": ("__eq__", "__lt__", "__add__", "__repr__"),
+    "dekorator": ("@",),
+}
+
+
+def gate_yapisal_uyum(task: Task) -> GateResult:
+    """Seed bir Python kalibi istediyse kod o kalibi GERCEKTEN kullanmali.
+
+    Yapisal eksenler korpusun cesitliligini tasiyor, ama talimat olmak
+    yetmiyor: pilotta 19 gorevin 4'unde model kalibi yoksayip duz fonksiyon
+    yazdi. Cesitlilik "istendi" ile degil "olculdu" ile artar.
+    """
+    seed = (task.metadata.get("seed") or {})
+    if seed.get("aile") != "kod":
+        return GateResult("yapisal uyum", True, skipped=True, detail="kod ailesi degil")
+    kalip = (seed.get("metadata") or {}).get("kalip", "")
+    desen = YAPISAL_BELIRTEC.get(kalip)
+    if not desen:
+        return GateResult("yapisal uyum", True, skipped=True,
+                          detail=f"'{kalip}' guvenilir belirtecle olculemiyor")
+    kod = (task.setup or "") + "\n" + (task.reference_solution or "")
+    if any(t in kod for t in desen):
+        return GateResult("yapisal uyum", True, f"kalip '{kalip}' kullanilmis")
+    return GateResult("yapisal uyum", False,
+                      f"seed '{kalip}' istiyor ama kodda izi yok")
+
+
 def gate_equivalence(task: Task, checks: list[dict] | None) -> GateResult:
     if not task.alt_solutions:
         return GateResult("denklik", True, skipped=True, detail="alt_solutions yok")
@@ -335,6 +375,7 @@ def run_gauntlet(task: Task, spec_only: bool = False
     results.append(gate_output_kinds(task, rep))
     results.append(gate_cheap_hack(task, rep))
     results.append(gate_ara_durum(task, rep))
+    results.append(gate_yapisal_uyum(task))
     results.append(gate_equivalence(task, rep.checks if rep else None))
     return results, rep
 

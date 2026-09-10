@@ -435,6 +435,10 @@ def main() -> int:
                          "sabit kismi (bf16'da ~17 GB) da kartta duruyor. Ustelik "
                          "daha buyuk KV cache bir yerden sonra bos duruyor -- bir "
                          "adimda 32 episode x ~10k token ~ 320k token uretiliyor.")
+    ap.add_argument("--derle", action="store_true",
+                    help="egitim modelini torch.compile ile derle. Loss fazi "
+                         "kernel-launch-bound oldugu icin denenmeye deger; "
+                         "ilk adim derleme yuzunden uzun surer.")
     ap.add_argument("--profil-ayrinti", action="store_true",
                     help="profilde tensor sekillerini ve bellek olaylarini da "
                          "topla. PAHALI: iki adimlik profil host RAM'i 171 "
@@ -532,6 +536,12 @@ def main() -> int:
         model_init_kwargs={"dtype": args.dtype,
                            "attn_implementation": args.attn},
         gradient_checkpointing=True,
+        # Profil, loss fazinin kernel-launch-bound oldugunu gosterdi: iki
+        # mikro-geciste 63k bmm + 72k copy_ + 63k elementwise, ve Self CPU
+        # (32.1 s) Self CUDA'dan (20.5 s) buyuk. torch.compile bu ufak
+        # kernel'leri birlestirebilirse loss fazi kisalir. Uretim vLLM'de
+        # kostugu icin bu bayrak ona dokunmaz.
+        torch_compile=args.derle,
         # RMSNorm/SwiGLU/RoPE'u fuzyonlu cekirdeklerle degistiriyor; aktivasyon
         # tepesini dusuruyor. Not: GRPO logits'i kendi hesapladigi icin liger'in
         # fuzyonlu linear-cross-entropy'si BU yolda devreye girmiyor -- yani
@@ -567,6 +577,14 @@ def main() -> int:
     # Bayragin ETKI ETTIGININ kaniti. transformers, model FA2'yi
     # desteklemiyorsa sessizce sdpa'ya duser; o zaman "FA2 ile olctuk" diye
     # kaydedilen sayi aslinda sdpa'nin sayisi olur.
+    try:
+        print(f"torch_compile: istenen={args.derle} "
+              f"gercek={trainer.args.torch_compile}"
+              f"{'' if bool(trainer.args.torch_compile) == bool(args.derle) else '   <-- UYUSMUYOR'}",
+              flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"torch_compile okunamadi: {e}", flush=True)
+
     try:
         gercek = trainer.model.config._attn_implementation
         print(f"attn_impl: istenen={args.attn} gercek={gercek}"
