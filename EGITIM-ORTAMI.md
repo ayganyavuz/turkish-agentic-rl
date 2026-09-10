@@ -817,3 +817,28 @@ kararlilik icin genelde fp32 tutulur), yani muhtemelen kasitli ama pahali.
 **Henuz olculmedi**: fp32 kernel'leri hangi modul uretiyor. `--profil-ayrinti`
 ile tensor sekilleri toplanarak bulunabilir; kapsam artik 2 mikro-gecisle
 sinirli oldugu icin ilk denemedeki RAM patlamasi riski yok.
+
+### Temiz faz ayrimi (profilsiz adim)
+```
+faz[adim 1]: toplam 879.0 sn = uretim 155.1 (18%) + loss 724.0 (82%)   <- profilli
+faz[adim 2]: toplam 553.6 sn = uretim 181.5 (33%) + loss 372.1 (67%)   <- TEMIZ
+```
+**Aranan sayi adim 2.** Cikarim %38/%62 idi; olculen **%33/%67**. Yakin, ama
+loss biraz daha baskin ve artik bir kronometreden geliyor.
+
+Uretim verimi: 32 episode x `completions/mean_length` 2104 ~ 67k cikis token
+/ 181.5 sn = **~370 tok/sn**. Bu A100'de 32 dizi ve dusunme modu aciksa
+makul. **Uretim fazinda aranacak bir sey yok.**
+
+Loss: **372 sn**, teorik 15-20 sn. Acik ~20 kat ve profil tablosu adresini
+gosteriyor: kernel launch seli (Self CPU > Self CUDA) + fp32 alt-yol.
+
+Kosu adim 2'den sonra durduruldu; profil ve faz ayrimi alinmisti, kalan 23
+adim bosuna GPU yakacakti. `loss-trace.json` (1.39 GB) Drive'da
+`profil/` altinda.
+
+### Siradaki is icin oncelik notu
+Hiz calismasinin sonraki adimi (torch.compile / fla / fp32 kaynagi) ile
+**bandin native+1.0+6144 ile yeniden olculmesi** ayri isler. Ikincisi
+projenin ilerlemesi icin daha kritik: mevcut `mufredat/epoch1.txt` 0.7
+sicaklikta, 2048 token ve metin protokoluyle secildi, yani **gecersiz**.
