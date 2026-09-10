@@ -29,11 +29,12 @@ cikti; her biri saatler yakti:
    `VLLM::EngineCore` alt-sureci baska adla hayatta kalip kartin 68 GB'ini
    elinde tutuyordu.
 
-> **Bu liste bes maddede kalmadi.** 10 Eylul'de bu siniftan uc hata daha
-> cikti (`--sicaklik` hicbir yere bagli degildi, `VDS_MAX_TOKENS` modul
-> seviyesinde okunuyordu, `--profil`/`--tur-uykusu` `dongu.py`'den
-> iletilmiyordu) ve profiler'in kendisi olcumu iki kez oldurdu. Tam liste:
-> dosyanin sonundaki **BUG KAYDI — 10 Eylul**.
+> **Bu liste bes maddede kalmadi.** 10 Eylul'de bu siniftan **dort** hata
+> daha cikti (`--sicaklik` hicbir yere bagli degildi, `VDS_MAX_TOKENS`
+> modul seviyesinde okunuyordu, `--profil`/`--tur-uykusu` `dongu.py`'den
+> iletilmiyordu, `TerminalOrtami` gorev basina `max_turns` okumuyordu) ve
+> profiler'in kendisi olcumu iki kez oldurdu. Tam liste: dosyanin
+> sonundaki **BUG KAYDI — 10 Eylul**.
 
 Test sekli: `kos` / `vllm_baslat` stub'lanip komut yakalanir, ya da sahte
 `GRPOConfig` ile alanlar yakalanir. Ornekler repoda calisir durumda.
@@ -410,8 +411,11 @@ Durum:
 - protokol: `dongu.py --protokol` eklendi, varsayilan **native** (`f93ccf2`).
   **Henuz kosulmadi** — bant yeniden olculmeli.
 - yanit token butcesi: `VDS_MAX_TOKENS` hala 2048. **Yapilmadi.**
-- tur sayisi: `TerminalOrtami`'nin `task_dir`'den `max_turns` okumasi gerekir;
-  TRL'in `environment_factory`'si goreve gore parametre almiyor. **Yapilmadi.**
+- tur sayisi: **YAPILDI** (2026-09-10). `environment_factory` goreve gore
+  parametre almiyor ama gerekmiyordu: butce `reset()` icinde,
+  `Task.load(task_dir)`'dan sonra ayarlaniyor. `--tur-butcesi duz` eski
+  davranisi yeniden uretilebilir tutuyor. Dogrulandi: `max_turns: 16` olan
+  gorev 16, duz modda 12 aliyor.
 
 ### Yan bulgu: Ingilizce system prompt bizim degil
 `train-epoch1.log`'daki Ingilizce metin **Qwen3.5'in kendi chat template'i**
@@ -532,10 +536,22 @@ Uc ayri test, hepsi yerelde GPU'suz:
    sonra: 1.0  6144
    ```
 
-Boylece "bant egitimle ayni dunyada degil" kusurunun uc bileseninden
-**ikisi kapandi** (protokol native, token butcesi 6144, sicaklik 1.0).
-Kalan: **tur sayisi** hala duz 12; `TerminalOrtami`'nin `task_dir`'den
-`max_turns` okumasi gerekiyor. **Yapilmadi.**
+Boylece "bant egitimle ayni dunyada degil" kusurunun **uc bileseni de
+kapandi**: protokol native, token butcesi 6144, sicaklik 1.0, ve tur
+sayisi artik gorev basina (`--tur-butcesi task`, 2026-09-10; uretim
+ayaginda bulundu, ayrinti `VERI-URETIMI.md`).
+
+**10. `TerminalOrtami` gorev basina `max_turns` okumuyordu.** Altin kural
+sinifinin onuncusu ve en pahalisi: deger `task.yaml`'da vardi, 255 gorevin
+**199'unda** 12 degildi, ve hicbir yerde okunmuyordu. Uzun gorevler
+bitiremeden kesiliyordu -- **gorev zor degildi, butcesi yanlisti.** Bant
+olcumu bu yuzden zorlugu sistematik olarak abartiyordu.
+
+> Uc bilesenin ucu de ayni sekli tasiyordu: bant, egitimin kullandigi
+> parametreden farkli bir parametreyle olculuyordu. Uc bagimsiz kusur
+> degil, tek bir kor nokta.
+
+Bant olcumunun onunde artik engel yok.
 
 > Onceki tum sweep/eval sayilari 0.7'de ve 2048 ile olculdu. Bant yeniden
 > olculdugunde bunlarla kiyaslanamaz.
@@ -853,9 +869,13 @@ sicaklikta, 2048 token ve metin protokoluyle secildi, yani **gecersiz**.
 
 # BUG KAYDI — 10 Eylul
 
-Bugun cikan butun hatalar tek yerde. Ilk ucu **altin kural sinifindan**:
-bayrak/ayar vardi ama etki etmiyordu. Dosyanin basindaki "bes hata" listesi
-artik **dokuz**.
+Bugun cikan butun hatalar tek yerde. Ilk ucu ve #10 **altin kural
+sinifindan**: bayrak/ayar vardi ama etki etmiyordu. Dosyanin basindaki
+"bes hata" listesi artik **on**.
+
+#10 uretim ayaginda bulundu (`VERI-URETIMI.md`) ama buraya ait: kusur
+egitim tarafinda. Iki ayak ayri dosyalara yazdigi icin bir sure iki
+listede de gorunmedi.
 
 ## Altin kural sinifi (bayrak var, etki yok)
 
