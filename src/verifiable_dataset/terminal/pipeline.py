@@ -337,41 +337,91 @@ def asama_bant(client, model: str, args, durum: HatDurumu) -> None:
     # Episode'lar birbirinden bagimsiz. Sirali kosmak sunucuyu bos
     # birakiyordu: 80 gorev x 8 rollout x ~5 tur = 3200 ardisik istek.
     # Havuz hem gorevler hem rollout'lar arasinda paralellik veriyor.
+    # `checks:` olmayan gorev DOGRULANAMAZ: `grade()` yazilmamis bir
+    # tests/check.py'yi calistirmaya calisip RuntimeError atiyor. Bunlar
+    # zaten split'te "referansi gecmiyor" diye dislanmisti, ama split
+    # suzgeci kapaliyken (tum korpus taramasi) yeniden iceri giriyorlar.
+    dogrulanabilir, checksiz = [], []
+    for d in hedef:
+        try:
+            (dogrulanabilir if Task.load(d).checks else checksiz).append(d)
+        except Exception:  # noqa: BLE001 - bozuk task.yaml da elenmeli
+            checksiz.append(d)
+    if checksiz:
+        print(f"  check'siz/bozuk {len(checksiz)} gorev elendi: "
+              f"{', '.join(d.name for d in checksiz[:4])}"
+              f"{' ...' if len(checksiz) > 4 else ''}")
+    hedef = dogrulanabilir
+
     isler = [(d, r) for d in hedef for r in range(args.rollouts)]
     toplanan: dict[str, list] = {}
+    hatali: dict[str, str] = {}
     tamam = 0
 
     def bir_episode(is_):
+        """Tek bir episode'un hatasi butun kosuyu oldurmemeli.
+
+        512 gorev x 8 rollout saatler suruyor; bir bozuk gorev yuzunden
+        hepsini kaybetmek kabul edilemez. Hata goreve yazilir, o gorev
+        raporlanir ve tarama devam eder.
+        """
         d, _ = is_
-        task = Task.load(d)
-        return d, task.id, run_model(task, client, model, args.protocol, verbose=False)
+        try:
+            task = Task.load(d)
+            return d, task.id, run_model(task, client, model, args.protocol,
+                                         verbose=False), None
+        except Exception as e:  # noqa: BLE001
+            return d, d.name, None, f"{type(e).__name__}: {e}"
 
     # DIKKAT: "w" kesilen bir kosunun ciktisini siler. --devam varsa eklenir.
     kayit = (open(args.bant_out, "a" if args.devam else "w", encoding="utf-8")
              if args.bant_out else None)
+    def _gorevi_yaz(task_id):
+        """Bir gorevin butun rollout'lari bitince HEMEN yaz.
+
+        Onceki hal butun episode'lar bittikten SONRA toplu yaziyordu: 512
+        gorevlik tarama saatlerce kosup sonunda yaziyordu, yani kesilen
+        kosudan geriye hicbir sey kalmiyordu ve --devam'in okuyacagi dosya
+        hic olusmuyordu.
+        """
+        kayitlar = toplanan.pop(task_id)
+        ozet = summarize(task_id, [e for _, e in kayitlar], args.rollouts)
+        ozet["task_dir"] = str(kayitlar[0][0])
+        durum.bantlar.append(ozet)
+        print(f"  {task_id:34} {ozet['band']:10} "
+              f"{ozet['solved']}/{ozet['rollouts']}  "
+              f"kismi={ozet['mean_partial']:.2f} tur={ozet['mean_turns']:.1f}",
+              flush=True)
+        if kayit:
+            kayit.write(json.dumps(ozet, ensure_ascii=False) + "\n")
+            kayit.flush()
+
     try:
         with ThreadPoolExecutor(max_workers=args.concurrency) as havuz:
             for bitmis in as_completed([havuz.submit(bir_episode, i) for i in isler]):
-                d, task_id, ep = bitmis.result()
-                toplanan.setdefault(task_id, []).append((d, ep))
+                d, task_id, ep, hata = bitmis.result()
                 tamam += 1
+                if hata is not None:
+                    if task_id not in hatali:
+                        hatali[task_id] = hata
+                        print(f"  HATA {task_id}: {hata[:120]}", flush=True)
+                    continue
+                kayitlar = toplanan.setdefault(task_id, [])
+                kayitlar.append((d, ep))
+                if len(kayitlar) == args.rollouts:
+                    _gorevi_yaz(task_id)
                 if tamam % 50 == 0:
-                    print(f"  ... {tamam}/{len(isler)} episode")
+                    print(f"  ... {tamam}/{len(isler)} episode", flush=True)
 
-        for task_id in sorted(toplanan):
-            kayitlar = toplanan[task_id]
-            ozet = summarize(task_id, [e for _, e in kayitlar], args.rollouts)
-            ozet["task_dir"] = str(kayitlar[0][0])
-            durum.bantlar.append(ozet)
-            print(f"  {task_id:34} {ozet['band']:10} "
-                  f"{ozet['solved']}/{ozet['rollouts']}  "
-                  f"kismi={ozet['mean_partial']:.2f} tur={ozet['mean_turns']:.1f}")
-            if kayit:
-                kayit.write(json.dumps(ozet, ensure_ascii=False) + "\n")
-                kayit.flush()
+        for task_id in sorted(toplanan):      # eksik rollout'lu artiklar
+            _gorevi_yaz(task_id)
     finally:
         if kayit:
             kayit.close()
+    if hatali:
+        print(f"\n  {len(hatali)} gorev hata verdi ve atlandi:")
+        for task_id, h in list(hatali.items())[:10]:
+            print(f"    {task_id:34} {h[:100]}")
 
 
 def _ozet(durum: HatDurumu, args) -> None:
