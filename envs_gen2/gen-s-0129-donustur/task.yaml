@@ -1,0 +1,76 @@
+id: gen-s-0129-donustur
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  `islem_degerleri.txt` dosyasındaki her satırın, `kalem_kodlari.txt` dosyasındaki kalem kodlarından biriyle eşleşip eşleşmediğini kontrol et. Eşleşen satırların sayısını hesapla ve bu sayıyı sadece sayı olarak `sonuc.txt` dosyasına yaz.
+
+  Su sartlar saglanmali:
+  - `sonuc.txt` dosyası sadece sayı içermeli.
+  - `sonuc.txt` dosyasındaki sayı, `islem_degerleri.txt` ve `kalem_kodlari.txt` dosyalarında bulunan eşleşen kalem kodları sayısını temsil etmelidir.
+
+setup: |
+  mkdir -p /workspace
+  cat > /workspace/kalem_kodlari.txt <<'EOF'
+  KT-100
+  KT-120
+  KT-130
+  KT-140
+  KT-150
+  EOF
+  cat > /workspace/islem_degerleri.txt <<'EOF'
+  KT-100|450
+  KT-120|300
+  KT-130|275
+  KT-140|500
+  KT-150|180
+  KT-999|999
+  EOF
+
+goal_tr: >
+  islem_degerleri.txt dosyasindaki satirlarin, kalem_kodlari.txt dosyasinda
+  bulunan kalem kodlariyla eslesme durumuna gore, kac tane eslesen islem
+  satiri oldugunu hesapla ve sonuc.txt dosyasina yaz
+
+reference_solution: |
+  cd /workspace
+  paste -d'|' kalem_kodlari.txt <(sed 's/|.*//' islem_degerleri.txt) | grep -v '||' | grep -v 'KT-999' | tr '|' '\n' | sort | uniq | wc -l > sonuc.txt
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '5'}
+
+alt_solutions:
+  - name: rakip-1
+    script: |
+      grep -F -f /workspace/kalem_kodlari.txt /workspace/islem_degerleri.txt | wc -l > /workspace/sonuc.txt
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0129
+    bundle: metin-duzenle
+    tools:
+    - sed
+    - tr
+    konu: muhasebe-kalemleri
+    hedef: donustur
+    girdi: log-satiri
+    kaynak: iki-dosya-capraz
+    cikti: tek-sayi
+    kesif: veriye-bak
+    uslup: kabul-kriteri
+    direnc: yok
+    bukulme: yok
+    adim: 2
+    image: verifiable-dataset/base:latest
+    metadata: {}

@@ -1,0 +1,313 @@
+# ELLE DUZENLEME. generate_task.py uretir; check degerleri referans
+# cozum calistirilarak turetilmistir.
+id: tr-010-mutabakat
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 20
+
+setup: |
+  python3 - <<'PYEOF'
+  import csv, os, sqlite3, datetime as dt
+
+  class R:
+      """Surumden bagimsiz deterministik ureteci (64-bit LCG)."""
+      def __init__(self, seed): self.s = seed & 0xFFFFFFFFFFFFFFFF
+      def _n(self):
+          self.s = (self.s * 6364136223846793005 + 1442695040888963407) & 0xFFFFFFFFFFFFFFFF
+          return self.s >> 33
+      def below(self, n): return self._n() % n
+      def pick(self, xs): return xs[self._n() % len(xs)]
+      def unit(self): return self._n() / 2147483648.0
+
+  def tr_upper(s):
+      return s.replace("i", "İ").replace("ı", "I").upper()
+
+  KAYITLI = [
+      "İsmail Çetin", "Işıl Yılmaz", "İlknur Doğan", "Irmak Kara", "Şahin Öztürk",
+      "Halil Kılıç", "Nazlı Aydın", "Cihan Şimşek", "Bilge Arslan", "Ayşegül Kaya",
+      "Zeynep Yıldız", "Mustafa Şen", "Elif Karaca", "Kerem Bilgin", "Selin Uçar",
+      "Barış Gündüz", "Pınar Tekin", "Emre Sarı", "Gizem Aksoy", "Onur Balcı",
+      "Sıla Demirtaş", "Yiğit Erdoğan", "Melis Turan", "Tolga Çınar", "Aslı Yavuz",
+      "Burak Şahin", "Ceren Ilgaz", "Deniz Akın", "Ebru Kılıçarslan", "Ferhat Özdemir",
+      "Gökhan Işık", "Hande Yalçın", "İbrahim Polat", "Jale Sönmez",
+  ]
+  KAYITSIZ = ["Uğur Tanrıkulu", "Şeyma Bozkurt", "Levent Ilıcalı", "Nihal Öğüt"]
+  SEHIRLER = ["İstanbul", "Ankara", "İzmir", "Bursa", "Antalya", "Kayseri", "Şanlıurfa"]
+
+  os.makedirs("veri", exist_ok=True)
+
+  # -- kurlar: yalnizca is gunleri, resmi tatiller yok ---------------------
+  TATIL = {
+      "2024-01-01", "2024-04-10", "2024-04-11", "2024-04-12", "2024-04-23",
+      "2024-05-01", "2024-05-19", "2024-06-16", "2024-06-17", "2024-06-18",
+      "2024-06-19", "2024-07-15", "2024-08-30", "2024-10-29",
+  }
+  r = R(20240115)
+  kur_satirlari = []
+  gun = dt.date(2023, 12, 29)          # siparisler 2024'te; her tarihin oncesi var
+  son = dt.date(2024, 12, 31)
+  oran = 29.40
+  while gun <= son:
+      iso = gun.isoformat()
+      oran += 0.035 + r.unit() * 0.06
+      if gun.weekday() < 5 and iso not in TATIL:
+          kur_satirlari.append((iso, f"{oran:.4f}"))
+      gun += dt.timedelta(days=1)
+
+  with open("veri/kurlar.csv", "w", encoding="utf-8", newline="") as f:
+      w = csv.writer(f)
+      w.writerow(["tarih", "usd_try"])
+      w.writerows(kur_satirlari)
+
+  # -- musteri veritabani: adlar TURKCE BUYUK harfle -----------------------
+  db = "veri/musteriler.db"
+  if os.path.exists(db):
+      os.remove(db)
+  con = sqlite3.connect(db)
+  con.execute("CREATE TABLE musteriler (musteri_no INTEGER PRIMARY KEY, ad TEXT NOT NULL, sehir TEXT)")
+  con.executemany(
+      "INSERT INTO musteriler VALUES (?, ?, ?)",
+      [(1000 + i, tr_upper(ad), r.pick(SEHIRLER)) for i, ad in enumerate(KAYITLI)],
+  )
+  con.commit()
+  con.close()
+
+  # -- siparis dosyalari ---------------------------------------------------
+  VARSAYILAN = ["siparis_no", "tarih", "musteri", "para_birimi", "tutar"]
+  DUZEN = {
+      3: ["tutar", "siparis_no", "tarih", "musteri", "para_birimi"],
+      5: ["musteri", "tutar", "para_birimi", "siparis_no", "tarih"],
+  }
+  BOZUK = ["", "   ", "yok", "-", "belirsiz"]
+
+  herkes = KAYITLI + KAYITSIZ
+  sira = 0
+  for ay in range(1, 13):
+      gun_sayisi = (dt.date(2024, ay, 28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
+      satirlar = []
+      for _ in range(25):
+          sira += 1
+          tarih = dt.date(2024, ay, 1 + r.below(gun_sayisi.day)).isoformat()
+          musteri = r.pick(herkes)
+          usd = r.below(100) < 28
+          # USD siparisler kucuk kalemler; ayni araligi kullanmak TL toplamini
+          # kurun yaninda gorunmez kilardi.
+          deger = (100 + r.below(790000) / 100.0) if usd else (500 + r.below(24950000) / 100.0)
+          if r.below(100) < 5:                       # gecersiz: bos / sayi disi
+              tutar = r.pick(BOZUK)
+          elif r.below(100) < 2:                     # gecersiz: negatif
+              tutar = f"-{deger:.2f}"
+          elif ay in (2, 9):                         # 1.234,56 bicimi
+              tutar = f"{deger:,.2f}".translate(str.maketrans(",.", ".,"))
+          else:                                      # 1234.56 bicimi
+              tutar = f"{deger:.2f}"
+          satirlar.append({
+              "siparis_no": f"S{sira:05d}",
+              "tarih": tarih,
+              "musteri": musteri,
+              "para_birimi": "USD" if usd else "TL",
+              "tutar": tutar,
+          })
+
+      alanlar = DUZEN.get(ay, VARSAYILAN)
+      enc = "utf-8-sig" if ay == 3 else "utf-8"      # 3. ayda BOM var
+      delim = ";" if ay == 7 else ","                # 7. ay noktali virgullu
+      with open(f"veri/satis_2024_{ay:02d}.csv", "w", encoding=enc, newline="") as f:
+          w = csv.DictWriter(f, fieldnames=alanlar, delimiter=delim)
+          w.writeheader()
+          for s in satirlar:
+              w.writerow({k: s[k] for k in alanlar})
+
+  # -- spec: prompt'ta degil, burada --------------------------------------
+  with open("KURALLAR.md", "w", encoding="utf-8") as f:
+      f.write("""# Mutabakat Kuralları
+
+  ## 1. Kapsam
+  `veri/satis_2024_01.csv` ... `veri/satis_2024_12.csv` dosyalarındaki bütün
+  sipariş satırları. Her dosyanın ilk satırı başlıktır ve sayılmaz.
+
+  Dosyalar aynı sistemden çıkmadı: sütun sırası her dosyada aynı değildir,
+  bir dosya noktalı virgül ayraçlıdır, bir dosya BOM ile başlar. Sütunlara
+  adlarıyla eriş, konumlarıyla değil.
+
+  ## 2. Tutar biçimi
+  İki biçim bir arada bulunur ve ikisi de aynı değeri ifade eder:
+
+      1234.56     nokta ondalık ayraç
+      1.234,56    nokta binlik ayraç, virgül ondalık ayraç
+
+  ## 3. Geçersiz satırlar
+  `tutar` alanı boş olan, sayıya çevrilemeyen ya da **negatif** olan satırlar
+  geçersizdir. Geçersiz satırlar hiçbir toplama girmez, ama sayılır.
+
+  ## 4. Para birimi ve kur
+  `para_birimi` TL ise tutar olduğu gibi alınır.
+
+  `para_birimi` USD ise sipariş **kendi tarihindeki** kurla TL'ye çevrilir.
+  `veri/kurlar.csv` günlük USD/TRY kurunu tutar, ama yalnızca iş günleri için:
+  hafta sonları ve resmî tatiller dosyada yoktur. Siparişin tarihi dosyada
+  yoksa, o tarihten **önceki en yakın günün** kuru kullanılır.
+
+  ## 5. Yuvarlama
+  Ara hesaplarda yuvarlama yapma. Yalnızca rapora yazdığın nihai tutarları
+  2 ondalık basamağa yuvarla.
+
+  ## 6. Müşteri eşleştirme
+  `veri/musteriler.db` bir SQLite veritabanıdır; `musteriler` tablosundaki `ad`
+  sütunu kayıtlı müşterileri tutar. CSV'lerdeki müşteri adı ile veritabanındaki
+  ad aynı kişiyi gösterir, ama yazım biçimleri farklıdır: veritabanı adları
+  büyük harfle yazılmıştır.
+
+  Eşleştirme **Türkçe harf kurallarına** göre yapılır. Türkçede:
+
+      I harfinin küçüğü  ı  (i değil)
+      İ harfinin küçüğü  i  (i̇ değil)
+
+  Yani "İSMAİL ÇETİN" ile "İsmail Çetin" aynı müşteridir; "IŞIL YILMAZ" ile
+  "Işıl Yılmaz" aynı müşteridir. Karşılaştırmadan önce baştaki ve sondaki
+  boşlukları at.
+
+  ## 7. rapor.json
+  Sonucu `/workspace/rapor.json` dosyasına yaz. Tam olarak şu alanlar bulunmalı:
+
+      toplam_satir           bütün dosyalardaki sipariş satırı sayısı
+                             (geçersizler dahil, başlıklar hariç)
+      gecersiz_satir         3. maddeye göre geçersiz satır sayısı
+      toplam_tl              para_birimi TL olan geçerli siparişlerin toplamı
+      toplam_usd_tl          para_birimi USD olan geçerli siparişlerin
+                             TL karşılıklarının toplamı
+      en_cok_harcayan        toplam TL harcaması en yüksek olan müşterinin
+                             CSV'de yazıldığı hâliyle adı (kayıtlı olması
+                             gerekmez; USD siparişler çevrilmiş hâliyle sayılır)
+      eslesmeyen_musteriler  CSV'lerde geçen ama veritabanında kaydı olmayan
+                             müşterilerin CSV'deki hâliyle adları, alfabetik
+                             sıralı liste (geçersiz satırlardaki adlar da sayılır)
+      kayitli_ciro           veritabanında kaydı OLAN müşterilerin geçerli
+                             siparişlerinin TL cinsinden toplamı
+  """)
+  PYEOF
+
+prompt: |
+  Bir Linux terminalindesin, çalışma dizinin /workspace.
+
+  Bu dizinde bir yılın satış arşivi duruyor: aylık sipariş dosyaları, günlük
+  döviz kurları ve bir müşteri veritabanı. Dosyalar farklı sistemlerden geldiği
+  için biçimleri birbirini tutmuyor.
+
+  Mutabakat kuralları `KURALLAR.md` dosyasında yazılı. Önce onu oku; hangi
+  satırın geçersiz sayıldığı, tutarların nasıl okunacağı, kurun hangi güne göre
+  alınacağı ve müşterilerin nasıl eşleştirileceği orada tanımlı.
+
+  Kurallara göre mutabakatı çıkar ve sonucu `/workspace/rapor.json` dosyasına
+  yaz. Hangi alanların bulunması gerektiği de `KURALLAR.md` içinde.
+
+  İşin bittiğinde kısaca ne yaptığını ve hangi biçim sorunlarıyla karşılaştığını
+  özetle.
+
+reference_solution: |
+  python3 - <<'PYEOF'
+  import bisect, csv, json, sqlite3
+
+  def tr_lower(s):
+      return s.replace("İ", "i").replace("I", "ı").lower().strip()
+
+  def tutar_oku(ham):
+      s = (ham or "").strip()
+      if not s:
+          return None
+      if "," in s:                       # 1.234,56 -> 1234.56
+          s = s.replace(".", "").replace(",", ".")
+      try:
+          v = float(s)
+      except ValueError:
+          return None
+      return None if v < 0 else v        # negatif tutar gecersiz (KURALLAR md.3)
+
+  satirlar = []
+  for ay in range(1, 13):
+      yol = f"veri/satis_2024_{ay:02d}.csv"
+      # utf-8-sig BOM'suz dosyalarda da zararsiz; ayraci ornekten anla.
+      with open(yol, encoding="utf-8-sig", newline="") as f:
+          ornek = f.read(4096)
+          f.seek(0)
+          ayrac = ";" if ornek.count(";") > ornek.count(",") else ","
+          satirlar.extend(csv.DictReader(f, delimiter=ayrac))
+
+  kur = {}
+  with open("veri/kurlar.csv", encoding="utf-8", newline="") as f:
+      for r in csv.DictReader(f):
+          kur[r["tarih"]] = float(r["usd_try"])
+  gunler = sorted(kur)
+
+  def kur_of(tarih):
+      # ISO tarihlerde metin siralamasi kronolojik; o gun yoksa oncesine dus.
+      i = bisect.bisect_right(gunler, tarih) - 1
+      return kur[gunler[i]]
+
+  con = sqlite3.connect("veri/musteriler.db")
+  kayitli = {tr_lower(ad) for (ad,) in con.execute("SELECT ad FROM musteriler")}
+  con.close()
+
+  gecersiz = 0
+  harcama = {}
+  toplam_tl = 0.0
+  toplam_usd = 0.0
+  kayitli_ciro = 0.0
+  gorulen = set()
+
+  for r in satirlar:
+      ad = (r["musteri"] or "").strip()
+      gorulen.add(ad)
+      v = tutar_oku(r.get("tutar"))
+      if v is None:
+          gecersiz += 1
+          continue
+      if (r["para_birimi"] or "").strip().upper() == "USD":
+          tl = v * kur_of((r["tarih"] or "").strip())
+          toplam_usd += tl
+      else:
+          tl = v
+          toplam_tl += tl
+      harcama[ad] = harcama.get(ad, 0.0) + tl
+      if tr_lower(ad) in kayitli:
+          kayitli_ciro += tl
+
+  rapor = {
+      "toplam_satir": len(satirlar),
+      "gecersiz_satir": gecersiz,
+      "toplam_tl": round(toplam_tl, 2),
+      "toplam_usd_tl": round(toplam_usd, 2),
+      "en_cok_harcayan": max(harcama, key=lambda a: harcama[a]),
+      "eslesmeyen_musteriler": sorted(a for a in gorulen if tr_lower(a) not in kayitli),
+      "kayitli_ciro": round(kayitli_ciro, 2),
+  }
+  with open("rapor.json", "w", encoding="utf-8") as f:
+      json.dump(rapor, f, ensure_ascii=False, indent=2)
+  PYEOF
+
+checks:
+  - {op: is_file, path: "rapor.json"}
+  - {op: json_field_eq, path: "rapor.json", field: "toplam_satir", value: 300}
+  - {op: json_field_eq, path: "rapor.json", field: "gecersiz_satir", value: 20}
+  - {op: json_field_eq, path: "rapor.json", field: "toplam_tl", value: 25611378.05, tol: 0.05}
+  - {op: json_field_eq, path: "rapor.json", field: "toplam_usd_tl", value: 16331094.11, tol: 0.05}
+  - {op: json_field_eq, path: "rapor.json", field: "en_cok_harcayan", value: "Pınar Tekin"}
+  - {op: json_field_eq, path: "rapor.json", field: "eslesmeyen_musteriler", value: ["Levent Ilıcalı", "Nihal Öğüt", "Uğur Tanrıkulu", "Şeyma Bozkurt"], as_set: true}
+  - {op: json_field_eq, path: "rapor.json", field: "kayitli_ciro", value: 38205918.88, tol: 0.05}
+
+metadata:
+  domain: data_reconciliation
+  language: tr
+  n_ref_steps: 1
+  generator: generate_task.py
+  notes: >
+    Spec prompt'ta degil KURALLAR.md'de; model once kesfetmek zorunda.
+    Tuzaklar: 3. ay BOM + sutun sirasi degisik, 5. ay sutun sirasi degisik,
+    7. ay noktali virgul ayrac, 2. ve 9. ay 1.234,56 bicimi, negatif tutar
+    yalnizca KURALLAR'da gecersiz sayiliyor, kur dosyasinda hafta sonu ve
+    tatil yok (onceki gune dusmek gerekiyor), musteri adlari veritabaninda
+    TURKCE buyuk harfle. Son madde asil kapi: duz .lower() ile katlama
+    "İSMAİL" -> "i̇smai̇l" uretip eslesmeyi bozar, Turkce katlama sart.
+    Check degerleri elle yazilmadi, generate_task.py referansi calistirip
+    turetti.

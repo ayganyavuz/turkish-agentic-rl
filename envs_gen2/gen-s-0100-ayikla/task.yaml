@@ -1,0 +1,76 @@
+id: gen-s-0100-ayikla
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  /workspace dizinindeki tüm .csv dosyalarındaki ilk sütunu tersten yaz, bu terslenmiş değerleri sıralanıp benzersiz hale getir ve her birini JSON dizisi elemanı olarak formatlayarak sonuc.json dosyasını oluştur.
+
+  Şu koşullar sağlanmalı:
+  - sonuc.json dosyası /workspace dizininde bulunmalı.
+  - sonuc.json içeriği, tüm .csv dosyalarındaki ilk sütundaki değerlerin terslenmiş, sıralanmış ve benzersiz hali olmalı.
+  - sonuc.json geçerli bir JSON dizisi olmalı ve her eleman bir JSON stringi olmalı.
+  - Dosya sadece JSON dizisini içermeli, başka hiçbir şey olmamalı.
+
+setup: |
+  mkdir -p /workspace
+  cd /workspace
+  cat > gonderisler.csv <<'CSV'
+  TR123,2024-01-15,IST
+  TR456,2024-01-16,ANK
+  TR789,2024-01-17,IZM
+  CSV
+  cat > kargolar.csv <<'CSV'
+  TR999,2024-02-01,ESB
+  TR888,2024-02-02,KRK
+  CSV
+  cat > README.txt <<'TXT'
+  Bu dosya kargo verisi degildir.
+  TXT
+
+goal_tr: >
+  /workspace dizinindeki tum .csv dosyalarindaki ilk sutunu tersten yazip,
+  bu terslenmis degerleri siralanmis ve benzersiz olarak ayiklayarak, her
+  birini JSON dizisi elemani olarak formatlayan bir sonuc.json dosyasi
+  olustur.
+
+reference_solution: |
+  cat /workspace/*.csv | cut -d',' -f1 | rev | sort -u | awk 'BEGIN{printf "["} {if(NR>1) printf ","; printf "\"%s\"", $0} END{printf "]"}' > /workspace/sonuc.json
+
+outputs:
+  - {path: sonuc.json, kind: json}
+
+checks:
+  - {op: json_eq, path: sonuc.json, value: [321RT, 654RT, 888RT, 987RT, 999RT]}
+
+alt_solutions:
+  - name: rakip-1
+    script: |
+      find /workspace -name "*.csv" -exec cut -d',' -f1 {} + | rev | sort -u | awk 'BEGIN{print "["} NR>1{print ","} {printf "\"%s\"", $0} END{print "\n]"} ' > /workspace/sonuc.json
+
+metadata:
+  domain: ayikla
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0100
+    bundle: ters-cevir
+    tools:
+    - rev
+    - cut
+    konu: kargo-takibi
+    hedef: ayikla
+    girdi: csv
+    kaynak: cok-dosya
+    cikti: json
+    kesif: yok
+    uslup: kabul-kriteri
+    direnc: baslik-yok
+    bukulme: tuzak-dosya
+    adim: 2
+    image: verifiable-dataset/base:latest
+    metadata: {}

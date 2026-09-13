@@ -1,0 +1,82 @@
+id: gen-s-0118-donustur
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  logs/siparisler.log dosyasındaki her satır için "Masa=" değerini ters çevir, "Siparis=" değerini al, ikisini yan yana birleştirerek logs/<RESTORAN>/<tersteMasa>/sonuc.txt dosyasına yaz.
+
+setup: |
+  mkdir -p logs
+  cat > logs/siparisler.log <<'LOG'
+  2024-05-01T10:15:00 RESTORAN=Yildiz Masa=12 Siparis=1045
+  2024-05-01T10:22:30 RESTORAN=Yildiz Masa=07 Siparis=1046
+  2024-05-01T11:05:10 RESTORAN=Zeytin Masa=23 Siparis=2031
+  2024-05-01T11:14:45 RESTORAN=Zeytin Masa=02 Siparis=2032
+  LOG
+
+goal_tr: >
+  logs/siparisler.log dosyasindaki her satir icin, "Masa=" sonraki degeri
+  rev ile tersten yaz, "Siparis=" sonraki degeri al, bu ikisini yan yana
+  birlestir (tersteMasa + Siparis) ve logs/<RESTORAN>/<tersteMasa>/sonuc.txt
+  yoluna yaz
+
+reference_solution: |
+  while IFS= read -r line; do
+    masa=$(echo "$line" | cut -d' ' -f3 | sed 's/Masa=//')
+    siparis=$(echo "$line" | cut -d' ' -f4 | sed 's/Siparis=//')
+    rest=$(echo "$line" | cut -d' ' -f2 | sed 's/RESTORAN=//')
+    terste=$(echo "$masa" | rev)
+    mkdir -p "logs/$rest/$terste"
+    printf '%s%s\n' "$terste" "$siparis" > "logs/$rest/$terste/sonuc.txt"
+  done < logs/siparisler.log
+
+outputs:
+  - {path: logs/Yildiz/21/sonuc.txt, kind: file}
+  - {path: logs/Yildiz/70/sonuc.txt, kind: file}
+  - {path: logs/Zeytin/32/sonuc.txt, kind: file}
+  - {path: logs/Zeytin/20/sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: logs/Yildiz/21/sonuc.txt, value: '211045'}
+  - {op: file_content_eq, path: logs/Yildiz/70/sonuc.txt, value: '701046'}
+  - {op: file_content_eq, path: logs/Zeytin/20/sonuc.txt, value: '202032'}
+  - {op: file_content_eq, path: logs/Zeytin/32/sonuc.txt, value: '322031'}
+
+alt_solutions:
+  - name: rakip-1
+    script: |
+      while IFS= read -r line; do
+        restoran=$(echo "$line" | grep -oP 'RESTORAN=\K[^ ]+')
+        masa=$(echo "$line" | grep -oP 'Masa=\K[^ ]+' | rev)
+        siparis=$(echo "$line" | grep -oP 'Siparis=\K[^ ]+')
+        mkdir -p "logs/$restoran/$masa"
+        echo -n "$masa$siparis" > "logs/$restoran/$masa/sonuc.txt"
+      done < logs/siparisler.log
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0118
+    bundle: ters-cevir
+    tools:
+    - rev
+    - cut
+    konu: restoran-siparisleri
+    hedef: donustur
+    girdi: log-satiri
+    kaynak: tek-dosya
+    cikti: dizin-yapisi
+    kesif: dosyayi-bul
+    uslup: terse
+    direnc: yok
+    bukulme: yok
+    adim: 2
+    image: verifiable-dataset/base:latest
+    metadata: {}

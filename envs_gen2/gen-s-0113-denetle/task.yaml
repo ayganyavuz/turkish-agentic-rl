@@ -1,0 +1,149 @@
+id: gen-s-0113-denetle
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 12
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  hasta.ini ve randevu.ini dosyalarındaki verileri karşılaştırarak her hasta için toplam randevu sayısını hesapla ve sonuçları sonuc.txt dosyasına "hasta_id,ad,soyad,randevu_sayisi" başlığıyla CSV formatında yazdır, sadece sayılar ve metinler olsun.
+
+setup: |
+  mkdir -p /workspace
+  cat > /workspace/hasta.ini <<'EOF'
+  [HASTA-001]
+  ad=ali
+  soyad=can
+  doga=1985
+
+  [HASTA-002]
+  ad=elif
+  soyad=demir
+  doga=1990
+
+  [HASTA-003]
+  ad=mustafa
+  soyad=kaya
+  doga=1978
+
+  [HASTA-004]
+  ad=zeynep
+  soyad=celik
+  doga=1995
+
+  [HASTA-005]
+  ad=ahmet
+  soyad=yilmaz
+  doga=1988
+  EOF
+  cat > /workspace/randevu.ini <<'EOF'
+  [RAND-001]
+  hasta=HASTA-001
+  doktor=doktor-a
+  tarih=2024-01-10
+
+  [RAND-002]
+  hasta=HASTA-002
+  doktor=doktor-b
+  tarih=2024-01-11
+
+  [RAND-003]
+  hasta=HASTA-003
+  doktor=doktor-a
+  tarih=2024-01-12
+
+  [RAND-004]
+  hasta=HASTA-004
+  doktor=doktor-c
+  tarih=2024-01-13
+
+  [RAND-005]
+  hasta=HASTA-005
+  doktor=doktor-b
+  tarih=2024-01-14
+  EOF
+
+goal_tr: >
+  hasta.ini ve randevu.ini dosyalarindaki verileri karsilastirarak, her
+  hasta icin toplam randevu sayisini hesapla ve sonuc.txt dosyasina
+  "hasta_id,ad,soyad,randevu_sayisi" basligiyla CSV formatinda yazdir
+
+reference_solution: |
+  awk -F= '/^\[/{id=$1; gsub(/[\[\]]/,"",id)} /^ad=/{ad[id]=$2} /^soyad=/{soyad[id]=$2} END{for(i in ad) print i","ad[i]","soyad[i]}' hasta.ini > hasta_temp.txt
+  awk -F= '/^\[/{id=$1; gsub(/[\[\]]/,"",id)} /^hasta=/{count[$2]++} END{for(i in count) print i","count[i]}' randevu.ini > randevu_temp.txt
+  printf 'hasta_id,ad,soyad,randevu_sayisi\n' > sonuc.txt
+  join -t, -a1 -e 0 -o 1.1,1.2,1.3,2.2 hasta_temp.txt randevu_temp.txt >> sonuc.txt
+  rm -f hasta_temp.txt randevu_temp.txt
+  wc -l sonuc.txt > /dev/null
+  find /workspace -name "sonuc.txt" -type f > /dev/null
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_lines_eq, path: sonuc.txt, value: ['hasta_id,ad,soyad,randevu_sayisi', 'HASTA-002,elif,demir,1', 'HASTA-001,ali,can,1', 'HASTA-005,ahmet,yilmaz,1', 'HASTA-003,mustafa,kaya,1', 'HASTA-004,zeynep,celik,1']}
+
+alt_solutions:
+  - name: rakip-1
+    script: |
+      {
+      python3 -c "
+      import re
+      from collections import defaultdict
+
+      # Hasta verilerini oku
+      with open('/workspace/hasta.ini') as f:
+          hasta_data = {}
+          current = None
+          for line in f:
+              line = line.strip()
+              if line.startswith('[') and line.endswith(']'):
+                  current = line[1:-1]
+                  hasta_data[current] = {}
+              elif '=' in line:
+                  key, val = line.split('=', 1)
+                  hasta_data[current][key] = val
+
+      # Randevu verilerini oku ve say
+      randevu_count = defaultdict(int)
+      with open('/workspace/randevu.ini') as f:
+          for line in f:
+              line = line.strip()
+              if line.startswith('hasta='):
+                  hasta_id = line.split('=', 1)[1]
+                  randevu_count[hasta_id] += 1
+
+      # Sonucu hazırla
+      with open('/workspace/sonuc.txt', 'w') as out:
+          out.write('hasta_id,ad,soyad,randevu_sayisi\n')
+          for hasta_id in sorted(hasta_data.keys()):
+              data = hasta_data[hasta_id]
+              count = randevu_count.get(hasta_id, 0)
+              out.write(f'{hasta_id},{data[\"ad\"]},{data[\"soyad\"]},{count}\n')
+      "
+      }
+
+metadata:
+  domain: denetle
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0113
+    bundle: dizin-istatistik
+    tools:
+    - wc
+    - find
+    konu: hastane-randevulari
+    hedef: denetle
+    girdi: ini
+    kaynak: iki-dosya-capraz
+    cikti: csv
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: yok
+    adim: 3
+    image: verifiable-dataset/base:latest
+    metadata: {}

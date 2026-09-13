@@ -1,0 +1,90 @@
+# ELLE DUZENLEME. envs/_gen/tr_013_yonelme.py uretir.
+id: tr-013b-yonelme-bilgi
+split: single_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 6
+
+setup: |
+  cat > sehirler.txt <<'EOF'
+  Ankara
+  İstanbul
+  İzmir
+  Kütahya
+  Çankırı
+  Bolu
+  Ağrı
+  Kastamonu
+  Malatya
+  Trabzon
+  Uşak
+  Zonguldak
+  Aydın
+  Sinop
+  Bayburt
+  Bingöl
+  Gaziantep
+  Karabük
+  Bilecik
+  Mersin
+  Rize
+  Gümüşhane
+  Niğde
+  Kayseri
+  EOF
+
+prompt: |
+  Bir Linux terminalindesin, çalışma dizinin /workspace.
+
+  `sehirler.txt` dosyasında her satırda bir şehir adı var. Her adın yönelme
+  hâlini (-e hâli) üret. Türkçe yazım kurallarına uy.
+
+  Örnek: Konya -> Konya'ya
+
+  Sonucu `/workspace/yonelme.txt` dosyasına yaz: her satırda bir şehir, girdi
+  dosyasındaki sırayla, başka hiçbir şey yazma.
+
+  Kesme işareti olarak düz ASCII tırnak (') kullan.
+
+reference_solution: |
+  python3 - <<'PYEOF'
+  KALIN, INCE = "aıou", "eiöü"
+  UNLU = KALIN + INCE
+
+  def tr_kucuk(s):
+      # Turkce katlama: İ -> i, I -> ı. Duz .lower() "İ"yi iki kodnoktaya acar.
+      return s.replace("İ", "i").replace("I", "ı").lower()
+
+  def yonelme(ad):
+      harf = tr_kucuk(ad)
+      son_unlu = next(h for h in reversed(harf) if h in UNLU)
+      ek = "a" if son_unlu in KALIN else "e"
+      if harf[-1] in UNLU:          # unluyle bitiyorsa kaynastirma y
+          ek = "y" + ek
+      return f"{ad}'{ek}"
+
+  with open("sehirler.txt", encoding="utf-8") as f:
+      sehirler = [s.strip() for s in f if s.strip()]
+  with open("yonelme.txt", "w", encoding="utf-8") as f:
+      for s in sehirler:
+          f.write(yonelme(s) + "\n")
+  PYEOF
+
+checks:
+  - {op: is_file, path: "yonelme.txt"}
+  - {op: file_line_count_eq, path: "yonelme.txt", value: 24}
+  - {op: file_contains, path: "yonelme.txt", value: "İstanbul'a"}
+  - {op: file_contains, path: "yonelme.txt", value: "Kütahya'ya"}
+  - {op: file_contains, path: "yonelme.txt", value: "Çankırı'ya"}
+  - {op: file_contains, path: "yonelme.txt", value: "Bingöl'e"}
+  - {op: file_contains, path: "yonelme.txt", value: "Karabük'e"}
+  - {op: file_contains, path: "yonelme.txt", value: "Bayburt'a"}
+  - {op: file_content_eq, path: "yonelme.txt", value: "Ankara'ya\nİstanbul'a\nİzmir'e\nKütahya'ya\nÇankırı'ya\nBolu'ya\nAğrı'ya\nKastamonu'ya\nMalatya'ya\nTrabzon'a\nUşak'a\nZonguldak'a\nAydın'a\nSinop'a\nBayburt'a\nBingöl'e\nGaziantep'e\nKarabük'e\nBilecik'e\nMersin'e\nRize'ye\nGümüşhane'ye\nNiğde'ye\nKayseri'ye"}
+
+metadata:
+  domain: turkish_morphology
+  language: tr
+  n_ref_steps: 1
+  generator: ../_gen/tr_013_yonelme.py
+  notes: >
+    Kural prompt'ta YOK; model Turkce dilbilgisini bilmek zorunda. tr-013a'nin zor varyanti. Kalibrasyonda hangisi banda duserse o egitime girer.

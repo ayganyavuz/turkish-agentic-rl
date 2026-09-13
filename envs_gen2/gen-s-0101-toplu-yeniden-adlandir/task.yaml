@@ -1,0 +1,94 @@
+id: gen-s-0101-toplu-yeniden-adlandir
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 10
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  1) ogrenciler dizinindeki dosya adlarındaki tüm boşlukları ve ardışık alt çizgileri tek bir alt çizgiye indirge.
+  2) Dosyaları yenilerinden adlandır.
+  3) Bu işlemin sonucunu ozet.json dosyasına JSON formatında yaz.
+
+setup: |
+  mkdir -p /workspace/ogrenciler
+  cd /workspace/ogrenciler
+  printf 'AHMET YILMAZ\n' > "101_ahmet.txt"
+  printf 'MEHMET KAYA\n' > "102_ mehmet.txt"
+  printf 'AYSE DEMIR\n' > "103_ ayse.txt"
+  printf 'CANAN OZTURK\n' > "104__canan.txt"
+  printf 'EMRE AKSOY\n' > "105_emre.txt"
+  printf 'ZEHRA CELIK\n' > "106_ zehra.txt"
+  printf 'BURAK YILDIZ\n' > "107_burak.txt"
+  printf 'SELIN ARSLAN\n' > "108_ selin.txt"
+  printf 'MERT KOC\n' > "109_mert.txt"
+  printf 'DENIZ GUNAY\n' > "110_deniz.txt"
+
+goal_tr: >
+  ogrenciler dizinindeki dosya adlarindaki bosluklari ve art arda gelen alt
+  cizgileri tek alt cizgiye indirgerek dosyalari yeniden adlandir ve bu
+  islemin sonucunu ozet.json dosyasina JSON formatinda yaz
+
+reference_solution: |
+  cd /workspace
+  mkdir -p ozet
+  for f in ogrenciler/*; do
+      base=$(basename "$f")
+      ext="${base##*.}"
+      namepart="${base%.*}"
+      cleanname=$(printf '%s' "$namepart" | sed 's/  */_/g; s/__*/_/g')
+      newname="${cleanname}.${ext}"
+      mv "$f" "ogrenciler/${newname}"
+  done
+  echo '{"files":[' > ozet.json
+  first=1
+  for f in $(ls ogrenciler | sort); do
+      if [ $first -eq 1 ]; then
+          first=0
+      else
+          echo ',' >> ozet.json
+      fi
+      printf '{"name":"%s"}' "$f" >> ozet.json
+  done
+  echo ']}' >> ozet.json
+
+outputs:
+  - {path: ozet.json, kind: json}
+
+checks:
+  - {op: json_eq, path: ozet.json, value: {files: [{name: 101_ahmet.txt}, {name: 102_mehmet.txt}, {name: 103_ayse.txt}, {name: 104_canan.txt}, {name: 105_emre.txt}, {name: 106_zehra.txt}, {name: 107_burak.txt}, {name: 108_selin.txt}, {name: 109_mert.txt}, {name: 110_deniz.txt}]}}
+  - {op: not_exists, path: ogrenciler/102_ mehmet.txt}
+  - {op: not_exists, path: ogrenciler/103_ ayse.txt}
+  - {op: not_exists, path: ogrenciler/104__canan.txt}
+  - {op: not_exists, path: ogrenciler/106_ zehra.txt}
+  - {op: not_exists, path: ogrenciler/108_ selin.txt}
+
+alt_solutions:
+  - name: rakip-1
+    script: |
+      cd /workspace/ogrenciler && for f in *; do new=$(echo "$f" | tr ' ' '_' | tr -s '_'); if [ "$f" != "$new" ]; then mv "$f" "$new"; fi; done && echo '{"files": [' > /workspace/ozet.json && first=1 && for f in *; do if [ "$first" -eq 1 ]; then first=0; else echo ',' >> /workspace/ozet.json; fi; printf '{"name": "%s"}' "$f" >> /workspace/ozet.json; done && echo ']' >> /workspace/ozet.json && echo '}' >> /workspace/ozet.json
+
+metadata:
+  domain: toplu-yeniden-adlandir
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0101
+    bundle: dosya-duzen
+    tools:
+    - mkdir
+    - mv
+    konu: ogrenci-notlari
+    hedef: toplu-yeniden-adlandir
+    girdi: duz-metin
+    kaynak: dizin-agaci
+    cikti: json
+    kesif: yok
+    uslup: numarali-emir
+    direnc: yok
+    bukulme: kirli-veri
+    adim: 2
+    image: verifiable-dataset/base:latest
+    metadata: {}

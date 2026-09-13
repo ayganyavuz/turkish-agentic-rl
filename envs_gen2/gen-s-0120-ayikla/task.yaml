@@ -1,0 +1,81 @@
+id: gen-s-0120-ayikla
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  musteri_adlari.csv dosyasındaki şehir kolonunda Ankara olan müşterilere ait siparisler.csv dosyasındaki tutar değerlerinin toplamını sonuc.txt dosyasına sadece sayı olarak yaz.
+
+setup: |
+  mkdir -p /workspace
+  cat > /workspace/musteri_adlari.csv <<'CSV'
+  id,ad,sehir
+  1,Alice,Istanbul
+  2,Bob,Ankara
+  3,Carol,Izmir
+  4,David,Bursa
+  5,Eve,Ankara
+  6,Frank,Istanbul
+  7,Grace,Izmir
+  8,Heidi,Bursa
+  CSV
+
+  cat > /workspace/siparisler.csv <<'CSV'
+  siparis_id,musteri_id,mevki,tutar
+  101,1,Domuz,450
+  102,2,Domuz,320
+  103,3,Domuz,275
+  104,4,Domuz,510
+  105,5,Domuz,390
+  106,6,Domuz,430
+  107,7,Domuz,365
+  108,8,Domuz,280
+  CSV
+
+goal_tr: >
+  musteri_adlari.csv dosyasinda sehir kolonu Ankara oldugu musterilere aitim
+  olan siparisler.csv satirlarindaki tutar degerlerinin toplamini sonuc.txt
+  dosyasina tek sayi olarak yaz
+
+reference_solution: |
+  tail -n +2 musteri_adlari.csv | awk -F',' '$3=="Ankara"{print $1}' | sort -n > ankara_ids.txt
+  tail -n +2 siparisler.csv | awk -F',' '{print $2","$4}' | sort -n > siparis_tutar.txt
+  join -t',' ankara_ids.txt siparis_tutar.txt | awk -F',' '{s+=$2} END{print s}' | head -1 > sonuc.txt
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '710'}
+
+alt_solutions:
+  - name: rakip-1
+    script: |
+      awk -F, 'NR>1 {if ($3=="Ankara") a[$1]} NR==FNR {next} $2 in a {sum+=$4} END {print sum}' /workspace/musteri_adlari.csv /workspace/siparisler.csv > /workspace/sonuc.txt
+
+metadata:
+  domain: ayikla
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0120
+    bundle: satir-araligi
+    tools:
+    - head
+    - tail
+    konu: restoran-siparisleri
+    hedef: ayikla
+    girdi: csv
+    kaynak: iki-dosya-capraz
+    cikti: tek-sayi
+    kesif: yok
+    uslup: kisit-sakli
+    direnc: yok
+    bukulme: yok
+    adim: 4
+    image: verifiable-dataset/base:latest
+    metadata: {}

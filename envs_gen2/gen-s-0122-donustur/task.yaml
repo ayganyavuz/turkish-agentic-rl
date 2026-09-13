@@ -1,0 +1,63 @@
+id: gen-s-0122-donustur
+split: multi_step
+image: verifiable-dataset/base:latest
+workdir: /workspace
+max_turns: 14
+
+# Bu task uretildi ve heniz tamamlanmadi: prompt creative writing
+# asamasinda, alt_solutions ise rakip cozum asamasinda eklenecek.
+prompt: |
+  Bugün depo ekibinin envanter kontrolü yapması gerekiyordu, ancak teslimat kayıtlarıyla kargo verilerini karşılaştırmak epey zaman alıyordu. Bu karmaşayı çözmek için, kargolar.txt dosyasındaki parsellerden, teslimatlar.txt dosyasında da geçenlerin (aynı PARSEL koduna sahip olanların) sayısını bulun ve sonucu sadece bir sayı olarak sonuc.txt dosyasına yaz.
+
+setup: |
+  mkdir -p /workspace
+  printf 'PARSEL-001;KARGO;2024-01-01\r\nPARSEL-002;KARGO;2024-01-02\r\nPARSEL-003;KARGO;2024-01-03\r\nPARSEL-004;KARGO;2024-01-04\r\nPARSEL-005;KARGO;2024-01-05\r\n' > kargolar.txt
+  printf 'PARSEL-003;TESLIM;2024-01-03\r\nPARSEL-007;TESLIM;2024-01-07\r\nPARSEL-002;TESLIM;2024-01-08\r\nPARSEL-010;TESLIM;2024-01-10\r\nPARSEL-005;TESLIM;2024-01-11\r\n' > teslimatlar.txt
+
+goal_tr: >
+  kargolar.txt icindeki parsellerden, teslimatlar.txt de de gecen (ayni
+  PARSEL koduna sahip) olanlarin sayisini sonuc.txt dosyasina tek sayi
+  olarak yaz.
+
+reference_solution: |
+  cut -d';' -f1 kargolar.txt | tr -d '\r' | sort > kargo_kodlari.txt
+  cut -d';' -f1 teslimatlar.txt | tr -d '\r' | sort > teslim_kodlari.txt
+  comm -12 kargo_kodlari.txt teslim_kodlari.txt | tee ortak.txt | wc -l > sonuc.txt
+
+outputs:
+  - {path: sonuc.txt, kind: file}
+
+checks:
+  - {op: file_content_eq, path: sonuc.txt, value: '3'}
+
+alt_solutions:
+  - name: rakip-1
+    script: |
+      cut -d';' -f1 kargolar.txt | sort > kargolar_parsel.txt
+      cut -d';' -f1 teslimatlar.txt | sort > teslimatlar_parsel.txt
+      comm -12 kargolar_parsel.txt teslimatlar_parsel.txt | wc -l > sonuc.txt
+      rm kargolar_parsel.txt teslimatlar_parsel.txt
+
+metadata:
+  domain: donustur
+  language: tr
+  generated: true
+  pipeline: spec-1
+  seed:
+    id: s-0122
+    bundle: dallandir
+    tools:
+    - tee
+    - cut
+    konu: kargo-takibi
+    hedef: donustur
+    girdi: duz-metin
+    kaynak: iki-dosya-capraz
+    cikti: tek-sayi
+    kesif: yok
+    uslup: baglam-gomulu
+    direnc: crlf
+    bukulme: yok
+    adim: 4
+    image: verifiable-dataset/base:latest
+    metadata: {}
