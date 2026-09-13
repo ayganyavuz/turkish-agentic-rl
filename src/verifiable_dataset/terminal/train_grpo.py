@@ -428,7 +428,8 @@ def main() -> int:
                          "kesiliyordu ve kesilen episode odul 0 aliyordu: "
                          "korelasyon(odul, kesilme) = -0.51. Yani sinir bir "
                          "butce degil ortuk bir uzunluk cezasi haline geliyordu.")
-    ap.add_argument("--sandbox", choices=["docker", "yerel"], default="yerel")
+    ap.add_argument("--sandbox", choices=["docker", "singularity", "yerel"],
+                    default="yerel")
     ap.add_argument("--vllm-bellek", type=float, default=0.50,
                     help="Colocate'te vLLM'e ayrilan kart orani. Kisit uyku "
                          "fazinda degil URETIM fazinda: vLLM uyanikken egiticinin "
@@ -478,17 +479,10 @@ def main() -> int:
     ap.add_argument("--wandb", default="", help="wandb proje adi (bos = kapali)")
     args = ap.parse_args()
 
-    if args.sandbox == "yerel":
-        _sandbox.yerel_kullan(True)
-        ok, bilgi = _sandbox.bash_var()
-        if not ok:
-            print(f"yerel sandbox icin bash gerekli: {bilgi}")
-            return 1
-    else:
-        ok, bilgi = _sandbox.docker_available()
-        if not ok:
-            print(f"Docker daemon'a ulasilamiyor: {bilgi}")
-            return 1
+    ok, bilgi = _sandbox.sandbox_hazirla(args.sandbox)
+    if not ok:
+        print(f"{args.sandbox} sandbox kullanilamiyor: {bilgi}")
+        return 1
     print(f"sandbox: {args.sandbox} ({bilgi})")
 
     # Kesilme sessiz bir hata: episode yarim kalir, odul 0 gelir ve gradyan

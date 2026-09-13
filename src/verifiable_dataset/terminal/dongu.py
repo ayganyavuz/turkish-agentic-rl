@@ -113,6 +113,11 @@ def main() -> int:
     ap.add_argument("--taban-model", default="Qwen/Qwen3.5-4B",
                     help="epoch 1'in baslangic modeli")
     ap.add_argument("--epoch", type=int, default=5)
+    ap.add_argument("--sandbox", choices=["docker", "singularity", "yerel"],
+                    default="yerel",
+                    help="alt asamalara aynen gecirilir. MN5'te singularity: "
+                         "Docker yok, yerel modun izolasyonsuzlugu ise paylasimli "
+                         "makinede kabul edilemez (bkz. sandbox.LocalSandbox)")
     ap.add_argument("--kalici", default="/content/drive/MyDrive/turkish-agentic-rl",
                     help="checkpoint, olcum ve loglarin yazilacagi kalici dizin")
     ap.add_argument("--korpuslar", nargs="*", default=["envs_gen_code", "envs_gen"],
@@ -186,7 +191,7 @@ def main() -> int:
             cikti = K / "olcumler" / f"{bolum}-{etiket}-{korpus}.jsonl"
             kos(
                 "python -u -m verifiable_dataset.terminal.pipeline "
-                f"--asamalar bant --sandbox yerel --out {korpus} "
+                f"--asamalar bant --sandbox {args.sandbox} --out {korpus} "
                 "--model degerlendirme --base-url http://localhost:8000/v1 "
                 f"--split {args.split} --bolum {bolum} "
                 f"--rollouts {rollouts} --sicaklik {sicaklik} "
@@ -261,7 +266,7 @@ def main() -> int:
         print(f"\n[{epoch}] EGITIM -> {cikti}", flush=True)
         rc = kos(
             "python -u -m verifiable_dataset.terminal.train_grpo "
-            f"--model {model} --gorevler {liste} --sandbox yerel "
+            f"--model {model} --gorevler {liste} --sandbox {args.sandbox} "
             f"--rollouts {args.rollouts} --prompt-batch {args.prompt_batch} "
             f"--micro-batch {args.micro_batch} --epoch 1 --lr {args.lr} "
             f"--max-komut {args.max_komut} --max-completion {args.max_completion} "

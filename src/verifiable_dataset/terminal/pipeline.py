@@ -34,8 +34,7 @@ from verifiable_dataset.terminal.generate import generate_one
 from verifiable_dataset.terminal.llm import make_client, preflight, resolve_model
 from verifiable_dataset.terminal.prompts import prompt_yaz, yaz_bir
 from verifiable_dataset.terminal.runner import run_model
-from verifiable_dataset.terminal.sandbox import (bash_var, docker_available,
-                                                 yerel_kullan)
+from verifiable_dataset.terminal.sandbox import sandbox_hazirla
 from verifiable_dataset.terminal.seeds import sample, sample_kod
 from verifiable_dataset.terminal.sweep import summarize
 from verifiable_dataset.terminal.task import Task
@@ -460,9 +459,11 @@ def main() -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--asamalar", default=",".join(ASAMALAR),
                         help=f"virgulle ayrilmis: {', '.join(ASAMALAR)}")
-    parser.add_argument("--sandbox", choices=["docker", "yerel"], default="docker",
-                        help="yerel = Docker'siz (Colab); izolasyon yok. "
-                             "uret ve kapi asamalari Docker ister.")
+    parser.add_argument("--sandbox", choices=["docker", "singularity", "yerel"],
+                        default="docker",
+                        help="singularity = HPC (MN5); yerel = Docker'siz "
+                             "(Colab), izolasyon yok. uret ve kapi asamalari "
+                             "konteyner ister, yerelde kosmaz.")
     parser.add_argument("--n", type=int, default=10, help="uretilecek aday sayisi")
     parser.add_argument("--aile", choices=["kabuk", "kod", "karisik"],
                         default="kabuk",
@@ -541,24 +542,20 @@ def main() -> int:
               f"(gecerli: {', '.join(ASAMALAR)})")
         return 2
 
-    # Uretim asamalari Docker'siz kosmaz (kapilar konteyner aciyor); bant
-    # asamasi ise Colab'de yerel sandbox'la kosacak.
+    ok, info = sandbox_hazirla(args.sandbox)
+    if not ok:
+        print(f"{args.sandbox} sandbox kullanilamiyor: {info}")
+        return 1
+
+    # Uretim asamalari izolasyonsuz kosmaz (kapilar konteyner aciyor); bant
+    # asamasi ise Colab'de yerel sandbox'la kosacak. Singularity gercek bir
+    # konteyner verdigi icin bu kisit yalnizca yerel moda ait.
     if args.sandbox == "yerel":
-        yerel_kullan(True)
-        ok, info = bash_var()
-        if not ok:
-            print(f"yerel sandbox icin bash gerekli: {info}")
-            return 1
-        docker_isteyen = [a for a in istenen if a in ("uret", "kapi")]
-        if docker_isteyen:
+        kutu_isteyen = [a for a in istenen if a in ("uret", "kapi")]
+        if kutu_isteyen:
             print(f"yerel sandbox ile kosulamayan asamalar: "
-                  f"{', '.join(docker_isteyen)} (kapilar Docker istiyor)")
+                  f"{', '.join(kutu_isteyen)} (kapilar konteyner istiyor)")
             return 2
-    else:
-        ok, info = docker_available()
-        if not ok:
-            print(f"Docker daemon'a ulasilamiyor: {info}")
-            return 1
 
     model = resolve_model(args.model)
     if not model:
@@ -571,7 +568,7 @@ def main() -> int:
         print(f"UC KONTROLU BASARISIZ: {bilgi_uc}")
         return 2
     print(f"uc dogrulandi: {bilgi_uc}")
-    print(f"model={model}  asamalar={','.join(istenen)}  docker={info}")
+    print(f"model={model}  asamalar={','.join(istenen)}  {args.sandbox}={info}")
 
     sayac = TokenSayaci()
     client = _SayanClient(

@@ -23,8 +23,7 @@ from pathlib import Path
 from verifiable_dataset.terminal.derive import derive
 from verifiable_dataset.terminal.prompts import denetle as prompt_denetle
 from verifiable_dataset.terminal.equiv import run_alt
-from verifiable_dataset.terminal.sandbox import (bash_var, docker_available,
-                                                 yerel_kullan)
+from verifiable_dataset.terminal.sandbox import sandbox_hazirla
 from verifiable_dataset.terminal.seeds import tools_used, uses_tool
 from verifiable_dataset.terminal.task import Task
 
@@ -389,25 +388,19 @@ def main() -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--task", default="")
     parser.add_argument("--all", action="store_true")
-    parser.add_argument("--sandbox", choices=["docker", "yerel"],
+    parser.add_argument("--sandbox", choices=["docker", "singularity", "yerel"],
                         default="docker",
-                        help="yerel = Docker'siz (Colab); izolasyon yok")
+                        help="singularity = HPC (MN5); yerel = Docker'siz "
+                             "(Colab), izolasyon yok")
     parser.add_argument("--envs", default="envs")
     parser.add_argument("--spec-only", action="store_true",
                         help="prompt heniz yazilmamis adaylar icin prompt kapilarini atla")
     args = parser.parse_args()
 
-    if args.sandbox == "yerel":
-        yerel_kullan(True)
-        ok, info = bash_var()
-        if not ok:
-            print(f"yerel sandbox icin bash gerekli: {info}")
-            return 1
-    else:
-        ok, info = docker_available()
-        if not ok:
-            print(f"Docker daemon'a ulasilamiyor: {info}")
-            return 1
+    ok, info = sandbox_hazirla(args.sandbox)
+    if not ok:
+        print(f"{args.sandbox} sandbox kullanilamiyor: {info}")
+        return 1
 
     if args.all:
         task_dirs = sorted(p.parent for p in Path(args.envs).glob("*/task.yaml")

@@ -20,9 +20,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
-from verifiable_dataset.terminal.sandbox import BASH
-
-DOCKER = shutil.which("docker") or "docker"
+from verifiable_dataset.terminal.sandbox import (BASH, SandboxError,
+                                                 sandbox_yap)
 
 
 class CheckError(Exception):
@@ -280,28 +279,16 @@ def op_run_stdout_eq(root: Path, spec: dict) -> CheckResult:
             f"`{spec['cmd']}`: beklenen {expected!r}, bulunan {actual!r} "
             f"(exit={run.returncode}, stderr={run.stderr.strip()[:200]!r})")
 
+    # Motoru (docker/singularity) sandbox katmani seciyor: puanlama yolu
+    # bir zamanlar kendi `docker run`'ini aciyordu ve Singularity eklenince
+    # sweep kosup grade patlardi.
     workdir = spec.get("workdir", "/workspace")
-    proc = subprocess.run(
-        [DOCKER, "run", "-d", "--rm", "--network", "none", "--cpus", "1",
-         "--memory", "512m", "--pids-limit", "256", "--workdir", workdir,
-         image, "sleep", "300"],
-        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=120,
-    )
-    if proc.returncode != 0:
-        raise CheckError(f"grade konteyneri baslatilamadi: {proc.stderr.strip()}")
-    cid = proc.stdout.strip()
     try:
-        subprocess.run([DOCKER, "cp", f"{root}/.", f"{cid}:{workdir}"],
-                       capture_output=True, timeout=120, check=True)
-        run = subprocess.run(
-            [DOCKER, "exec", "--workdir", workdir, cid, "bash", "-lc", spec["cmd"]],
-            capture_output=True, text=True, encoding="utf-8", errors="replace",
-            timeout=spec.get("timeout", 30),
-        )
-    except subprocess.SubprocessError as e:
-        raise CheckError(f"grade komutu calistirilamadi: {e}") from e
-    finally:
-        subprocess.run([DOCKER, "kill", cid], capture_output=True, timeout=60)
+        with sandbox_yap(image=image, workdir=workdir) as kutu:
+            kutu.yukle(root)
+            run = kutu.exec(spec["cmd"], timeout=spec.get("timeout", 30))
+    except SandboxError as e:
+        raise CheckError(f"grade konteyneri baslatilamadi: {e}") from e
 
     actual, expected = run.stdout, str(spec["value"])
     if spec.get("strip", True):
@@ -309,7 +296,7 @@ def op_run_stdout_eq(root: Path, spec: dict) -> CheckResult:
     return CheckResult(
         "run_stdout_eq", actual == expected,
         f"`{spec['cmd']}`: beklenen {expected!r}, bulunan {actual!r} "
-        f"(exit={run.returncode}, stderr={run.stderr.strip()[:200]!r})",
+        f"(exit={run.exit_code}, stderr={run.stderr.strip()[:200]!r})",
     )
 
 
